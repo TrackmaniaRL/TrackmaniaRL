@@ -1,5 +1,10 @@
 # Przekazanie treningów na cztery komputery
 
+AKTUALNE: kontynuacjaPPO r2 od19:16:52Warszawa DZIAŁA, preflightREADY,
+eventtrain/resumed102400/50, targetTOTAL204800/100. W&B `65msv47w`.
+MonitorACTIVE15min; SAVE21:06:52/HARD21:16:52 Warszawa. Tylko końcowa ocenaCP100,
+bez zmiany frozenPPO/config/fingerprint, bezfull. Poniższa awariaforeground jest historią.
+
 Najnowsza instrukcja autoryzuje dokończeniePPO z CP50 z nowym limitem2h.
 Próba kontynuacji19:11 Warszawa zakończona PRZED treningiem: foreground preflight
 failed.6 tożsamości zamknięte/mutex wolny/CP50SHA i351pins zgodne.0 nowych aktualizacji.

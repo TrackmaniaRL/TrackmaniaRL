@@ -1,0 +1,13 @@
+{
+  "human_request": "Znaczy chyba dokoncz obecny pilot by dzis to skonczyc",
+  "deadline_authorization": "Tak, kontynuuj z limitem 2 h",
+  "checkpoint_sha256": "7fba0d9bf019aecc65ae6a7924a1614caa0841c9da0d30295e38522934a6dcb6",
+  "frozen_commit": "d8f2440b22f0dc595fe3946815f5d53de22ec1f9",
+  "preserved_supervisor_stop_sha256": "a07efaeb81fa6c021c7b7610d7893fc600e133a8bc96235f484ef32b1263f539",
+  "supervisor_helper_sha256": "89928103f891b08b394731265f7e43abe7075d79d7fdd8b70fa71157300a0b76",
+  "original_deadline_retained": false,
+  "authorized_continuation_seconds": 7200,
+  "configuration_changed": false,
+  "midpoint_repeated": false,
+  "full_training": false
+}

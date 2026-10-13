@@ -1,0 +1,18 @@
+{
+  "C:\\Users\\szulc\\.codex\\worktrees\\tmrl-training-fixes\\AITrackmania\\pilot_tools\\continue_ppo_trend.py": {
+    "sha256": "89928103f891b08b394731265f7e43abe7075d79d7fdd8b70fa71157300a0b76",
+    "mtime_ns": 1791911468496119400
+  },
+  "C:\\Users\\szulc\\.codex\\worktrees\\tmrl-training-fixes\\AITrackmania\\pilot_tools\\continue_ppo_trend_r2.py": {
+    "sha256": "74c9a584505bb3437a9bccb9b2f18a16dc27755bb11a1e457ebe70def9789c71",
+    "mtime_ns": 1791911792102726100
+  },
+  "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\ppo-trend-20261013\\STOP": {
+    "sha256": "a07efaeb81fa6c021c7b7610d7893fc600e133a8bc96235f484ef32b1263f539",
+    "mtime_ns": 1791904210824922100
+  },
+  "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\ppo-trend-continuation-20261013\\STOP": {
+    "sha256": "a07efaeb81fa6c021c7b7610d7893fc600e133a8bc96235f484ef32b1263f539",
+    "mtime_ns": 1791911495041216000
+  }
+}

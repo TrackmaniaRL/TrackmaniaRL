@@ -1,5 +1,10 @@
 # Gotowość — 8 października 2026
 
+AKTUALNE13 października19:18Warszawa: kontynuacjaPPO r2 DZIAŁA. PreflightREADY,
+train/resumed potwierdza102400/50 z CP50; ta sama frozenkonfiguracja, targetTOTAL204800/100.
+W&B `65msv47w`; monitorACTIVE15min. SAVE21:06:52/HARD21:16:52 Warszawa.
+Pierwotna próba kontynuacji poniżej jest zamkniętą historią. Full nadalBLOCKED.
+
 Najnowszy stan13 października19:11 Warszawa: człowiek autoryzował dokończeniePPO
 z CP50 z nowym limitem2h. Osobna kontynuacja zatrzymana w preflight przed treningiem:
 nie można ustawić Trackmanii na pierwszym planie. Wszystkie procesy zamknięte,

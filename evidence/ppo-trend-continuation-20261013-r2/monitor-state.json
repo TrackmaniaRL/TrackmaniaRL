@@ -1,0 +1,93 @@
+{
+  "checked_at": "2026-10-13T17:18:22.732248+00:00",
+  "stage": "train-and-final-evaluation",
+  "status": "RUNNING",
+  "launcher": {
+    "pid": 36212,
+    "create_time": 1791911808.043826
+  },
+  "wrapper": {
+    "pid": 40912,
+    "create_time": 1791911807.998136
+  },
+  "owned_identities": [
+    {
+      "pid": 6420,
+      "create_time": 1791911818.387715,
+      "alive": true
+    },
+    {
+      "pid": 22052,
+      "create_time": 1791911832.2292807,
+      "alive": false
+    },
+    {
+      "pid": 42632,
+      "create_time": 1791911827.4640577,
+      "alive": true
+    },
+    {
+      "pid": 45352,
+      "create_time": 1791911824.8779712,
+      "alive": true
+    },
+    {
+      "pid": 47340,
+      "create_time": 1791911838.6884203,
+      "alive": false
+    },
+    {
+      "pid": 48688,
+      "create_time": 1791911818.3584013,
+      "alive": true
+    },
+    {
+      "pid": 49984,
+      "create_time": 1791911818.368872,
+      "alive": true
+    },
+    {
+      "pid": 36212,
+      "create_time": 1791911808.043826,
+      "alive": true
+    },
+    {
+      "pid": 40912,
+      "create_time": 1791911807.998136,
+      "alive": true
+    },
+    {
+      "pid": 27768,
+      "create_time": 1791911808.0071292,
+      "alive": true
+    }
+  ],
+  "counters": {
+    "episodes": 112,
+    "transitions": 102400,
+    "updates": 50
+  },
+  "resume_event": {
+    "elapsed_s": 17.047909,
+    "event": "train/resumed",
+    "payload": {
+      "checkpoint": "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\tmrl-ppo-trend-s17\\checkpoints\\update-00000050.pt",
+      "counters": {
+        "episodes": 112,
+        "transitions": 102400,
+        "updates": 50
+      }
+    },
+    "run_id": "tmrl-ppo-trend-s17",
+    "schema_version": "1.0",
+    "segment_id": "cae6d86b511b41b39afdc936a78610ef",
+    "step": 50,
+    "timestamp_utc": "2026-10-13T17:17:18.681575+00:00"
+  },
+  "errors": [],
+  "notified_state": "STARTED",
+  "cadence_minutes": 15,
+  "automation_id": "ppo-pilot-trendu-co-15-minut",
+  "save_at": "2026-10-13T19:06:52.330600+00:00",
+  "hard_at": "2026-10-13T19:16:52.330600+00:00"
+}

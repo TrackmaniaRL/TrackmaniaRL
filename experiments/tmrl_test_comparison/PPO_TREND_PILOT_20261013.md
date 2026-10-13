@@ -83,6 +83,24 @@ plan przypina ich źródła oraz zainstalowany plugin, assety, kalibrację i fin
 
 ## Zamknięcie i diagnoza — 13 października 2026
 
+### Aktualna kontynuacja r2 — ACTIVE
+
+Po bezpośrednim „no rób” osobna kolejka `ppo-trend-continuation-20261013-r2`
+wystartowała17:16:52.330600 UTC=19:16:52 Warszawa. PreflightREADY10ms/33fields/58reads,
+właściwyUID. Event `train/resumed`17:17:18 UTC potwierdza CP50,102400 kroków/50updates,
+nowy segment `cae6d86b511b41b39afdc936a78610ef`; bez nowego losowego startu.
+W&B kontynuacji `65msv47w` (pierwszy segment `mbf6v73g` pozostaje historyczny).
+Nowy jawnie autoryzowany SAVE21:06:52/HARD21:16:52 Warszawa, targetTOTAL204800/100.
+Monitor `ppo-pilot-trendu-co-15-minut` ponownieACTIVE15min, raport po końcowej ocenie
+lub awarii. Bezfull/ponownego midpoint50/zmiany algorytmu,config,fingerprint,Adama.
+Frozen nadal `d8f2440b22f0dc595fe3946815f5d53de22ec1f9`; helperr2 tylko deleguje
+oryginalnemu nadzorcy do NOWEJ kolejki po weryfikacji closure pierwszej próby.
+Użyte helpery i zachowaneSTOP mają SHA+mtime w `source-identity.json`; nie edytować.
+Wrapper40912ctime1791911807.998136, launcher36212ctime1791911808.043826.
+Actual receipts w kolejce, snapshots w `evidence/ppo-trend-continuation-20261013-r2/`.
+RuffPASS; pierwszy mypy zgłosił wyłącznie dynamiczne przypisanie QUEUE do modułu
+załadowanego przez importlib (attr-defined); nie jest to test treningu ani claimmypyPASS.
+
 ### Autoryzowana kontynuacja: preflight zatrzymany, trening nie ruszył
 
 Późniejsza instrukcja człowieka „dokoncz obecny pilot”, następnie jawne
