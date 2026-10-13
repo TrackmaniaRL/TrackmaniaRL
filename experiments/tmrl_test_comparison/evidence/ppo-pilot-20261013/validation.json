@@ -1,0 +1,64 @@
+{
+  "verified_at": "2026-10-13T09:24:56.746255+00:00",
+  "status": "PREPARED_NOT_LAUNCHED",
+  "run_id": "tmrl-ppo-p13-prefix-s17",
+  "source_commit": "9c3079c24cd04df06c7472502d38cbd785b2643a",
+  "frozen_runtime": "H:/Studia/inzynierskie/inzynierkav2/AITrackmania/artifacts/tmrl-test-comparison/ppo-pilot-runtime-20261013",
+  "frozen_runtime_clean": true,
+  "source_pin_count": 347,
+  "actual_prepare_command": "PASS",
+  "actual_verify_command": "PASS",
+  "actual_installed_powershell_wrapper_default_preview": "PASS: PowerShell 7.6.6, no -Launch",
+  "run_fingerprint": "993880767da85f8b2acad52ac9e00ac049fe0c09b5b999d9d91ddca332ad4b90",
+  "config_sha256": "976225818072f35c42a12bc2379d57ebc02e1af2f50eaaece7dcb29c67699a1c",
+  "total_transitions": 145408,
+  "rollout_length": 2048,
+  "expected_complete_updates": 71,
+  "learning_rate_schedule_horizon": 8192000,
+  "evaluation_trials": 10,
+  "minimum_finishes": 8,
+  "maximum_decision_interval_ms": 100,
+  "maximum_runtime_seconds": 14400,
+  "save_request_at_seconds": 13800,
+  "tests": {
+    "passed": 51,
+    "failed": 0,
+    "command_scope": [
+      "tests/integration/runtime/test_ppo_fresh_pilot.py",
+      "tests/unit/learning/test_ppo_warmup.py",
+      "tests/integration/runtime/test_ppo_evaluation_lifecycle.py",
+      "tests/integration/runtime/test_comparison_launcher.py"
+    ],
+    "final_preparation_guard_recheck": "22 passed",
+    "learning_rate_comparison": "All first 71 rates exactly match the long-campaign PPO; Adam defaults and initialized weights match; zero optimizer steps in this comparison",
+    "covered_rejections": ["STOP before launch", "used identity", "config mutation", "cap extension", "restricted/old shell", "invalid UID/SHA/timing/interruption/duplicate trials"],
+    "hard_deadline_control": "Save request at 13800, termination only of captured own PID/create_time at 14400; no completion claim"
+  },
+  "ruff": "PASS: pilot_tools and fresh pilot tests",
+  "mypy": "PASS: 3 pilot_tools Python files; follow-imports=silent",
+  "powershell_syntax": "PASS",
+  "original_15_job_campaign_verify": "PASS; unchanged frozen configurations/source pins",
+  "preserved_global_stop_sha256": "b6916cdf60cde4f434b8c3e134b92bca41878a0f68b9a9183dae1eeda0f116eb",
+  "global_stop_active": true,
+  "launch_receipt_exists": false,
+  "training_run_directory_exists": false,
+  "private_env_copied": false,
+  "game_reset_or_controller_created": false,
+  "actual_driving_result": null,
+  "automatic_full_training": false,
+  "sd_sac_automation": "PAUSED, 15-minute cadence preserved",
+  "verification_corrections": [
+    "Initial lint/type findings corrected before final PASS",
+    "Windows environment variable case handling corrected and tested without exposing inherited environment variables"
+  ],
+  "remaining_before_real_start": [
+    "Human resolution of preserved global STOP",
+    "Fresh bounded game preflight and actual driving/timing evaluation",
+    "W&B network access has not been verified by a training run"
+  ],
+  "remaining_before_long_campaign": [
+    "Current drives do not meet 100 GiB free-space gate",
+    "Align the existing long-campaign supervisor's explicit PowerShell 5.1 selection with the newly installed PowerShell 7 in a new frozen plan",
+    "Review real PPO pilot outcome before committing to multi-day PPO runs"
+  ]
+}
