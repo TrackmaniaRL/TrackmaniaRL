@@ -14,9 +14,12 @@ podmianie statusu. Interwencja STOP zamknęła trening z checkpointem 4096 krok�
 Oceny jazdy nie wykonano. Poprawiono bounded retry zapisu i sprzątanie dzieci
 przy wyjątku; 57 testów PASS, w tym rzeczywisty Windows reader lock.
 Źródło r2 niezmienione, kolejka wykorzystana i zatrzymana; nie resume/restart.
-Świeży r3 `tmrl-ppo-p13-prefix-r3-s17` wystartował 10:14:51 UTC (12:14 Warszawa),
-preflight PASS (33 pola, 61 odczytów, 30 ms), W&B `brczyy2x`, trening rozpoczęty.
-SAVE 14:04:51 UTC, HARD 14:14:51 UTC. Brak jeszcze oceny jakości jazdy.
+R3 `tmrl-ppo-p13-prefix-r3-s17` zakończony normalnie 12:31:46 UTC (14:31 Warszawa):
+145408 kroków/71 aktualizacji, 10 kompletnych ocen, **3/10 met — FAIL bramki 8/10**.
+Brak błędu runtime/telemetrii/kontrolera, poprawne UID, max odstęp 50 ms.
+Checkpoint finite/fingerprint/budget/SHA PASS, pins PASS, wszystkie 15 zapisanych
+oryginalnych procesów zamknięte, mutex wolny. Pełny trening PPO nadal zablokowany.
+Dowód: `evidence/ppo-pilot-20261013-r3/post-closure-verification.json`.
 Próg dysku dla długiej kampanii nadal nie jest spełniony.
 
 Kampania na czterech komputerach jest **PREPARED_NOT_LAUNCHED**: pięć algorytmów,

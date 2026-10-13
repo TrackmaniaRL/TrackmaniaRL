@@ -1,0 +1,66 @@
+{
+  "started_at": "2026-10-13T10:14:51.926420+00:00",
+  "status": "COMPLETE",
+  "run_id": "tmrl-ppo-p13-prefix-r3-s17",
+  "launcher": {
+    "pid": 38736,
+    "create_time": 1791886487.405346
+  },
+  "owned_identities": [
+    {
+      "pid": 7720,
+      "create_time": 1791886497.9083297
+    },
+    {
+      "pid": 27200,
+      "create_time": 1791886504.8909311
+    },
+    {
+      "pid": 34900,
+      "create_time": 1791886497.9165764
+    },
+    {
+      "pid": 37676,
+      "create_time": 1791886504.8947835
+    },
+    {
+      "pid": 38548,
+      "create_time": 1791886504.9180627
+    },
+    {
+      "pid": 39344,
+      "create_time": 1791886518.876273
+    },
+    {
+      "pid": 41372,
+      "create_time": 1791886518.8673284
+    },
+    {
+      "pid": 42660,
+      "create_time": 1791886497.935822
+    },
+    {
+      "pid": 43300,
+      "create_time": 1791886504.8967793
+    },
+    {
+      "pid": 43832,
+      "create_time": 1791886502.583962
+    },
+    {
+      "pid": 43840,
+      "create_time": 1791886519.7929056
+    }
+  ],
+  "stop_reason": null,
+  "stage": "train-and-final-evaluation",
+  "elapsed_seconds": 8213.7,
+  "surviving_identities": [],
+  "returncode": 0,
+  "ended_at": "2026-10-13T12:31:46.554067+00:00",
+  "checkpoint": "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\tmrl-ppo-p13-prefix-r3-s17\\checkpoints\\update-00000071.pt",
+  "checkpoint_sha256": "f9b5a4309f9e9ce5bce77a2b08c77cb4212400ed7c47d94e9e206d884532ab96",
+  "finishes": 3,
+  "gate_passed": false,
+  "automatic_full_training": false
+}
