@@ -27,8 +27,8 @@ from trackmaniarl.core.spec import RunSpec
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = Path("H:/Studia/inzynierskie/inzynierkav2/AITrackmania/artifacts/tmrl-test-comparison")
-DIRECTORY = BASE / "ppo-pilot-20261013-r2"
-RUN_ID = "tmrl-ppo-p13-prefix-r2-s17"
+DIRECTORY = BASE / "ppo-pilot-20261013-r3"
+RUN_ID = "tmrl-ppo-p13-prefix-r3-s17"
 BUDGET = 145_408
 HORIZON = 8_192_000
 MAP_UID = "oqIJ5rQDRrNwLPTh9H2p_W4tLof"
@@ -224,12 +224,20 @@ def verify() -> dict[str, Any]:
 
 def observed_status(plan: dict[str, Any]) -> str:
     """Verification checks pins; status must reflect an already attempted launch."""
-    for name in ("status.json", "launch.json"):
+    for name in ("supervisor-failure.json", "status.json", "launch.json"):
         path = DIRECTORY / name
         if path.exists():
             state = json.loads(path.read_text(encoding="utf-8"))
             if state.get("run_id") != RUN_ID:
                 raise RuntimeError("Pilot status belongs to another run")
+            if state["status"] in {"RUNNING", "SAVING"}:
+                identity = state["launcher"]
+                try:
+                    process = psutil.Process(identity["pid"])
+                    if abs(process.create_time() - identity["create_time"]) > 0.001:
+                        return "SUPERVISOR_LOST"
+                except psutil.NoSuchProcess:
+                    return "SUPERVISOR_LOST"
             return str(state["status"])
     return str(plan["status"])
 
@@ -398,12 +406,67 @@ def pilot_measurement(checkpoint: Path, evaluation: dict[str, Any]) -> int:
 
 def _save_status(state: dict[str, Any]) -> None:
     temporary = DIRECTORY / "status.tmp"
-    temporary.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
-    temporary.replace(DIRECTORY / "status.json")
+    payload = json.dumps(state, indent=2) + "\n"
+    for attempt in range(20):
+        try:
+            temporary.write_text(payload, encoding="utf-8")
+            temporary.replace(DIRECTORY / "status.json")
+            return
+        except PermissionError:
+            # Windows readers/antivirus may briefly deny delete-sharing. Keep
+            # the old complete snapshot and retry within one bounded second.
+            if attempt == 19:
+                raise
+            time.sleep(0.05)
 
 
 def _run_stage(
     plan: dict[str, Any], state: dict[str, Any], command: tuple[str, list[str], float]
+) -> None:
+    owned: dict[tuple[int, float], psutil.Process] = {}
+    try:
+        _run_stage_owned(plan, state, command, owned)
+    except BaseException as error:
+        # Close cached children before unwinding the controller lease, including
+        # when status publication itself is the failing operation.
+        try:
+            with (DIRECTORY / "STOP").open("x", encoding="utf-8") as target:
+                target.write("supervisor_failure\n")
+        except FileExistsError:
+            pass
+        except OSError:
+            for process in owned.values():
+                if process.is_running():
+                    process.terminate()
+        for known in list(owned.values()):
+            try:
+                if known.is_running():
+                    for descendant in known.children(recursive=True):
+                        owned[(descendant.pid, descendant.create_time())] = descendant
+            except psutil.NoSuchProcess:
+                pass
+        alive = wait_for_owned_processes(owned.values(), timeout=30)
+        for process in reversed(alive):
+            if process.is_running():
+                process.terminate()
+        alive = wait_for_owned_processes(owned.values(), timeout=30)
+        state.update(
+            status="STOPPED_OR_FAILED",
+            error_type=type(error).__name__,
+            ended_at=datetime.now(UTC).isoformat(),
+            owned_identities=[{"pid": p, "create_time": t} for p, t in sorted(owned)],
+            surviving_identities=[{"pid": p.pid, "create_time": p.create_time()} for p in alive],
+        )
+        with (DIRECTORY / "supervisor-failure.json").open("x", encoding="utf-8") as target:
+            target.write(json.dumps(state, indent=2) + "\n")
+        raise
+
+
+def _run_stage_owned(  # noqa: PLR0913
+    plan: dict[str, Any],
+    state: dict[str, Any],
+    command: tuple[str, list[str], float],
+    owned: dict[tuple[int, float], psutil.Process],
 ) -> None:
     name, arguments, started = command
     environment = dict(
@@ -413,7 +476,6 @@ def _run_stage(
         WANDB_ENTITY=plan["wandb_entity"],
         WANDB_MODE="online",
     )
-    owned: dict[tuple[int, float], psutil.Process] = {}
     stop_file = DIRECTORY / "STOP"
     stage_started = time.monotonic()
     with (DIRECTORY / f"{name}.log").open("x", encoding="utf-8") as log:

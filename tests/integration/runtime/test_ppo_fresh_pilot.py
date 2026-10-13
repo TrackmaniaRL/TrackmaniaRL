@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import copy
 import json
+import sys
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -96,6 +98,17 @@ def test_verification_reports_actual_failed_launch(prepared: dict) -> None:
     assert pilot.observed_status(pilot.verify()) == "STOPPED_OR_FAILED"
 
 
+def test_dead_supervisor_cannot_report_running(
+    prepared: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (pilot.DIRECTORY / "status.json").write_text(
+        json.dumps({"run_id": pilot.RUN_ID, "status": "RUNNING",
+                    "launcher": {"pid": 123, "create_time": 1.0}})
+    )
+    monkeypatch.setattr(pilot.psutil, "Process", lambda _: SimpleNamespace(create_time=lambda: 2.0))
+    assert pilot.observed_status(pilot.verify()) == "SUPERVISOR_LOST"
+
+
 def test_changed_plugin_blocks_verification(
     prepared: dict, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -113,6 +126,100 @@ def test_duplicate_plugin_is_rejected(tmp_path: Path, monkeypatch: pytest.Monkey
     (tmp_path / "Plugins/TrackmaniaRL_Connect").mkdir()
     with pytest.raises(RuntimeError, match="Duplicate telemetry plugin"):
         pilot.plugin_state()
+
+
+def test_status_retries_sharing_violation_without_losing_old_snapshot(
+    prepared: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    status = pilot.DIRECTORY / "status.json"
+    status.write_text('{"status":"old"}')
+    replace = Path.replace
+    calls = []
+
+    def transient(path: Path, target: Path) -> Path:
+        calls.append(path)
+        if len(calls) < 3:
+            assert json.loads(status.read_text())["status"] == "old"
+            raise PermissionError("sharing violation")
+        return replace(path, target)
+
+    monkeypatch.setattr(Path, "replace", transient)
+    monkeypatch.setattr(pilot.time, "sleep", lambda _: None)
+    pilot._save_status({"status": "new"})
+    assert len(calls) == 3
+    assert json.loads(status.read_text())["status"] == "new"
+
+
+def test_permanent_status_lock_has_bounded_retries(
+    prepared: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = []
+
+    def locked(_path: Path, _target: Path) -> Path:
+        calls.append(1)
+        raise PermissionError("permanent lock")
+
+    monkeypatch.setattr(Path, "replace", locked)
+    monkeypatch.setattr(pilot.time, "sleep", lambda _: None)
+    with pytest.raises(PermissionError, match="permanent lock"):
+        pilot._save_status({"status": "new"})
+    assert len(calls) == 20
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows delete-sharing regression")
+def test_status_handles_real_windows_reader_lock(prepared: dict) -> None:
+    status = pilot.DIRECTORY / "status.json"
+    status.write_text('{"status":"old"}')
+    reader = status.open("r")
+    release = threading.Timer(0.2, reader.close)
+    release.start()
+    try:
+        pilot._save_status({"status": "new"})
+    finally:
+        release.join()
+        reader.close()
+    assert json.loads(status.read_text())["status"] == "new"
+
+
+def test_supervisor_error_closes_cached_children_even_when_status_is_unwritable(
+    prepared: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    terminated = []
+
+    class Child:
+        pid = 123
+
+        def is_running(self) -> bool:
+            return not terminated
+
+        def children(self, *, recursive: bool) -> list:
+            return []
+
+        def create_time(self) -> float:
+            return 1230.0
+
+        def terminate(self) -> None:
+            terminated.append(self.pid)
+
+    child = Child()
+
+    def failing_stage(_plan: dict, _state: dict, _command: tuple, owned: dict) -> None:
+        owned[(child.pid, child.create_time())] = child
+        raise PermissionError("status locked permanently")
+
+    def wait(owned: object, *, timeout: float) -> list:
+        assert (pilot.DIRECTORY / "STOP").exists()
+        assert list(owned) == [child]
+        return [] if terminated else [child]
+
+    monkeypatch.setattr(pilot, "_run_stage_owned", failing_stage)
+    monkeypatch.setattr(pilot, "wait_for_owned_processes", wait)
+    with pytest.raises(PermissionError, match="locked permanently"):
+        pilot._run_stage(prepared, {}, ("train-and-final-evaluation", [], 0))
+    assert terminated == [123]
+    failure = json.loads((pilot.DIRECTORY / "supervisor-failure.json").read_text())
+    assert failure["status"] == "STOPPED_OR_FAILED"
+    assert failure["surviving_identities"] == []
 
 
 def test_changed_pilot_yaml_blocks_launch(prepared: dict) -> None:

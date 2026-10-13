@@ -1,9 +1,11 @@
 # Przekazanie treningów na cztery komputery
 
-13 października: lokalny pilot `tmrl-ppo-p13-prefix-r2-s17` działa od 10:04:27 UTC,
+13 października: lokalny pilot `tmrl-ppo-p13-prefix-r2-s17` wystartował 10:04:27 UTC,
 preflight PASS (33 pola, poprawna mapa, zegar 10 ms), W&B `puhyz84h`.
-Ocena 10 przejazdów jest dopiero przed nim. Limit 4 h, SAVE 13:54:27 UTC,
-HARD 14:04:27 UTC. Nie uruchamiaj ponownie ani kolejki r2, ani wcześniejszej
+Został zatrzymany po awarii zapisu statusu launchera (Windows WinError5):
+4096 kroków/2 aktualizacje, checkpoint zachowany, wszystkie procesy zamknięte,
+mutex wolny. Oceny jazdy nie wykonano. Naprawa nadzoru przeszła 57 testów,
+w tym rzeczywistą blokadę pliku Windows. Nie uruchamiaj ponownie ani kolejki r2, ani wcześniejszej
 `ppo-pilot-20261013`, która zakończyła się przed treningiem.
 Nie uruchamiaj kampanii/full na podstawie samego startu pilota.
 Szczegóły: [PPO_PILOT_20261013.md](PPO_PILOT_20261013.md).

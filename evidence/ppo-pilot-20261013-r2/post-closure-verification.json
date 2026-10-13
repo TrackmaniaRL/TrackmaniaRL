@@ -1,0 +1,22 @@
+{
+  "checked_at": "2026-10-13T10:12:45Z",
+  "status": "STOPPED_OR_FAILED",
+  "run_id": "tmrl-ppo-p13-prefix-r2-s17",
+  "failure": "Windows PermissionError WinError 5 replacing status.tmp with status.json; launcher exited while training was still active",
+  "intervention": "Created this queue's STOP; observed graceful save and training closure",
+  "training_transitions": 4096,
+  "training_updates": 2,
+  "checkpoint": "update-00000002.pt",
+  "checkpoint_sha256": "20946657a1096b18b5e7ebc5126e0482707d93dd36b5dbd0cdc8c2f93c8f98f3",
+  "all_10_recorded_pid_ctime_identities_closed": true,
+  "controller_mutex_free": true,
+  "evaluation_performed": false,
+  "gate_passed": false,
+  "old_status_snapshot_is_stale": true,
+  "restart_or_resume": false,
+  "source_runtime_edited": false,
+  "new_guard_regressions": "Transient sharing denial, real Windows reader lock, permanent denial retry bound, cached-child cleanup and supervisor-loss status",
+  "tests_passed": 57,
+  "ruff": "PASS",
+  "mypy": "PASS"
+}

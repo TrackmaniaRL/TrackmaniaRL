@@ -8,8 +8,12 @@ Stary STOP zachowano w archiwum pierwszej kolejki po autoryzacji człowieka.
 Pierwsza próba zatrzymała się na timeout telemetrii przed treningiem, procesy
 zamknięte. Po trzech kontrolach resetu PASS wystartował świeży pilot
 `tmrl-ppo-p13-prefix-r2-s17` o 10:04:27 UTC (12:04 Warszawa); preflight PASS,
-W&B `puhyz84h`, potwierdzony komunikat `Training started`. Brak jeszcze wyniku
-oceny jazdy. SAVE 13:54:27 UTC, HARD 14:04:27 UTC; bez retry lub automatycznego full.
+W&B `puhyz84h`. Następnie launcher zakończył się przez Windows WinError5 przy
+podmianie statusu. Interwencja STOP zamknęła trening z checkpointem 4096 kroków/
+2 aktualizacji; wszystkie zarejestrowane procesy zamknięte, mutex wolny.
+Oceny jazdy nie wykonano. Poprawiono bounded retry zapisu i sprzątanie dzieci
+przy wyjątku; 57 testów PASS, w tym rzeczywisty Windows reader lock.
+Źródło r2 niezmienione, kolejka wykorzystana i zatrzymana; nie resume/restart.
 Próg dysku dla długiej kampanii nadal nie jest spełniony.
 
 Kampania na czterech komputerach jest **PREPARED_NOT_LAUNCHED**: pięć algorytmów,
