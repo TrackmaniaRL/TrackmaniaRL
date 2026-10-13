@@ -1,0 +1,36 @@
+{
+  "started_at": "2026-10-13T17:11:24.936558+00:00",
+  "original_started_at": "2026-10-13T13:28:06.412619+00:00",
+  "status": "STOPPED_OR_FAILED",
+  "run_id": "tmrl-ppo-trend-s17",
+  "launcher": {
+    "pid": 37116,
+    "create_time": 1791911480.451469
+  },
+  "stop_reason": null,
+  "owned_identities": [
+    {
+      "pid": 14024,
+      "create_time": 1791911487.8465512
+    },
+    {
+      "pid": 48360,
+      "create_time": 1791911484.953128
+    },
+    {
+      "pid": 49176,
+      "create_time": 1791911484.9397056
+    },
+    {
+      "pid": 51080,
+      "create_time": 1791911484.9707837
+    }
+  ],
+  "automatic_full_training": false,
+  "stage": "preflight",
+  "elapsed_seconds": 9.61,
+  "surviving_identities": [],
+  "returncode": 1,
+  "error_type": "RuntimeError",
+  "ended_at": "2026-10-13T17:11:35.042215+00:00"
+}

@@ -1,5 +1,11 @@
 # Przekazanie treningów na cztery komputery
 
+Najnowsza instrukcja autoryzuje dokończeniePPO z CP50 z nowym limitem2h.
+Próba kontynuacji19:11 Warszawa zakończona PRZED treningiem: foreground preflight
+failed.6 tożsamości zamknięte/mutex wolny/CP50SHA i351pins zgodne.0 nowych aktualizacji.
+Potrzebna interwencja użytkownika: Trackmania na pierwszym planie/odblokowany pulpit.
+Nie restartuj użytej kolejki kontynuacji. Monitor nadalPAUSED, fullBLOCKED.
+
 Lokalny pilot `tmrl-ppo-trend-s17` ZAMKNIĘTY17:10 Warszawa:102400/204800 kroków,
 50/100 aktualizacji. Ocena pośrednia10/10, średnia51,963s, lecz max130ms>100ms;
 zatrzymany przez walidację czasu, bez końcowej oceny. W&B `mbf6v73g`.

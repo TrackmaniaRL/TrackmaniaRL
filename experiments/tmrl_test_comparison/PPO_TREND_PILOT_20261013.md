@@ -83,6 +83,27 @@ plan przypina ich źródła oraz zainstalowany plugin, assety, kalibrację i fin
 
 ## Zamknięcie i diagnoza — 13 października 2026
 
+### Autoryzowana kontynuacja: preflight zatrzymany, trening nie ruszył
+
+Późniejsza instrukcja człowieka „dokoncz obecny pilot”, następnie jawne
+„Tak, kontynuuj z limitem 2 h” autoryzowała pozostałe50 rolloutów z CP50 na
+oryginalnym frozen/runtime/config/fingerprint, bez powtórzenia oceny50.
+Pierwotny deadline został jawnie zastąpiony nowym limitem7200s, SAVE6600s.
+Osobny supervisor `pilot_tools/continue_ppo_trend.py` i kolejka
+`ppo-trend-continuation-20261013` zachowują oryginalneSTOP/receipts; tylko dokładny
+supervisorSTOP z poprzedniej próby był superseded po jawnej zgodzie człowieka,
+z kontrolą jegoSHA co tick. InneSTOP nadal zatrzymują. Bez zmianyPPO/replay.
+
+Wywołanie17:11:24 UTC (19:11 Warszawa) zatrzymało się17:11:35 UTC PRZED treningiem:
+`SetForegroundWindow=0`, target593400, foreground1574646,20 prób/5s.
+Nie obchodzono zabezpieczenia i nie ponowiono startu. Wszystkie6 obserwowanych
+tożsamości zamknięte, mutex wolny,351pins zgodne, CP50SHA niezmieniony,
+0 dodatkowych aktualizacji. Monitor pozostajePAUSED, bo nie ma aktywnego treningu.
+Do kontynuacji potrzebna interwencja: odblokowana sesja i Trackmania na pierwszym
+planie. Użyta kolejka nie może być restartowana; następny start wymaga osobnej
+kolejki i świeżego preflight. Dowody: `evidence/ppo-trend-continuation-20261013/`.
+Supervisor przeszedł Ruff/mypy i read-only validate przed uruchomieniem.
+
 Pilot zakończył się błędem walidacji pośredniej15:10:10 UTC (17:10 Warszawa),
 po102400 krokach/50 aktualizacjach, bez wznowienia i bez końcowej oceny.
 Wszystkie10 przejazdów ukończone: średnia51,963s, mediana51,885s, najlepszy51,12s.

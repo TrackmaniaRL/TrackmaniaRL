@@ -1,5 +1,11 @@
 # Gotowość — 8 października 2026
 
+Najnowszy stan13 października19:11 Warszawa: człowiek autoryzował dokończeniePPO
+z CP50 z nowym limitem2h. Osobna kontynuacja zatrzymana w preflight przed treningiem:
+nie można ustawić Trackmanii na pierwszym planie. Wszystkie procesy zamknięte,
+0 nowych aktualizacji, CP50 i351pins zgodne. Potrzebna gotowa gra na pierwszym
+planie; monitor nadalPAUSED. Szczegóły w dokumencie pilota.
+
 **tmrl-ppo-trend-s17 zamknięty 13 października o17:10 Warszawa** po102400 krokach/50 aktualizacjach.
 Ocena pośrednia10/10, średnia51,963s, ale jedna decyzja130ms przekroczyła limit100ms.
 Końcowej oceny ani pełnego budżetu204800 nie wykonano; full nadal BLOCKED.

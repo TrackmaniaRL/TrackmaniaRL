@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-13T17:11:27.766278+00:00",
+  "config": "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\ppo-trend-20261013\\ppo.yaml",
+  "runtime": "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\ppo-trend-runtime-20261013",
+  "status": "failed",
+  "phase": "reset",
+  "map_uid": "oqIJ5rQDRrNwLPTh9H2p_W4tLof",
+  "race_time_ms": null,
+  "finished": null,
+  "read_count": 0,
+  "fields": null,
+  "reason": "RuntimeError: Trackmania foreground verification failed: SetForegroundWindow=0, target=593400, foreground=1574646, attempts=20, timeout_s=5.0"
+}

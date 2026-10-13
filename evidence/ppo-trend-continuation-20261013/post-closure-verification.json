@@ -1,0 +1,58 @@
+{
+  "checked_at": "2026-10-13T17:12:31.585008+00:00",
+  "outcome": "PREFLIGHT_FOREGROUND_FAILURE",
+  "all_owned_closed": true,
+  "owned_identities": [
+    {
+      "pid": 14024,
+      "create_time": 1791911487.8465512,
+      "alive": false
+    },
+    {
+      "pid": 48360,
+      "create_time": 1791911484.953128,
+      "alive": false
+    },
+    {
+      "pid": 49176,
+      "create_time": 1791911484.9397056,
+      "alive": false
+    },
+    {
+      "pid": 51080,
+      "create_time": 1791911484.9707837,
+      "alive": false
+    },
+    {
+      "pid": 37116,
+      "create_time": 1791911480.451469,
+      "alive": false
+    },
+    {
+      "pid": 50284,
+      "create_time": 1791911480.3949227,
+      "alive": false
+    }
+  ],
+  "mutex_free": true,
+  "source_pins_valid": true,
+  "source_pin_count": 351,
+  "checkpoint_sha256": "7fba0d9bf019aecc65ae6a7924a1614caa0841c9da0d30295e38522934a6dcb6",
+  "training_launched": false,
+  "additional_optimizer_updates": 0,
+  "preflight": {
+    "at": "2026-10-13T17:11:27.766278+00:00",
+    "config": "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\ppo-trend-20261013\\ppo.yaml",
+    "runtime": "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\ppo-trend-runtime-20261013",
+    "status": "failed",
+    "phase": "reset",
+    "map_uid": "oqIJ5rQDRrNwLPTh9H2p_W4tLof",
+    "race_time_ms": null,
+    "finished": null,
+    "read_count": 0,
+    "fields": null,
+    "reason": "RuntimeError: Trackmania foreground verification failed: SetForegroundWindow=0, target=593400, foreground=1574646, attempts=20, timeout_s=5.0"
+  },
+  "monitor_status": "PAUSED",
+  "stop_preserved": true
+}
