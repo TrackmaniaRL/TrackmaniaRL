@@ -9,6 +9,9 @@ w tym rzeczywistą blokadę pliku Windows. Nie uruchamiaj ponownie ani kolejki r
 `ppo-pilot-20261013`, która zakończyła się przed treningiem.
 Nie uruchamiaj kampanii/full na podstawie samego startu pilota.
 Szczegóły: [PPO_PILOT_20261013.md](PPO_PILOT_20261013.md).
+Aktualnie działa wyłącznie świeży `tmrl-ppo-p13-prefix-r3-s17`, start 10:14:51 UTC,
+preflight PASS, W&B `brczyy2x`. SAVE 14:04:51 UTC, HARD 14:14:51 UTC.
+Nie restartuj; używa frozen runtime r3 z naprawioną obsługą statusu i błędów.
 
 | Osoba | Zadanie | Seedy |
 | --- | --- | --- |

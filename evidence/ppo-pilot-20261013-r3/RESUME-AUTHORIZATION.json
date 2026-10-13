@@ -1,0 +1,13 @@
+{
+  "human_instruction": "dobra to napraw wszystko",
+  "scope": "Fresh bounded PPO pilot after confirmed Windows supervisor bug fix and regression verification",
+  "predecessor_queue": "ppo-pilot-20261013-r2",
+  "predecessor_all_owned_closed": true,
+  "predecessor_stop_preserved": true,
+  "concrete_change": "Bounded status-sharing retries, exception-path owned child closure, supervisor failure receipt and live launcher identity status",
+  "tests_passed": 57,
+  "restart_or_resume": false,
+  "automatic_full_training": false,
+  "sd_sac_reactivated": false,
+  "new_or_changed_stop_always_wins": true
+}

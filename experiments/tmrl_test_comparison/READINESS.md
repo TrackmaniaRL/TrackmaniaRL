@@ -14,6 +14,9 @@ podmianie statusu. Interwencja STOP zamknęła trening z checkpointem 4096 krok�
 Oceny jazdy nie wykonano. Poprawiono bounded retry zapisu i sprzątanie dzieci
 przy wyjątku; 57 testów PASS, w tym rzeczywisty Windows reader lock.
 Źródło r2 niezmienione, kolejka wykorzystana i zatrzymana; nie resume/restart.
+Świeży r3 `tmrl-ppo-p13-prefix-r3-s17` wystartował 10:14:51 UTC (12:14 Warszawa),
+preflight PASS (33 pola, 61 odczytów, 30 ms), W&B `brczyy2x`, trening rozpoczęty.
+SAVE 14:04:51 UTC, HARD 14:14:51 UTC. Brak jeszcze oceny jakości jazdy.
 Próg dysku dla długiej kampanii nadal nie jest spełniony.
 
 Kampania na czterech komputerach jest **PREPARED_NOT_LAUNCHED**: pięć algorytmów,
