@@ -1,5 +1,11 @@
 # Gotowość — 8 października 2026
 
+Aktualizacja 13 października: zainstalowano PowerShell 7.6.6 dla bieżącego konta
+i potwierdzono działający podgląd kolejki przez ten silnik. Przygotowano osobny,
+świeży pilot PPO; wynik jazdy nadal nie istnieje. Diagnoza PowerShell, środowisko,
+zakres i polecenie weryfikacji: [PPO_PILOT_20261013.md](PPO_PILOT_20261013.md).
+Globalny STOP zachowano. Próg dysku dla długiej kampanii nadal nie jest spełniony.
+
 Kampania na czterech komputerach jest **PREPARED_NOT_LAUNCHED**: pięć algorytmów,
 trzy seedy, 8 192 000 kroków/seed. Nie uruchomiono długich treningów. Gotowość
 oprogramowania nie oznacza sprawdzenia sprzętu i gry u czterech operatorów.
