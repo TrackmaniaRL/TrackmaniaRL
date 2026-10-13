@@ -4,7 +4,13 @@ Aktualizacja 13 października: zainstalowano PowerShell 7.6.6 dla bieżącego ko
 i potwierdzono działający podgląd kolejki przez ten silnik. Przygotowano osobny,
 świeży pilot PPO; wynik jazdy nadal nie istnieje. Diagnoza PowerShell, środowisko,
 zakres i polecenie weryfikacji: [PPO_PILOT_20261013.md](PPO_PILOT_20261013.md).
-Globalny STOP zachowano. Próg dysku dla długiej kampanii nadal nie jest spełniony.
+Stary STOP zachowano w archiwum pierwszej kolejki po autoryzacji człowieka.
+Pierwsza próba zatrzymała się na timeout telemetrii przed treningiem, procesy
+zamknięte. Po trzech kontrolach resetu PASS wystartował świeży pilot
+`tmrl-ppo-p13-prefix-r2-s17` o 10:04:27 UTC (12:04 Warszawa); preflight PASS,
+W&B `puhyz84h`, potwierdzony komunikat `Training started`. Brak jeszcze wyniku
+oceny jazdy. SAVE 13:54:27 UTC, HARD 14:04:27 UTC; bez retry lub automatycznego full.
+Próg dysku dla długiej kampanii nadal nie jest spełniony.
 
 Kampania na czterech komputerach jest **PREPARED_NOT_LAUNCHED**: pięć algorytmów,
 trzy seedy, 8 192 000 kroków/seed. Nie uruchomiono długich treningów. Gotowość

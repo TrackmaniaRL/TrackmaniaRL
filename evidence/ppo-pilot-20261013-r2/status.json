@@ -1,0 +1,48 @@
+{
+  "started_at": "2026-10-13T10:04:27.915630+00:00",
+  "status": "RUNNING",
+  "run_id": "tmrl-ppo-p13-prefix-r2-s17",
+  "launcher": {
+    "pid": 34368,
+    "create_time": 1791885863.4883144
+  },
+  "owned_identities": [
+    {
+      "pid": 14728,
+      "create_time": 1791885873.834789
+    },
+    {
+      "pid": 20900,
+      "create_time": 1791885882.505974
+    },
+    {
+      "pid": 24628,
+      "create_time": 1791885879.8912723
+    },
+    {
+      "pid": 30900,
+      "create_time": 1791885873.851827
+    },
+    {
+      "pid": 38196,
+      "create_time": 1791885886.3691351
+    },
+    {
+      "pid": 38200,
+      "create_time": 1791885873.826712
+    },
+    {
+      "pid": 38800,
+      "create_time": 1791885893.7055783
+    },
+    {
+      "pid": 41100,
+      "create_time": 1791885886.3810868
+    }
+  ],
+  "stop_reason": null,
+  "stage": "train-and-final-evaluation",
+  "elapsed_seconds": 85.16,
+  "surviving_identities": [],
+  "returncode": 0
+}

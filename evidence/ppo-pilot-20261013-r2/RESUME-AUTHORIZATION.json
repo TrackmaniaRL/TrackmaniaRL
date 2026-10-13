@@ -1,0 +1,11 @@
+{
+  "human_instruction": "dobra to napraw wszystko",
+  "scope": "Repair PPO environment guards, archive duplicate local plugin, verify reset readiness and launch one fresh bounded PPO pilot",
+  "predecessor_queue": "ppo-pilot-20261013",
+  "diagnostic_receipts": ["../ppo-environment-repair-20261013/reset-check-1.json", "../ppo-environment-repair-20261013/reset-check-2.json", "../ppo-environment-repair-20261013/reset-check-3.json"],
+  "initial_timeout_cause_proven": false,
+  "automatic_restart": false,
+  "automatic_full_training": false,
+  "sd_sac_reactivated": false,
+  "new_or_changed_stop_always_wins": true
+}

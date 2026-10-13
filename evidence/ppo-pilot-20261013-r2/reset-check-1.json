@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-13T10:00:28.315359+00:00",
+  "config": "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\ppo-pilot-20261013\\ppo.yaml",
+  "runtime": "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\ppo-pilot-runtime-20261013",
+  "status": "ready",
+  "phase": "complete",
+  "map_uid": "oqIJ5rQDRrNwLPTh9H2p_W4tLof",
+  "race_time_ms": 20.0,
+  "finished": false,
+  "read_count": 54,
+  "fields": 33,
+  "reason": null
+}

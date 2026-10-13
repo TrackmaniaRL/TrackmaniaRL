@@ -1,5 +1,13 @@
 # Przekazanie treningów na cztery komputery
 
+13 października: lokalny pilot `tmrl-ppo-p13-prefix-r2-s17` działa od 10:04:27 UTC,
+preflight PASS (33 pola, poprawna mapa, zegar 10 ms), W&B `puhyz84h`.
+Ocena 10 przejazdów jest dopiero przed nim. Limit 4 h, SAVE 13:54:27 UTC,
+HARD 14:04:27 UTC. Nie uruchamiaj ponownie ani kolejki r2, ani wcześniejszej
+`ppo-pilot-20261013`, która zakończyła się przed treningiem.
+Nie uruchamiaj kampanii/full na podstawie samego startu pilota.
+Szczegóły: [PPO_PILOT_20261013.md](PPO_PILOT_20261013.md).
+
 | Osoba | Zadanie | Seedy |
 | --- | --- | --- |
 | Jakub | QR, następnie IQN | 17, 29, 43 każdego |
