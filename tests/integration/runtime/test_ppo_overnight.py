@@ -78,3 +78,20 @@ def test_independent_hard_deadline_preserves_mismatched_identity(tmp_path: Path)
             if process.poll() is None:
                 process.kill()
             process.wait(timeout=5)
+
+
+def test_guard_does_not_treat_own_forwarding_parent_as_orphan(tmp_path: Path) -> None:
+    from pilot_tools.ppo_deadline_guard import main
+
+    parent = psutil.Process().parent()
+    assert parent is not None
+    state = {"started_at": datetime.now(UTC).isoformat(), "status": "COMPLETE",
+             "launcher": {"pid": 2147483647, "create_time": 0},
+             "owned_identities": [{"pid": parent.pid, "create_time": parent.create_time()}]}
+    (tmp_path / "launch.json").write_text(json.dumps(state))
+    (tmp_path / "status.json").write_text(json.dumps(state))
+    (tmp_path / "plan.json").write_text(json.dumps({"maximum_seconds": 100,
+        "save_margin_seconds": 10, "source_root": str(tmp_path)}))
+    main(tmp_path)
+    assert not (tmp_path / "STOP").exists()
+    assert json.loads((tmp_path / "deadline-guard-exit.json").read_text())["reason"] is None

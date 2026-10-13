@@ -35,9 +35,10 @@ def measurement(checkpoint: Path, evaluation: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def configure(variant: str, seed: int) -> None:
-    pilot.DIRECTORY = pilot.BASE / f"ppo-overnight-{variant}-s{seed}-20261013"
-    pilot.RUN_ID = f"tmrl-ppo-overnight-{variant}-s{seed}"
+def configure(variant: str, seed: int, revision: int = 1) -> None:
+    suffix = "" if revision == 1 else "-r2"
+    pilot.DIRECTORY = pilot.BASE / f"ppo-overnight-{variant}-s{seed}-20261013{suffix}"
+    pilot.RUN_ID = f"tmrl-ppo-overnight-{variant}-s{seed}{suffix}"
 
     def configuration() -> dict[str, Any]:
         data = ORIGINAL_CONFIGURATION()
@@ -129,9 +130,10 @@ def main() -> None:
     parser.add_argument("command", choices=("prepare", "verify", "launch"))
     parser.add_argument("--variant", choices=("kl", "recovery", "control"), required=True)
     parser.add_argument("--seed", type=int, choices=(17, 29), default=17)
+    parser.add_argument("--revision", type=int, choices=(1, 2), default=1)
     parser.add_argument("--powershell", type=Path)
     args = parser.parse_args()
-    configure(args.variant, args.seed)
+    configure(args.variant, args.seed, args.revision)
     if args.command == "prepare":
         if args.powershell is None:
             parser.error("--powershell is required")

@@ -28,6 +28,13 @@ def main(queue: Path) -> None:
     plan = json.loads((queue / "plan.json").read_text())
     start = datetime.fromisoformat(launch["started_at"]).timestamp()
     launcher = launch["launcher"]
+    # Windows venv Python has a forwarding process between launcher and guard.
+    # Neither the guard nor that forwarding ancestor is a controlled workload.
+    guard_chain = {psutil.Process().pid}
+    for ancestor in psutil.Process().parents():
+        if ancestor.pid == launcher["pid"]:
+            break
+        guard_chain.add(ancestor.pid)
     observed = {(launcher["pid"], launcher["create_time"]): launcher}
     last_state = launch
     stop_paths = [queue / "STOP", queue.parent / "STOP", queue.parent.parent / "STOP",
@@ -43,13 +50,14 @@ def main(queue: Path) -> None:
             last_state = json.loads((queue / "status.json").read_text())
         for key in ("owned_identities", "all_observed_identities"):
             for identity in last_state.get(key, []):
-                observed[(identity["pid"], identity["create_time"])] = identity
+                if identity["pid"] not in guard_chain:
+                    observed[(identity["pid"], identity["create_time"])] = identity
         # Independently capture descendants even if status publication stops.
         root = exact(launcher)
         if root is not None:
             try:
                 for child in root.children(recursive=True):
-                    if child.pid != psutil.Process().pid:
+                    if child.pid not in guard_chain:
                         identity = {"pid": child.pid, "create_time": child.create_time()}
                         observed[(child.pid, child.create_time())] = identity
             except psutil.NoSuchProcess:
