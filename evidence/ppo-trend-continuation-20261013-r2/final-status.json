@@ -1,0 +1,52 @@
+{
+  "started_at": "2026-10-13T17:16:52.330600+00:00",
+  "original_started_at": "2026-10-13T13:28:06.412619+00:00",
+  "status": "COMPLETE",
+  "run_id": "tmrl-ppo-trend-s17",
+  "launcher": {
+    "pid": 36212,
+    "create_time": 1791911808.043826
+  },
+  "stop_reason": null,
+  "owned_identities": [
+    {
+      "pid": 6420,
+      "create_time": 1791911818.387715
+    },
+    {
+      "pid": 22052,
+      "create_time": 1791911832.2292807
+    },
+    {
+      "pid": 42632,
+      "create_time": 1791911827.4640577
+    },
+    {
+      "pid": 45352,
+      "create_time": 1791911824.8779712
+    },
+    {
+      "pid": 47340,
+      "create_time": 1791911838.6884203
+    },
+    {
+      "pid": 48688,
+      "create_time": 1791911818.3584013
+    },
+    {
+      "pid": 49984,
+      "create_time": 1791911818.368872
+    }
+  ],
+  "automatic_full_training": false,
+  "stage": "train-and-final-evaluation",
+  "elapsed_seconds": 6135.95,
+  "surviving_identities": [],
+  "returncode": 0,
+  "ended_at": "2026-10-13T18:59:10.305575+00:00",
+  "checkpoint": "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\tmrl-ppo-trend-s17\\checkpoints\\update-00000100.pt",
+  "checkpoint_sha256": "a5927a3187bc2533b99dfdca7a336181dd0bd1f0416aab0ced3aa491c5aa5e60",
+  "finishes": 7,
+  "measurement_error": "Final evaluation is incomplete or invalid; retain evidence",
+  "gate_passed": false
+}

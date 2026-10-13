@@ -83,7 +83,29 @@ plan przypina ich źródła oraz zainstalowany plugin, assety, kalibrację i fin
 
 ## Zamknięcie i diagnoza — 13 października 2026
 
-### Aktualna kontynuacja r2 — ACTIVE
+### Wynik końcowy — COMPLETE, bramka FAIL
+
+Kontynuacja zakończona18:59:10 UTC=20:59:10 Warszawa, przedSAVE/HARD.
+Pełne204800 kroków/100 aktualizacji/218 epizodów/fractional0/processed204800.
+Końcowa ocenaCP100:7/10, średnia ukończonych62,2071s, mediana63,14s,
+najlepszy58,49s. Trzy nieukończenia:no_progress przy80,6733/80,8578/81,2267%.
+Próg8/10 nieosiągnięty. To wynik jakości, nie awaria procesu.
+Osobna bramka czasowa takżeFAIL: jedna decyzja120ms na12147 pomiarów,
+trial02/krok1028, policycall127,791ms, p99=50ms; zero rozbieżności surowego zegara.
+Nie przypisujemy trzech nieukończeń pojedynczemu opóźnieniu.
+Skips19142/max18 jawnie zachowane; poprawneUID/counts/SHA i brakruntimeerrors.
+Poprzednie midpoint10/10/51,963s pozostaje oddzielnym wynikiem; nie wybieramy go
+zamiast zarejestrowanegoCP100. Dodatkowy trening nie poprawił tej końcowej oceny.
+
+FinalCP100 SHA `a5927a3187bc2533b99dfdca7a336181dd0bd1f0416aab0ced3aa491c5aa5e60`,
+finite/fingerprint/budget PASS. Wszystkie10 obserwowanych tożsamości zamknięte,
+mutex wolny,351sourcepins/helpers/preservedSTOP/priorCP i archiwalnyCP50 zgodne.
+10 końcowych śladów i identyczne root/phaseevaluation zweryfikowane offlineCPU1thread,
+0optimizersteps/0gamecontrols. Nowy proof:
+`evidence/ppo-trend-continuation-20261013-r2/post-closure-verification.json`.
+MonitorPAUSED po closure. Bez restart/ponownej oceny/nowego pilota/full.
+
+### Historyczny start kontynuacji r2
 
 Po bezpośrednim „no rób” osobna kolejka `ppo-trend-continuation-20261013-r2`
 wystartowała17:16:52.330600 UTC=19:16:52 Warszawa. PreflightREADY10ms/33fields/58reads,

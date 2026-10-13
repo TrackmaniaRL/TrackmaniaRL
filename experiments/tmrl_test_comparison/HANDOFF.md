@@ -1,5 +1,10 @@
 # Przekazanie treningów na cztery komputery
 
+AKTUALNE: kontynuacjaPPO COMPLETE20:59:10Warszawa, pełne204800/100,
+końcowe7/10mean62,207s/median63,14s.QualitygateFAIL, osobno jeden120ms spike/12147.
+10 obserwowanych tożsamości closed/mutexfree/sourcehelperSTOPpins i finalCPSHA PASS.
+MonitorPAUSED, fullBLOCKED; wcześniejszeACTIVE poniżej to historia.
+
 AKTUALNE: kontynuacjaPPO r2 od19:16:52Warszawa DZIAŁA, preflightREADY,
 eventtrain/resumed102400/50, targetTOTAL204800/100. W&B `65msv47w`.
 MonitorACTIVE15min; SAVE21:06:52/HARD21:16:52 Warszawa. Tylko końcowa ocenaCP100,

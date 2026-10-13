@@ -1,5 +1,11 @@
 # Gotowość — 8 października 2026
 
+AKTUALNE13 października21:03Warszawa: PPO COMPLETE, pełne204800/100.
+Końcowa ocena7/10mean62,207s/median63,14s; trzy no_progress około81%.
+Qualitygate8/10FAIL. Osobno jedna decyzja120ms/12147, timinggateFAIL.
+Wszystkie10 obserwowanych tożsamości zamknięte/mutex wolny/pins i finalCP zweryfikowane.
+MonitorPAUSED, fullBLOCKED, bez automatycznego restartu. StanyACTIVE poniżej historyczne.
+
 AKTUALNE13 października19:18Warszawa: kontynuacjaPPO r2 DZIAŁA. PreflightREADY,
 train/resumed potwierdza102400/50 z CP50; ta sama frozenkonfiguracja, targetTOTAL204800/100.
 W&B `65msv47w`; monitorACTIVE15min. SAVE21:06:52/HARD21:16:52 Warszawa.
