@@ -76,7 +76,7 @@ def prepared(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
 
 def test_fresh_pilot_prepares_without_game_or_run_directory(prepared: dict) -> None:
     assert pilot.verify()["status"] == "PREPARED_NOT_LAUNCHED"
-    assert prepared["expected_updates"] == 71
+    assert prepared["expected_updates"] == 100
     assert prepared["evaluation_trials"] == 10
     assert prepared["learning_rate_schedule_transitions"] == 8192000
     assert prepared["controller_created"] is False

@@ -27,9 +27,9 @@ from trackmaniarl.core.spec import RunSpec
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = Path("H:/Studia/inzynierskie/inzynierkav2/AITrackmania/artifacts/tmrl-test-comparison")
-DIRECTORY = BASE / "ppo-pilot-20261013-r3"
-RUN_ID = "tmrl-ppo-p13-prefix-r3-s17"
-BUDGET = 145_408
+DIRECTORY = BASE / "ppo-trend-20261013"
+RUN_ID = "tmrl-ppo-trend-s17"
+BUDGET = 204_800
 HORIZON = 8_192_000
 MAP_UID = "oqIJ5rQDRrNwLPTh9H2p_W4tLof"
 KEY_SOURCE = Path("C:/Users/szulc/.codex/worktrees/tmrl-training-fixes/AITrackmania")
@@ -96,14 +96,18 @@ def configuration() -> dict[str, Any]:
     data["components"]["environment"]["kwargs"]["config"]["steering_curve_path"] = str(CALIBRATION)
     data["training"]["total_transitions"] = BUDGET
     learner = data["components"]["learner"]
-    learner["class_path"] = "pilot_tools.ppo_prefix:CampaignPrefixPPO"
+    learner["class_path"] = "pilot_tools.ppo_diagnostics:InstrumentedPrefixPPO"
     learner["kwargs"]["schedule_transitions"] = HORIZON
+    data["components"]["additional_loggers"][0]["class_path"] = (
+        "pilot_tools.ppo_diagnostics:PpoWandbTracker"
+    )
+    data["components"]["evaluator"]["class_path"] = "pilot_tools.ppo_trace:TraceEvaluator"
     data["evaluation"].update(
         trials_per_map=10, min_finish_rate=0.8, target_median_s=None, target_mean_s=None
     )
     data["metadata"].update(
         stage="fresh-pilot-20261013",
-        purpose="Complete 71-rollout diagnostic prefix; LR horizon matches weeks campaign",
+        purpose="100-rollout trend control; evaluate at 102400/204800; final-only gate",
         automatic_full_training=False,
         resume=False,
     )
@@ -155,10 +159,15 @@ def prepare(engine: Path) -> dict[str, Any]:
         "private_key_source_root": str(KEY_SOURCE),
         "source_pins": pins(),
         "run_id": RUN_ID,
+        "predecessor_queue": str(BASE / "ppo-pilot-20261013-r3"),
+        "predecessor_checkpoint_sha256": (
+            "f9b5a4309f9e9ce5bce77a2b08c77cb4212400ed7c47d94e9e206d884532ab96"
+        ),
         "seed": 17,
         "total_transitions": BUDGET,
         "rollout_length": 2048,
-        "expected_updates": 71,
+        "expected_updates": BUDGET // 2048,
+        "evaluation_transitions": [102400, BUDGET],
         "learning_rate_schedule_transitions": HORIZON,
         "evaluation_trials": 10,
         "wandb_entity": "dsc-pjatk-warsaw",
@@ -213,7 +222,8 @@ def verify() -> dict[str, Any]:
         "learning_rate_schedule_transitions": HORIZON,
         "evaluation_trials": 10,
         "wandb_entity": "dsc-pjatk-warsaw",
-        "expected_updates": 71,
+        "expected_updates": BUDGET // 2048,
+        "evaluation_transitions": [102400, BUDGET],
         "minimum_finishes": 8,
         "maximum_step_race_time_ms": 100,
     }
@@ -289,6 +299,7 @@ def launch() -> None:
                     "trackmaniarl resume",
                     "trackmaniarl benchmark",
                     "tmrl_test_comparison.preflight",
+                    "pilot_tools.train_trend",
                 )
             )
         ):
@@ -355,7 +366,8 @@ def _launch_owned(plan: dict[str, Any]) -> None:
         ),
         (
             "train-and-final-evaluation",
-            ["-m", "trackmaniarl", "train", config, "--stop-file", str(DIRECTORY / "STOP")],
+            ["-m", "pilot_tools.train_trend", "train", config,
+             "--stop-file", str(DIRECTORY / "STOP")],
         ),
     ]
     for name, arguments in commands:
@@ -365,16 +377,44 @@ def _launch_owned(plan: dict[str, Any]) -> None:
     checkpoint = final_checkpoint(run)
     evaluation = json.loads((run.directory / "evaluation.json").read_text(encoding="utf-8"))
     finishes = pilot_measurement(checkpoint, evaluation)
+    midpoint = run.directory / "evaluation-checkpoints/update-00000050.pt"
+    mid_evaluation = json.loads(
+        (run.directory / "evaluations/update-00000050/evaluation.json").read_text()
+    )
+    midpoint_finishes = pilot_measurement(midpoint, mid_evaluation)
+    validate_traces(run.directory, (midpoint, checkpoint))
     state.update(
         status="COMPLETE",
         ended_at=datetime.now(UTC).isoformat(),
         checkpoint=str(checkpoint),
         checkpoint_sha256=sha(checkpoint),
         finishes=finishes,
+        midpoint_finishes=midpoint_finishes,
         gate_passed=finishes >= 8,
         automatic_full_training=False,
     )
     _save_status(state)
+
+
+def validate_traces(directory: Path, checkpoints: tuple[Path, ...]) -> None:
+    import gzip
+
+    for checkpoint in checkpoints:
+        phase = directory / "evaluations" / checkpoint.stem
+        checkpoint_sha = sha(checkpoint)
+        trials = json.loads((phase / "evaluation.json").read_text())["trials"]
+        steps = {trial["trial_index"]: trial["steps"] for trial in trials}
+        for index in range(10):
+            trace = json.loads(gzip.decompress((phase / f"trial-{index:02d}.json.gz").read_bytes()))
+            rows = trace["rows"]
+            if (trace["checkpoint_sha256"] != checkpoint_sha
+                    or Path(trace["checkpoint"]).resolve() != checkpoint.resolve()
+                    or trace["trial_index"] != index or trace["map_uid"] != MAP_UID
+                    or not rows or rows[0]["kind"] != "reset"
+                    or not 1 < len(rows) <= 3001
+                    or len(rows) != steps[index] + 1
+                    or [row["step"] for row in rows[1:]] != list(range(len(rows) - 1))):
+                raise RuntimeError("Incomplete or misbound evaluation trace")
 
 
 def pilot_measurement(checkpoint: Path, evaluation: dict[str, Any]) -> int:
