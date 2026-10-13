@@ -1,0 +1,85 @@
+{
+  "checked_at": "2026-10-13T13:32:27.093148+00:00",
+  "stage": "train-and-final-evaluation",
+  "status": "RUNNING",
+  "launcher": {
+    "pid": 44196,
+    "create_time": 1791898081.6307912
+  },
+  "owned_identities": [
+    {
+      "pid": 14504,
+      "create_time": 1791898118.5666485
+    },
+    {
+      "pid": 34536,
+      "create_time": 1791898092.4101236
+    },
+    {
+      "pid": 37480,
+      "create_time": 1791898092.439298
+    },
+    {
+      "pid": 41348,
+      "create_time": 1791898092.4197094
+    },
+    {
+      "pid": 41936,
+      "create_time": 1791898097.258392
+    },
+    {
+      "pid": 43256,
+      "create_time": 1791898118.5764716
+    },
+    {
+      "pid": 44292,
+      "create_time": 1791898099.5880244
+    },
+    {
+      "pid": 44788,
+      "create_time": 1791898118.663385
+    },
+    {
+      "pid": 44880,
+      "create_time": 1791898118.542708
+    },
+    {
+      "pid": 44972,
+      "create_time": 1791898118.5329132
+    }
+  ],
+  "wrapper": {
+    "pid": 31804,
+    "create_time": 1791898081.1019006
+  },
+  "counters": {
+    "episodes": 3,
+    "transitions": 2048,
+    "updates": 1
+  },
+  "ppo_metrics": {
+    "state/approx_kl": 0.004494528751820326,
+    "state/clip_fraction": 0.04707031324505806,
+    "state/early_stop": 0,
+    "state/entropy": 0.6170992851257324,
+    "state/epochs": 10,
+    "state/explained_variance": 0.19770187139511108,
+    "state/explained_variance_valid": 1,
+    "state/final_kl": 0.006643526256084442,
+    "state/gradient_norm_actor": 0.1955831321887672,
+    "state/gradient_norm_total": 0.2024927412159741,
+    "state/gradient_norm_value": 0.017807263166469058,
+    "state/learning_rate": 0.0003,
+    "state/minibatches": 80,
+    "state/return_mean": -0.5849815011024475,
+    "state/return_std": 0.2968098223209381,
+    "state/value_mean": -0.2599286735057831,
+    "state/value_std": 0.057432789355516434
+  },
+  "errors": [],
+  "cadence_minutes": 15,
+  "automation_id": "ppo-pilot-trendu-co-15-minut",
+  "notified_state": "STARTED",
+  "save_at": "2026-10-13T17:18:06.412619+00:00",
+  "hard_at": "2026-10-13T17:28:06.412619+00:00"
+}

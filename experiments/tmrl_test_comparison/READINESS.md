@@ -1,5 +1,12 @@
 # Gotowość — 8 października 2026
 
+Aktualnie uruchomiony **tmrl-ppo-trend-s17** od13:28:06 UTC (15:28 Warszawa),
+204800 kroków/100 rolloutów, oceny10+10 przy102400/204800; tylko finał to bramka.
+Preflight PASS20ms/33fields/correctUID, W&B `mbf6v73g`, pierwszy rollout i nowe
+metryki PPO potwierdzone. Monitor ACTIVE co15min; SAVE19:18/HARD19:28 Warszawa.
+Szczegóły: [PPO_TREND_PILOT_20261013.md](PPO_TREND_PILOT_20261013.md).
+Nie restartować, nie resume/extend/full. Poniższy r3 to zakończony predecessor.
+
 Aktualizacja 13 października: zainstalowano PowerShell 7.6.6 dla bieżącego konta
 i potwierdzono działający podgląd kolejki przez ten silnik. Przygotowano osobny,
 świeży pilot PPO; wynik jazdy nadal nie istnieje. Diagnoza PowerShell, środowisko,

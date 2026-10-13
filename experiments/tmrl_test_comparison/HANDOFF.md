@@ -1,5 +1,11 @@
 # Przekazanie treningów na cztery komputery
 
+Aktywny lokalny pilot `tmrl-ppo-trend-s17` — od15:28 Warszawa,100 rolloutów,
+ocena przy102400 oraz204800, końcowa bramka8/10. W&B `mbf6v73g`, monitor15min,
+SAVE19:18/HARD19:28 Warszawa. Nie restartuj ani nie uruchamiaj full równolegle.
+Aktualny plan: [PPO_TREND_PILOT_20261013.md](PPO_TREND_PILOT_20261013.md).
+Poniższe nieaktywne r3 nie jest bieżącą próbą.
+
 13 października: lokalny pilot `tmrl-ppo-p13-prefix-r2-s17` wystartował 10:04:27 UTC,
 preflight PASS (33 pola, poprawna mapa, zegar 10 ms), W&B `puhyz84h`.
 Został zatrzymany po awarii zapisu statusu launchera (Windows WinError5):

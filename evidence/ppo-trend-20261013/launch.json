@@ -1,0 +1,11 @@
+{
+  "started_at": "2026-10-13T13:28:06.412619+00:00",
+  "status": "RUNNING",
+  "run_id": "tmrl-ppo-trend-s17",
+  "launcher": {
+    "pid": 44196,
+    "create_time": 1791898081.6307912
+  },
+  "owned_identities": [],
+  "stop_reason": null
+}

@@ -1,0 +1,15 @@
+{
+  "human_instruction": "to rob i odpalaj",
+  "context": "After PPO_DIAGNOSIS_20261013 and proposal for one fresh 204800-step trend pilot",
+  "run_id": "tmrl-ppo-trend-s17",
+  "scope": "Implement PPO observability adapters and causal bounded evaluation traces; fresh initialization, 100 rollouts, evaluations at 102400 and 204800; final-only gate",
+  "predecessor": "ppo-pilot-20261013-r3",
+  "predecessor_complete_closed": true,
+  "training_hyperparameters_model_reward_gnn_unchanged": true,
+  "monitor_every_minutes": 15,
+  "notify_on_completion_or_failure": true,
+  "automatic_restart": false,
+  "automatic_full_training": false,
+  "sd_sac_reactivated": false,
+  "new_or_changed_stop_always_wins": true
+}

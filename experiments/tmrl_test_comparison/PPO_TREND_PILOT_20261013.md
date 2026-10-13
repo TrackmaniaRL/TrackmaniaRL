@@ -80,3 +80,30 @@ między rolloutami, nie latency jazdy. Ruff/mypy oraz przygotowanie/pins wymagan
 Wspólne źródła trackmaniarl i experiments helpers, stara kampania i wszystkie
 frozen runtime'y pozostają niezmienione. Kod nowych adapterów wyłącznie editable;
 plan przypina ich źródła oraz zainstalowany plugin, assety, kalibrację i fingerprint.
+
+## Rzeczywisty start i monitor
+
+Pilot JUŻ uruchomiony 2026-10-13T13:28:06.412619Z (15:28 Warszawa).
+Frozen commit `d8f2440b22f0dc595fe3946815f5d53de22ec1f9`, fingerprint
+`a0b31a8c2cba88c1bc0f80dd68b4c986600ba99a12c20e2bb027464eaaa461c4`.
+Preflight PASS20ms/33fields/55reads/właściwy UID. W&B `mbf6v73g`:
+https://wandb.ai/dsc-pjatk-warsaw/my-trackmania-agent/runs/mbf6v73g.
+Wrapper31804/ctime1791898081.1019006, launcher44196/ctime1791898081.6307912;
+aktualnych potomków czytaj z receipts i monitor-state.json, nie z dawnych PID.
+
+Kontrola13:32:27 UTC:2048 kroków/1 aktualizacja;10 epok/80 minibatchy,
+full-batch KL0,00664, EV0,1977 valid; nowe metryki zachowane lokalnie,
+brak błędu launchera/STOP. To postęp treningu, nie dowód poprawy jazdy.
+SAVE17:18:06 UTC=19:18 Warszawa, HARD17:28:06 UTC=19:28 Warszawa.
+Nie uruchamiaj launchera ponownie, nie extend/resume.
+
+Monitor `ppo-pilot-trendu-co-15-minut` rzeczywiście utworzony ACTIVE co15min,
+w tym czacie; stary SD-SAC pozostaje PAUSED. Powiadomienie po końcowym wyniku
+lub awarii/interwencji, bez rutynowych raportów. Monitor wyłącza własne przyszłe
+kontrole po zamknięciu i końcowym raporcie. Pierwsze wywołanie tworzenia monitora
+zwróciło błąd brakującego destination; poprawione jawne destination=thread
+utworzyło jeden monitor, bez duplikatu.
+
+Dowody przygotowania/startu/monitoringu: `evidence/ppo-trend-20261013/` oraz
+oryginalne receipts w kolejce. Pełna kampania nadal BLOCKED do bramki końcowej,
+kwalifikacji kolejnych seedów i wymogów infrastruktury.
