@@ -27,18 +27,38 @@ from trackmaniarl.core.spec import RunSpec
 
 ROOT = Path(__file__).resolve().parents[1]
 BASE = Path("H:/Studia/inzynierskie/inzynierkav2/AITrackmania/artifacts/tmrl-test-comparison")
-DIRECTORY = BASE / "ppo-pilot-20261013"
-RUN_ID = "tmrl-ppo-p13-prefix-s17"
+DIRECTORY = BASE / "ppo-pilot-20261013-r2"
+RUN_ID = "tmrl-ppo-p13-prefix-r2-s17"
 BUDGET = 145_408
 HORIZON = 8_192_000
 MAP_UID = "oqIJ5rQDRrNwLPTh9H2p_W4tLof"
 KEY_SOURCE = Path("C:/Users/szulc/.codex/worktrees/tmrl-training-fixes/AITrackmania")
 CALIBRATION = KEY_SOURCE / "artifacts/tmrl-test-comparison/steering-local.json"
+OPENPLANET_DIRECTORY = Path.home() / "OpenplanetNext"
 
 
 def sha(path: Path) -> str:
     with path.open("rb") as source:
         return hashlib.file_digest(source, "sha256").hexdigest()
+
+
+def plugin_state() -> dict[str, str]:
+    """Pin the installed bridge; reject known duplicate telemetry providers.
+
+    Hashing records installed bytes, not a replacement for Openplanet signature
+    verification. Plugin Manager remains responsible for loading signed plugins.
+    """
+    duplicates = (
+        OPENPLANET_DIRECTORY / "Plugins/TrackmaniaRL_Connect",
+        OPENPLANET_DIRECTORY / "Scripts/TrackmaniaRL_Connect.as",
+        OPENPLANET_DIRECTORY / "Scripts/SAC_GetData.as",
+    )
+    if any(path.exists() for path in duplicates):
+        raise RuntimeError("Duplicate telemetry plugin present; preserve and disable it first")
+    bridge = OPENPLANET_DIRECTORY / "Plugins/SAC_GetData.op"
+    if not bridge.is_file():
+        raise RuntimeError("Install the telemetry bridge through Openplanet Plugin Manager")
+    return {"path": str(bridge), "sha256": sha(bridge)}
 
 
 def powershell_probe(engine: Path) -> dict[str, Any]:
@@ -116,6 +136,7 @@ def prepare(engine: Path) -> dict[str, Any]:
     if DIRECTORY.exists() or (BASE / RUN_ID).exists():
         raise RuntimeError("Fresh pilot identity already exists; never overwrite/restart")
     shell = powershell_probe(engine)
+    plugin = plugin_state()
     data = configuration()
     spec = RunSpec.model_validate(data)
     curve = Path(data["components"]["environment"]["kwargs"]["config"]["steering_curve_path"])
@@ -147,6 +168,7 @@ def prepare(engine: Path) -> dict[str, Any]:
         "save_margin_seconds": 600,
         "minimum_free_disk_gib": 20,
         "powershell": shell,
+        "telemetry_plugin": plugin,
         "steering_path": str(curve),
         "steering_sha256": sha(curve),
         "run_fingerprint": fingerprint,
@@ -165,6 +187,8 @@ def prepare(engine: Path) -> dict[str, Any]:
 
 def verify() -> dict[str, Any]:
     plan: dict[str, Any] = json.loads((DIRECTORY / "plan.json").read_text(encoding="utf-8"))
+    if plan["telemetry_plugin"] != plugin_state():
+        raise RuntimeError("Pinned telemetry plugin changed; prepare a fresh plan")
     if plan["source_root"] != str(ROOT) or plan["source_pins"] != pins():
         raise RuntimeError("Frozen pilot sources differ; do not launch or resume")
     if sha(DIRECTORY / "ppo.yaml") != plan["config_sha256"]:
@@ -196,6 +220,18 @@ def verify() -> dict[str, Any]:
     if any(plan[key] != value for key, value in expected.items()):
         raise RuntimeError("Pilot limits/decision contract changed")
     return plan
+
+
+def observed_status(plan: dict[str, Any]) -> str:
+    """Verification checks pins; status must reflect an already attempted launch."""
+    for name in ("status.json", "launch.json"):
+        path = DIRECTORY / name
+        if path.exists():
+            state = json.loads(path.read_text(encoding="utf-8"))
+            if state.get("run_id") != RUN_ID:
+                raise RuntimeError("Pilot status belongs to another run")
+            return str(state["status"])
+    return str(plan["status"])
 
 
 def stops() -> list[Path]:
@@ -466,7 +502,7 @@ def main() -> None:
     print(
         json.dumps(
             {
-                "status": plan["status"],
+                "status": observed_status(plan),
                 "run_id": RUN_ID,
                 "transitions": BUDGET,
                 "schedule_horizon": HORIZON,

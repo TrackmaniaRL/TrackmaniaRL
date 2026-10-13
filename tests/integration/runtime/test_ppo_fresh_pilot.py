@@ -63,6 +63,7 @@ def test_prefix_cannot_exceed_campaign_budget() -> None:
 def prepared(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
     monkeypatch.setattr(pilot, "BASE", tmp_path / "artifacts")
     monkeypatch.setattr(pilot, "DIRECTORY", tmp_path / "artifacts/ppo-pilot")
+    monkeypatch.setattr(pilot, "plugin_state", lambda: {"path": "bridge.op", "sha256": "pinned"})
     monkeypatch.setattr(
         pilot,
         "powershell_probe",
@@ -86,6 +87,32 @@ def test_existing_pilot_is_never_overwritten(prepared: dict) -> None:
     with pytest.raises(RuntimeError, match="never overwrite"):
         pilot.prepare(Path("pwsh.exe"))
     assert (pilot.DIRECTORY / "plan.json").read_bytes() == original
+
+
+def test_verification_reports_actual_failed_launch(prepared: dict) -> None:
+    (pilot.DIRECTORY / "status.json").write_text(
+        json.dumps({"run_id": pilot.RUN_ID, "status": "STOPPED_OR_FAILED"})
+    )
+    assert pilot.observed_status(pilot.verify()) == "STOPPED_OR_FAILED"
+
+
+def test_changed_plugin_blocks_verification(
+    prepared: dict, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(pilot, "plugin_state", lambda: {"path": "bridge.op", "sha256": "new"})
+    with pytest.raises(RuntimeError, match="telemetry plugin changed"):
+        pilot.verify()
+
+
+def test_duplicate_plugin_is_rejected(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(pilot, "OPENPLANET_DIRECTORY", tmp_path)
+    bridge = tmp_path / "Plugins/SAC_GetData.op"
+    bridge.parent.mkdir()
+    bridge.write_bytes(b"installed bridge")
+    assert pilot.plugin_state()["sha256"] == pilot.sha(bridge)
+    (tmp_path / "Plugins/TrackmaniaRL_Connect").mkdir()
+    with pytest.raises(RuntimeError, match="Duplicate telemetry plugin"):
+        pilot.plugin_state()
 
 
 def test_changed_pilot_yaml_blocks_launch(prepared: dict) -> None:
