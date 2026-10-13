@@ -1,5 +1,11 @@
 # Przekazanie treningów na cztery komputery
 
+Diagnoza regresji bez treningu: CP100 zmienił komendy na477 wspólnych wejściach
+i traci stabilność nawrotu78–82%; trzy zatrzymania przy zewnętrznej krawędzi,
+gaz pozostaje, no_progress100 kończy próby. Jeden120ms spike nie wyjaśnia
+pozostałych dwóch porażek. Nie ustalono konkretnego błędu optymalizatora.
+[Raport i rysunek](PPO_REGRESSION_20261013.md). Monitor nadalPAUSED, bez nowych prób.
+
 AKTUALNE: kontynuacjaPPO COMPLETE20:59:10Warszawa, pełne204800/100,
 końcowe7/10mean62,207s/median63,14s.QualitygateFAIL, osobno jeden120ms spike/12147.
 10 obserwowanych tożsamości closed/mutexfree/sourcehelperSTOPpins i finalCPSHA PASS.

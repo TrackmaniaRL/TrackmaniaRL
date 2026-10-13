@@ -1,0 +1,26 @@
+{
+  "checked_at": "2026-10-13T20:03:46.366205+00:00",
+  "source_pins_valid": true,
+  "source_commit": "d8f2440b22f0dc595fe3946815f5d53de22ec1f9",
+  "source_pin_count": 351,
+  "original_checkpoint_sha256": [
+    "7fba0d9bf019aecc65ae6a7924a1614caa0841c9da0d30295e38522934a6dcb6",
+    "a5927a3187bc2533b99dfdca7a336181dd0bd1f0416aab0ced3aa491c5aa5e60"
+  ],
+  "models_loaded_for_inference_only": true,
+  "optimizer_states_not_loaded": true,
+  "optimizer_steps": 0,
+  "game_controls": 0,
+  "matched_current_observations": 477,
+  "own_action_reconstruction_max_error": 1.2814998626708984e-06,
+  "checkpoint_shas_before_after_equal": true,
+  "execution": "foreground exec session 2065 completed; no exact PID identity captured",
+  "source_after_formatting_sha256": "b702535c72056a188179f7637628cc1fa7f787c3ab138f34d3f99b9e365e86b9",
+  "checks": [
+    "Ruff PASS",
+    "mypy follow-imports skip PASS",
+    "full causal feature-history reconstruction",
+    "saved own action reconstruction <1e-4 PASS"
+  ],
+  "verification_note": "Initial receipt command imported editable helper due cwd precedence and rejected it; corrected frozen cwd verification passed. Frozen sources were not changed."
+}

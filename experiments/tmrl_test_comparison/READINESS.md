@@ -1,5 +1,12 @@
 # Gotowość — 8 października 2026
 
+DiagnozaCP50→100 offline: trzy zatrzymania przy81% silnie wskazują kontakt
+z zewnętrzną bandą nawrotu i brak odzyskania ruchu.477 wspólnych obserwacji
+potwierdza drift sterowania, błąd odtworzeniaakcji<0,000002. Spowolnienie zaczyna
+się wcześniej na trasie; brak dowodu resetuLR/załamania eksploracji/konkretnego
+błędu optymalizatora. Bez nowego treningu. Raport:
+[PPO_REGRESSION_20261013.md](PPO_REGRESSION_20261013.md).
+
 AKTUALNE13 października21:03Warszawa: PPO COMPLETE, pełne204800/100.
 Końcowa ocena7/10mean62,207s/median63,14s; trzy no_progress około81%.
 Qualitygate8/10FAIL. Osobno jedna decyzja120ms/12147, timinggateFAIL.
