@@ -13,6 +13,9 @@ R3 `tmrl-ppo-p13-prefix-r3-s17` już zakończony 12:31:46 UTC (14:31 Warszawa):
 145408 kroków/71 aktualizacji, 10 kompletnych ocen i 3 mety. Bramka 8/10 FAIL;
 runtime/timing/checkpoint/pins/closure PASS. Wszystkie zapisane procesy zamknięte,
 mutex wolny. Nie restartuj ani nie uruchamiaj full; brak aktywnego pilota PPO.
+Przed dalszym PPO stosuj [PPO_DIAGNOSIS_20261013.md](PPO_DIAGNOSIS_20261013.md):
+poprawa widoczności metryk/śladu jazdy, kontrola trendu, następnie dopiero
+uzasadniona pojedyncza zmiana i kwalifikacja seedów. Nowej próby jeszcze nie przygotowano.
 
 | Osoba | Zadanie | Seedy |
 | --- | --- | --- |

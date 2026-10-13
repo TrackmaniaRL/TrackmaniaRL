@@ -20,6 +20,11 @@ Brak błędu runtime/telemetrii/kontrolera, poprawne UID, max odstęp 50 ms.
 Checkpoint finite/fingerprint/budget/SHA PASS, pins PASS, wszystkie 15 zapisanych
 oryginalnych procesów zamknięte, mutex wolny. Pełny trening PPO nadal zablokowany.
 Dowód: `evidence/ppo-pilot-20261013-r3/post-closure-verification.json`.
+Diagnoza i plan przed dalszym treningiem: [PPO_DIAGNOSIS_20261013.md](PPO_DIAGNOSIS_20261013.md).
+Porażki skupione przy5/41/81% trasy; pierwsza meta treningowa w rolloucie42,
+10 met w ostatnich11 rolloutach nie jest wynikiem oceny. Lokalny KL early-stop63/71;
+W&B pomija te metryki PPO. Najpierw pełniejsze pomiary i świeży ograniczony
+test trendu z góry ustalonego budżetu; bez automatycznego full lub siatki hiperparametrów.
 Próg dysku dla długiej kampanii nadal nie jest spełniony.
 
 Kampania na czterech komputerach jest **PREPARED_NOT_LAUNCHED**: pięć algorytmów,

@@ -1,0 +1,3456 @@
+{
+  "run_directory": "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\tmrl-ppo-p13-prefix-r3-s17",
+  "optimizer_steps_taken": 0,
+  "game_control_used": false,
+  "training": {
+    "rollouts": 71,
+    "transitions": 145408,
+    "end_counts": {
+      "slow_progress": 23,
+      "no_progress": 23,
+      "rollout_boundary": 71,
+      "finished": 21
+    },
+    "late_61_71_end_counts": {
+      "finished": 10,
+      "rollout_boundary": 11,
+      "no_progress": 1,
+      "slow_progress": 1
+    },
+    "first_finish_rollout": 42,
+    "late_finish_times_s": [
+      101.79,
+      94.8,
+      93.28,
+      97.08,
+      87.11,
+      87.38,
+      81.94,
+      84.67,
+      82.48,
+      74.45
+    ],
+    "endpoints": [
+      {
+        "rollout": 1,
+        "reason": "slow_progress",
+        "progress_pct": 2.2140465696704443,
+        "race_time_s": 31.51,
+        "episode_steps": 630,
+        "position": [
+          485.733154296875,
+          10.046579360961914,
+          673.297119140625
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.448266958296299,
+          "control_brake": 0.48923993706703184,
+          "projected_velocity_mps": 0.06962446620920673,
+          "nearest_distance_m": 10.373658895492554
+        }
+      },
+      {
+        "rollout": 1,
+        "reason": "slow_progress",
+        "progress_pct": 4.3358075294441685,
+        "race_time_s": 30.71,
+        "episode_steps": 614,
+        "position": [
+          496.89532470703125,
+          10.021844863891602,
+          726.183349609375
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5695089846849442,
+          "control_brake": 0.500885212123394,
+          "projected_velocity_mps": 0.3165136876283213,
+          "nearest_distance_m": 10.909077949523926
+        }
+      },
+      {
+        "rollout": 1,
+        "reason": "no_progress",
+        "progress_pct": 4.520298100931728,
+        "race_time_s": 33.12,
+        "episode_steps": 662,
+        "position": [
+          503.10736083984375,
+          10.01488971710205,
+          728.830810546875
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5043892627954483,
+          "control_brake": 0.4738097393512726,
+          "projected_velocity_mps": 0.19009559945960064,
+          "nearest_distance_m": 10.691806354522704
+        }
+      },
+      {
+        "rollout": 1,
+        "reason": "rollout_boundary",
+        "progress_pct": 0.8763936942913904,
+        "race_time_s": 7.11,
+        "episode_steps": 142,
+        "position": [
+          494.209228515625,
+          10.013014793395996,
+          644.8225708007812
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5129385200142861,
+          "control_brake": 0.46857583403587344,
+          "projected_velocity_mps": 3.820262095928192,
+          "nearest_distance_m": 0.6809204365685582
+        }
+      },
+      {
+        "rollout": 2,
+        "reason": "slow_progress",
+        "progress_pct": 4.474178891775918,
+        "race_time_s": 27.28,
+        "episode_steps": 545,
+        "position": [
+          501.8271484375,
+          10.031355857849121,
+          728.5211791992188
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.49566941320896146,
+          "control_brake": 0.4827894130349159,
+          "projected_velocity_mps": 0.35212158373782587,
+          "nearest_distance_m": 10.649534196853638
+        }
+      },
+      {
+        "rollout": 2,
+        "reason": "slow_progress",
+        "progress_pct": 4.566418366615562,
+        "race_time_s": 26.91,
+        "episode_steps": 538,
+        "position": [
+          505.182373046875,
+          10.022883415222168,
+          728.1980590820312
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.4606834122538567,
+          "control_brake": 0.5208115747570992,
+          "projected_velocity_mps": 0.1660475197120104,
+          "nearest_distance_m": 9.950570831298828
+        }
+      },
+      {
+        "rollout": 2,
+        "reason": "slow_progress",
+        "progress_pct": 4.520298100931728,
+        "race_time_s": 32.91,
+        "episode_steps": 658,
+        "position": [
+          503.5186462402344,
+          10.012822151184082,
+          729.1633911132812
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5009349164366722,
+          "control_brake": 0.528490024805069,
+          "projected_velocity_mps": 0.42623375365976246,
+          "nearest_distance_m": 10.795161743164062
+        }
+      },
+      {
+        "rollout": 2,
+        "reason": "rollout_boundary",
+        "progress_pct": 2.905937190225983,
+        "race_time_s": 15.36,
+        "episode_steps": 307,
+        "position": [
+          497.21356201171875,
+          10.023585319519043,
+          688.0999755859375
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5586130803823471,
+          "control_brake": 0.42576956629753115,
+          "projected_velocity_mps": 6.472402241006494,
+          "nearest_distance_m": 0.5040261693671346
+        }
+      },
+      {
+        "rollout": 3,
+        "reason": "slow_progress",
+        "progress_pct": 4.750899077174893,
+        "race_time_s": 25.51,
+        "episode_steps": 510,
+        "position": [
+          512.1519165039062,
+          10.04909896850586,
+          730.5001831054688
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5098703598976135,
+          "control_brake": 0.4645648989081383,
+          "projected_velocity_mps": 0.7289248302578926,
+          "nearest_distance_m": 4.289923317059874
+        }
+      },
+      {
+        "rollout": 3,
+        "reason": "slow_progress",
+        "progress_pct": 4.474178891775918,
+        "race_time_s": 22.46,
+        "episode_steps": 449,
+        "position": [
+          501.68682861328125,
+          10.027236938476562,
+          728.5599975585938
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5439765644073487,
+          "control_brake": 0.46119763106107714,
+          "projected_velocity_mps": 0.5353153324242157,
+          "nearest_distance_m": 5.456354852467776
+        }
+      },
+      {
+        "rollout": 3,
+        "reason": "slow_progress",
+        "progress_pct": 4.658662771919322,
+        "race_time_s": 32.61,
+        "episode_steps": 652,
+        "position": [
+          508.1282043457031,
+          10.03629207611084,
+          730.8192749023438
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.44115310579538347,
+          "control_brake": 0.4831064954400063,
+          "projected_velocity_mps": 0.4694040426067659,
+          "nearest_distance_m": 11.071652736663818
+        }
+      },
+      {
+        "rollout": 3,
+        "reason": "rollout_boundary",
+        "progress_pct": 4.566418366615562,
+        "race_time_s": 21.86,
+        "episode_steps": 437,
+        "position": [
+          506.1416015625,
+          10.010808944702148,
+          724.1264038085938
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.49851561337709427,
+          "control_brake": 0.531955570280552,
+          "projected_velocity_mps": 4.555988122224807,
+          "nearest_distance_m": 1.893549465239048
+        }
+      },
+      {
+        "rollout": 4,
+        "reason": "slow_progress",
+        "progress_pct": 4.797020399386752,
+        "race_time_s": 21.47,
+        "episode_steps": 429,
+        "position": [
+          512.7164306640625,
+          10.013242721557617,
+          718.4566040039062
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.4620330914855003,
+          "control_brake": 0.4588784945011139,
+          "projected_velocity_mps": 0.19225598989985884,
+          "nearest_distance_m": 2.5671747124195097
+        }
+      },
+      {
+        "rollout": 4,
+        "reason": "slow_progress",
+        "progress_pct": 4.566418366615562,
+        "race_time_s": 18.47,
+        "episode_steps": 369,
+        "position": [
+          504.39996337890625,
+          10.029467582702637,
+          729.5318603515625
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5207989150285721,
+          "control_brake": 0.503380934894085,
+          "projected_velocity_mps": 0.38514891769591486,
+          "nearest_distance_m": 7.910077995657921
+        }
+      },
+      {
+        "rollout": 4,
+        "reason": "no_progress",
+        "progress_pct": 4.566418366615562,
+        "race_time_s": 24.71,
+        "episode_steps": 494,
+        "position": [
+          504.0507507324219,
+          10.009071350097656,
+          729.428955078125
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6105244529247283,
+          "control_brake": 0.4248231574892998,
+          "projected_velocity_mps": -0.11562198609201005,
+          "nearest_distance_m": 9.600964028835296
+        }
+      },
+      {
+        "rollout": 4,
+        "reason": "no_progress",
+        "progress_pct": 4.797020399386752,
+        "race_time_s": 17.86,
+        "episode_steps": 357,
+        "position": [
+          513.1478271484375,
+          10.016695976257324,
+          730.617431640625
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5136923956871032,
+          "control_brake": 0.5038358256220817,
+          "projected_velocity_mps": 0.137583497078449,
+          "nearest_distance_m": 10.757801074981689
+        }
+      },
+      {
+        "rollout": 4,
+        "reason": "rollout_boundary",
+        "progress_pct": 4.474178891775918,
+        "race_time_s": 19.96,
+        "episode_steps": 399,
+        "position": [
+          500.3330993652344,
+          10.012910842895508,
+          728.1475219726562
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.487250714302063,
+          "control_brake": 0.49217782020568845,
+          "projected_velocity_mps": 1.272648066356778,
+          "nearest_distance_m": 10.754505667686463
+        }
+      },
+      {
+        "rollout": 5,
+        "reason": "slow_progress",
+        "progress_pct": 4.520298100931728,
+        "race_time_s": 25.06,
+        "episode_steps": 501,
+        "position": [
+          502.7499694824219,
+          10.02099323272705,
+          729.1380004882812
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.4533505046367645,
+          "control_brake": 0.5258065220713616,
+          "projected_velocity_mps": 0.40344913253095,
+          "nearest_distance_m": 10.7122922706604
+        }
+      },
+      {
+        "rollout": 5,
+        "reason": "slow_progress",
+        "progress_pct": 4.566418366615562,
+        "race_time_s": 23.46,
+        "episode_steps": 469,
+        "position": [
+          504.7664489746094,
+          10.013636589050293,
+          729.3284301757812
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.47762210488319395,
+          "control_brake": 0.503291344344616,
+          "projected_velocity_mps": 0.6588476957799867,
+          "nearest_distance_m": 8.097763886451721
+        }
+      },
+      {
+        "rollout": 5,
+        "reason": "slow_progress",
+        "progress_pct": 4.750899077174893,
+        "race_time_s": 25.66,
+        "episode_steps": 513,
+        "position": [
+          512.0370483398438,
+          10.015270233154297,
+          731.1747436523438
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.47940039694309233,
+          "control_brake": 0.5399028977751732,
+          "projected_velocity_mps": 0.6101069705374539,
+          "nearest_distance_m": 11.016597270965576
+        }
+      },
+      {
+        "rollout": 5,
+        "reason": "slow_progress",
+        "progress_pct": 4.750899077174893,
+        "race_time_s": 22.86,
+        "episode_steps": 457,
+        "position": [
+          511.55133056640625,
+          10.014435768127441,
+          730.4353637695312
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.48342527508735655,
+          "control_brake": 0.5256104332208633,
+          "projected_velocity_mps": 0.2874390579527244,
+          "nearest_distance_m": 10.100976886749267
+        }
+      },
+      {
+        "rollout": 5,
+        "reason": "rollout_boundary",
+        "progress_pct": 1.1992750858351542,
+        "race_time_s": 5.41,
+        "episode_steps": 108,
+        "position": [
+          485.2646789550781,
+          10.01550579071045,
+          651.4080810546875
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5865690550208091,
+          "control_brake": 0.47058261454105377,
+          "projected_velocity_mps": 5.470749209523201,
+          "nearest_distance_m": 2.884021627083421
+        }
+      },
+      {
+        "rollout": 6,
+        "reason": "rollout_boundary",
+        "progress_pct": 25.138044542996127,
+        "race_time_s": 102.42,
+        "episode_steps": 2048,
+        "position": [
+          771.2386474609375,
+          10.006195068359375,
+          620.6143188476562
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5458558973670006,
+          "control_brake": 0.44995223939418794,
+          "projected_velocity_mps": 6.068470356464386,
+          "nearest_distance_m": 11.693579759597778
+        }
+      },
+      {
+        "rollout": 7,
+        "reason": "slow_progress",
+        "progress_pct": 4.474178891775918,
+        "race_time_s": 21.11,
+        "episode_steps": 422,
+        "position": [
+          501.0223083496094,
+          10.01626968383789,
+          728.9953002929688
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5348566192388534,
+          "control_brake": 0.5747109419107437,
+          "projected_velocity_mps": 0.6065438014804385,
+          "nearest_distance_m": 11.06446551322937
+        }
+      },
+      {
+        "rollout": 7,
+        "reason": "no_progress",
+        "progress_pct": 4.381930964712077,
+        "race_time_s": 16.81,
+        "episode_steps": 336,
+        "position": [
+          498.7747802734375,
+          10.011749267578125,
+          727.2061157226562
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.47745923399925233,
+          "control_brake": 0.501242044866085,
+          "projected_velocity_mps": 0.28790132393856765,
+          "nearest_distance_m": 10.879436931610108
+        }
+      },
+      {
+        "rollout": 7,
+        "reason": "rollout_boundary",
+        "progress_pct": 19.04943694663288,
+        "race_time_s": 64.51,
+        "episode_steps": 1290,
+        "position": [
+          711.6593017578125,
+          10.010446548461914,
+          538.1400146484375
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.524405562877655,
+          "control_brake": 0.47526626974344255,
+          "projected_velocity_mps": 6.8113396143913265,
+          "nearest_distance_m": 11.116063079833985
+        }
+      },
+      {
+        "rollout": 8,
+        "reason": "slow_progress",
+        "progress_pct": 41.05116537013304,
+        "race_time_s": 100.16,
+        "episode_steps": 2003,
+        "position": [
+          574.2074584960938,
+          10.053971290588379,
+          709.4312133789062
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5584383356571198,
+          "control_brake": 0.5333661442995071,
+          "projected_velocity_mps": 0.03035771927843598,
+          "nearest_distance_m": 10.869710140228271
+        }
+      },
+      {
+        "rollout": 8,
+        "reason": "rollout_boundary",
+        "progress_pct": 0.2767554250107963,
+        "race_time_s": 2.26,
+        "episode_steps": 45,
+        "position": [
+          495.5419921875,
+          10.020641326904297,
+          631.6644897460938
+        ],
+        "tail_steps": 45,
+        "tail": {
+          "control_gas": 0.6125889658927918,
+          "control_brake": 0.3974628382258945,
+          "projected_velocity_mps": 3.4992859834938526,
+          "nearest_distance_m": 0.7048867732286453
+        }
+      },
+      {
+        "rollout": 9,
+        "reason": "slow_progress",
+        "progress_pct": 38.37596034171328,
+        "race_time_s": 90.26,
+        "episode_steps": 1805,
+        "position": [
+          581.3456420898438,
+          10.020612716674805,
+          768.1969604492188
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5813794404268264,
+          "control_brake": 0.42676922798156736,
+          "projected_velocity_mps": 0.35550720474449915,
+          "nearest_distance_m": 10.623224925994872
+        }
+      },
+      {
+        "rollout": 9,
+        "reason": "rollout_boundary",
+        "progress_pct": 4.566418366615562,
+        "race_time_s": 12.17,
+        "episode_steps": 243,
+        "position": [
+          506.0610046386719,
+          10.013522148132324,
+          727.3331909179688
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5918522083759308,
+          "control_brake": 0.4336468079686165,
+          "projected_velocity_mps": 11.32685734987259,
+          "nearest_distance_m": 5.0613112911582
+        }
+      },
+      {
+        "rollout": 10,
+        "reason": "no_progress",
+        "progress_pct": 40.497722181927024,
+        "race_time_s": 92.36,
+        "episode_steps": 1847,
+        "position": [
+          592.14501953125,
+          10.014842987060547,
+          714.9751586914062
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6331456151604652,
+          "control_brake": 0.4054382947087288,
+          "projected_velocity_mps": 0.14837777009313868,
+          "nearest_distance_m": 10.3685750579834
+        }
+      },
+      {
+        "rollout": 10,
+        "reason": "rollout_boundary",
+        "progress_pct": 3.782322080117168,
+        "race_time_s": 10.06,
+        "episode_steps": 201,
+        "position": [
+          490.9734802246094,
+          10.018133163452148,
+          709.1908569335938
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5889309993386269,
+          "control_brake": 0.3927661234140396,
+          "projected_velocity_mps": 9.956996836662292,
+          "nearest_distance_m": 8.09031388759613
+        }
+      },
+      {
+        "rollout": 11,
+        "reason": "no_progress",
+        "progress_pct": 40.17485285241154,
+        "race_time_s": 84.31,
+        "episode_steps": 1686,
+        "position": [
+          599.5425415039062,
+          10.012895584106445,
+          723.6807861328125
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5144340059161187,
+          "control_brake": 0.4071131691336632,
+          "projected_velocity_mps": 0.18977724207728897,
+          "nearest_distance_m": 9.595169693231583
+        }
+      },
+      {
+        "rollout": 11,
+        "reason": "rollout_boundary",
+        "progress_pct": 7.056901443910364,
+        "race_time_s": 18.11,
+        "episode_steps": 362,
+        "position": [
+          544.3419189453125,
+          10.006800651550293,
+          686.15869140625
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6122039601206779,
+          "control_brake": 0.4191347995400429,
+          "projected_velocity_mps": 8.444299693107604,
+          "nearest_distance_m": 11.602812261581422
+        }
+      },
+      {
+        "rollout": 12,
+        "reason": "no_progress",
+        "progress_pct": 40.17485285241154,
+        "race_time_s": 83.61,
+        "episode_steps": 1672,
+        "position": [
+          599.8504638671875,
+          10.03487491607666,
+          724.1360473632812
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5328613910079002,
+          "control_brake": 0.36720219641923907,
+          "projected_velocity_mps": 0.11832373939781973,
+          "nearest_distance_m": 10.835281372070312
+        }
+      },
+      {
+        "rollout": 12,
+        "reason": "rollout_boundary",
+        "progress_pct": 4.935369574629984,
+        "race_time_s": 18.82,
+        "episode_steps": 376,
+        "position": [
+          517.6751708984375,
+          10.021161079406738,
+          731.0808715820312
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6383794942498207,
+          "control_brake": 0.42888285875320437,
+          "projected_velocity_mps": 7.387270855903625,
+          "nearest_distance_m": 11.856675176620483
+        }
+      },
+      {
+        "rollout": 13,
+        "reason": "slow_progress",
+        "progress_pct": 4.843136438958488,
+        "race_time_s": 18.16,
+        "episode_steps": 363,
+        "position": [
+          513.6866455078125,
+          10.034907341003418,
+          730.5807495117188
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5790237882733344,
+          "control_brake": 0.3706262743473053,
+          "projected_velocity_mps": 0.00727164771000389,
+          "nearest_distance_m": 10.883424644470216
+        }
+      },
+      {
+        "rollout": 13,
+        "reason": "no_progress",
+        "progress_pct": 19.833573733372223,
+        "race_time_s": 47.97,
+        "episode_steps": 959,
+        "position": [
+          725.9501953125,
+          10.00590705871582,
+          542.2169189453125
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5951434180140496,
+          "control_brake": 0.35962278068065645,
+          "projected_velocity_mps": 0.16545205676928162,
+          "nearest_distance_m": 10.516715059280395
+        }
+      },
+      {
+        "rollout": 13,
+        "reason": "rollout_boundary",
+        "progress_pct": 20.110329136372016,
+        "race_time_s": 36.31,
+        "episode_steps": 726,
+        "position": [
+          729.8443603515625,
+          10.0072603225708,
+          544.8031616210938
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6122590646147728,
+          "control_brake": 0.34652027815580366,
+          "projected_velocity_mps": 12.986464624404908,
+          "nearest_distance_m": 9.67936324596405
+        }
+      },
+      {
+        "rollout": 14,
+        "reason": "no_progress",
+        "progress_pct": 4.612541801883471,
+        "race_time_s": 13.61,
+        "episode_steps": 272,
+        "position": [
+          506.32598876953125,
+          10.034809112548828,
+          730.0243530273438
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6492194253206253,
+          "control_brake": 0.5207805871963501,
+          "projected_velocity_mps": 0.05382534205804404,
+          "nearest_distance_m": 10.878473272323609
+        }
+      },
+      {
+        "rollout": 14,
+        "reason": "no_progress",
+        "progress_pct": 4.658662771919322,
+        "race_time_s": 13.61,
+        "episode_steps": 272,
+        "position": [
+          508.20318603515625,
+          10.013360023498535,
+          730.3577270507812
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.587672538459301,
+          "control_brake": 0.39683928549289704,
+          "projected_velocity_mps": 0.14097025596864113,
+          "nearest_distance_m": 10.49924032688141
+        }
+      },
+      {
+        "rollout": 14,
+        "reason": "rollout_boundary",
+        "progress_pct": 40.68221169688656,
+        "race_time_s": 75.21,
+        "episode_steps": 1504,
+        "position": [
+          587.434326171875,
+          10.0139741897583,
+          711.5429077148438
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6364522919058799,
+          "control_brake": 0.35904815793037415,
+          "projected_velocity_mps": 1.7974912151694298,
+          "nearest_distance_m": 9.276523159742355
+        }
+      },
+      {
+        "rollout": 15,
+        "reason": "rollout_boundary",
+        "progress_pct": 57.24119514900933,
+        "race_time_s": 102.42,
+        "episode_steps": 2048,
+        "position": [
+          292.3783874511719,
+          10.012675285339355,
+          791.630859375
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6463243237137795,
+          "control_brake": 0.3799286472797394,
+          "projected_velocity_mps": 13.438637580871582,
+          "nearest_distance_m": 11.556035165786744
+        }
+      },
+      {
+        "rollout": 16,
+        "reason": "no_progress",
+        "progress_pct": 40.405477424447255,
+        "race_time_s": 73.96,
+        "episode_steps": 1479,
+        "position": [
+          595.1573486328125,
+          10.018850326538086,
+          717.4896240234375
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6308995717763901,
+          "control_brake": 0.3866920468211174,
+          "projected_velocity_mps": 0.008084596213011537,
+          "nearest_distance_m": 10.287316110134125
+        }
+      },
+      {
+        "rollout": 16,
+        "reason": "rollout_boundary",
+        "progress_pct": 15.03650966416045,
+        "race_time_s": 28.46,
+        "episode_steps": 569,
+        "position": [
+          647.3734130859375,
+          10.015857696533203,
+          569.9297485351562
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6783083659410477,
+          "control_brake": 0.3181359532475472,
+          "projected_velocity_mps": 13.287556648254395,
+          "nearest_distance_m": 11.591938753128051
+        }
+      },
+      {
+        "rollout": 17,
+        "reason": "rollout_boundary",
+        "progress_pct": 65.77453815920023,
+        "race_time_s": 102.41,
+        "episode_steps": 2048,
+        "position": [
+          379.5730895996094,
+          10.032963752746582,
+          671.9810791015625
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7403205242753029,
+          "control_brake": 0.34539061844348906,
+          "projected_velocity_mps": 21.970342054367066,
+          "nearest_distance_m": 6.796518255472183
+        }
+      },
+      {
+        "rollout": 18,
+        "reason": "no_progress",
+        "progress_pct": 40.86668994221383,
+        "race_time_s": 64.46,
+        "episode_steps": 1289,
+        "position": [
+          579.46142578125,
+          10.018750190734863,
+          709.5904541015625
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6577871507406234,
+          "control_brake": 0.4981172025203705,
+          "projected_velocity_mps": 0.2885228726257628,
+          "nearest_distance_m": 10.418165946006775
+        }
+      },
+      {
+        "rollout": 18,
+        "reason": "rollout_boundary",
+        "progress_pct": 24.307776925292707,
+        "race_time_s": 37.96,
+        "episode_steps": 759,
+        "position": [
+          772.2698364257812,
+          10.010139465332031,
+          605.3408813476562
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6911586946249009,
+          "control_brake": 0.32240083992481233,
+          "projected_velocity_mps": 13.456403503417969,
+          "nearest_distance_m": 11.668216314315796
+        }
+      },
+      {
+        "rollout": 19,
+        "reason": "rollout_boundary",
+        "progress_pct": 65.08267289531729,
+        "race_time_s": 102.41,
+        "episode_steps": 2048,
+        "position": [
+          369.2250671386719,
+          10.034191131591797,
+          693.1378173828125
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.682043374478817,
+          "control_brake": 0.37462970495224,
+          "projected_velocity_mps": 10.287734463512898,
+          "nearest_distance_m": 9.564634385108947
+        }
+      },
+      {
+        "rollout": 20,
+        "reason": "no_progress",
+        "progress_pct": 40.58996975681486,
+        "race_time_s": 66.27,
+        "episode_steps": 1325,
+        "position": [
+          589.2391357421875,
+          10.050416946411133,
+          712.8873901367188
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6533769929409027,
+          "control_brake": 0.45804757058620454,
+          "projected_velocity_mps": 0.20830511430238402,
+          "nearest_distance_m": 10.846181154251099
+        }
+      },
+      {
+        "rollout": 20,
+        "reason": "rollout_boundary",
+        "progress_pct": 20.61771474622366,
+        "race_time_s": 36.16,
+        "episode_steps": 723,
+        "position": [
+          738.4165649414062,
+          10.013757705688477,
+          548.8820190429688
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7274555015563965,
+          "control_brake": 0.35636862128973007,
+          "projected_velocity_mps": 12.805134782791137,
+          "nearest_distance_m": 11.237729654312133
+        }
+      },
+      {
+        "rollout": 21,
+        "reason": "no_progress",
+        "progress_pct": 41.00505003491332,
+        "race_time_s": 63.86,
+        "episode_steps": 1277,
+        "position": [
+          574.8352661132812,
+          10.03420352935791,
+          709.3917846679688
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5385700625181198,
+          "control_brake": 0.5531556075811386,
+          "projected_velocity_mps": 0.16546872383776645,
+          "nearest_distance_m": 10.312844479084015
+        }
+      },
+      {
+        "rollout": 21,
+        "reason": "rollout_boundary",
+        "progress_pct": 25.46092514214387,
+        "race_time_s": 38.56,
+        "episode_steps": 771,
+        "position": [
+          769.7786865234375,
+          10.009454727172852,
+          626.2025146484375
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7252946409583092,
+          "control_brake": 0.29869863092899324,
+          "projected_velocity_mps": 16.53444806098938,
+          "nearest_distance_m": 11.084432868957519
+        }
+      },
+      {
+        "rollout": 22,
+        "reason": "no_progress",
+        "progress_pct": 41.32786865108362,
+        "race_time_s": 66.76,
+        "episode_steps": 1335,
+        "position": [
+          564.1583862304688,
+          10.01502799987793,
+          712.1307373046875
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.664802472293377,
+          "control_brake": 0.5713537707924843,
+          "projected_velocity_mps": 0.07849557889370772,
+          "nearest_distance_m": 10.851336889266967
+        }
+      },
+      {
+        "rollout": 22,
+        "reason": "slow_progress",
+        "progress_pct": 4.797020399386752,
+        "race_time_s": 13.91,
+        "episode_steps": 278,
+        "position": [
+          513.2031860351562,
+          10.02021312713623,
+          730.4949951171875
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.613503882586956,
+          "control_brake": 0.5771368762850762,
+          "projected_velocity_mps": 0.5160861895958078,
+          "nearest_distance_m": 10.747847757339478
+        }
+      },
+      {
+        "rollout": 22,
+        "reason": "no_progress",
+        "progress_pct": 4.750899077174893,
+        "race_time_s": 11.16,
+        "episode_steps": 223,
+        "position": [
+          512.0331420898438,
+          10.01815414428711,
+          730.6417846679688
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6242963322997093,
+          "control_brake": 0.5321421697735786,
+          "projected_velocity_mps": 0.13952452286888728,
+          "nearest_distance_m": 10.850578441619874
+        }
+      },
+      {
+        "rollout": 22,
+        "reason": "rollout_boundary",
+        "progress_pct": 4.658662771919322,
+        "race_time_s": 10.61,
+        "episode_steps": 212,
+        "position": [
+          508.29656982421875,
+          10.013916015625,
+          731.4085083007812
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6705018737912178,
+          "control_brake": 0.29686164021492006,
+          "projected_velocity_mps": 9.29447538793087,
+          "nearest_distance_m": 9.905540342330932
+        }
+      },
+      {
+        "rollout": 23,
+        "reason": "rollout_boundary",
+        "progress_pct": 68.54212318068691,
+        "race_time_s": 102.41,
+        "episode_steps": 2048,
+        "position": [
+          404.8523864746094,
+          10.014517784118652,
+          636.7724609375
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6752676072716713,
+          "control_brake": 0.3404147082567215,
+          "projected_velocity_mps": 11.23093370437622,
+          "nearest_distance_m": 11.487948188781738
+        }
+      },
+      {
+        "rollout": 24,
+        "reason": "no_progress",
+        "progress_pct": 41.05116537013304,
+        "race_time_s": 73.36,
+        "episode_steps": 1467,
+        "position": [
+          573.3201904296875,
+          10.048223495483398,
+          709.5072021484375
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5239547461271286,
+          "control_brake": 0.5423599702119827,
+          "projected_velocity_mps": 0.17768206651890067,
+          "nearest_distance_m": 10.750835485458374
+        }
+      },
+      {
+        "rollout": 24,
+        "reason": "no_progress",
+        "progress_pct": 4.889248252418125,
+        "race_time_s": 14.12,
+        "episode_steps": 282,
+        "position": [
+          517.0977783203125,
+          10.015970230102539,
+          730.146240234375
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5753573259711265,
+          "control_brake": 0.636080713570118,
+          "projected_velocity_mps": 0.26219180193580544,
+          "nearest_distance_m": 10.868495435714722
+        }
+      },
+      {
+        "rollout": 24,
+        "reason": "rollout_boundary",
+        "progress_pct": 7.333649099037979,
+        "race_time_s": 14.96,
+        "episode_steps": 299,
+        "position": [
+          547.03369140625,
+          10.02135944366455,
+          682.2428588867188
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6956531083583832,
+          "control_brake": 0.38394456475973127,
+          "projected_velocity_mps": 13.068283061981202,
+          "nearest_distance_m": 11.829620971679688
+        }
+      },
+      {
+        "rollout": 25,
+        "reason": "rollout_boundary",
+        "progress_pct": 68.72662960009484,
+        "race_time_s": 102.41,
+        "episode_steps": 2048,
+        "position": [
+          407.8578796386719,
+          10.007975578308105,
+          636.1385498046875
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7472714704275131,
+          "control_brake": 0.3691785281896591,
+          "projected_velocity_mps": 13.507456464767456,
+          "nearest_distance_m": 11.220774097442627
+        }
+      },
+      {
+        "rollout": 26,
+        "reason": "no_progress",
+        "progress_pct": 41.88121323000733,
+        "race_time_s": 64.56,
+        "episode_steps": 1291,
+        "position": [
+          550.6832885742188,
+          10.012717247009277,
+          727.71875
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.548400736451149,
+          "control_brake": 0.5326714661717414,
+          "projected_velocity_mps": 0.20743675910445744,
+          "nearest_distance_m": 10.85183042526245
+        }
+      },
+      {
+        "rollout": 26,
+        "reason": "rollout_boundary",
+        "progress_pct": 24.261650320440722,
+        "race_time_s": 37.86,
+        "episode_steps": 757,
+        "position": [
+          772.1693115234375,
+          10.005714416503906,
+          604.6766967773438
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7391180223226548,
+          "control_brake": 0.3368055161833763,
+          "projected_velocity_mps": 13.558369121551515,
+          "nearest_distance_m": 11.676827192306519
+        }
+      },
+      {
+        "rollout": 27,
+        "reason": "slow_progress",
+        "progress_pct": 41.32786865108362,
+        "race_time_s": 64.71,
+        "episode_steps": 1294,
+        "position": [
+          563.9359130859375,
+          10.024999618530273,
+          712.2000732421875
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.627176513671875,
+          "control_brake": 0.40761641651391983,
+          "projected_velocity_mps": 0.3928037657943787,
+          "nearest_distance_m": 10.793803949356079
+        }
+      },
+      {
+        "rollout": 27,
+        "reason": "rollout_boundary",
+        "progress_pct": 26.752461625775183,
+        "race_time_s": 37.71,
+        "episode_steps": 754,
+        "position": [
+          759.6622924804688,
+          10.020811080932617,
+          647.5187377929688
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7312566003203392,
+          "control_brake": 0.32941741824150084,
+          "projected_velocity_mps": 13.647945928573609,
+          "nearest_distance_m": 11.492081289291383
+        }
+      },
+      {
+        "rollout": 28,
+        "reason": "rollout_boundary",
+        "progress_pct": 73.93893031355273,
+        "race_time_s": 102.41,
+        "episode_steps": 2048,
+        "position": [
+          479.06781005859375,
+          10.010110855102539,
+          555.0791015625
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7649760550260544,
+          "control_brake": 0.31391290366649627,
+          "projected_velocity_mps": 13.597662858963012,
+          "nearest_distance_m": 11.528111324310302
+        }
+      },
+      {
+        "rollout": 29,
+        "reason": "rollout_boundary",
+        "progress_pct": 69.51078188257854,
+        "race_time_s": 102.42,
+        "episode_steps": 2048,
+        "position": [
+          423.5403137207031,
+          10.01351261138916,
+          635.07958984375
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6794747933745384,
+          "control_brake": 0.33032875537872314,
+          "projected_velocity_mps": 13.723598079681397,
+          "nearest_distance_m": 10.819979829788208
+        }
+      },
+      {
+        "rollout": 30,
+        "reason": "rollout_boundary",
+        "progress_pct": 69.92592132624638,
+        "race_time_s": 102.42,
+        "episode_steps": 2048,
+        "position": [
+          435.3786315917969,
+          10.016222953796387,
+          632.4698486328125
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7219368514418602,
+          "control_brake": 0.3639002332091332,
+          "projected_velocity_mps": 13.570570526123047,
+          "nearest_distance_m": 11.705301170349122
+        }
+      },
+      {
+        "rollout": 31,
+        "reason": "rollout_boundary",
+        "progress_pct": 69.32627546317062,
+        "race_time_s": 102.41,
+        "episode_steps": 2048,
+        "position": [
+          419.6129150390625,
+          10.011539459228516,
+          635.5846557617188
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6900624296069146,
+          "control_brake": 0.40459196239709855,
+          "projected_velocity_mps": 12.789890661239625,
+          "nearest_distance_m": 11.560330238342285
+        }
+      },
+      {
+        "rollout": 32,
+        "reason": "rollout_boundary",
+        "progress_pct": 71.21746062728576,
+        "race_time_s": 102.41,
+        "episode_steps": 2048,
+        "position": [
+          463.0855407714844,
+          10.010293006896973,
+          612.7040405273438
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7396682325005531,
+          "control_brake": 0.3426990360021591,
+          "projected_velocity_mps": 14.927825946807861,
+          "nearest_distance_m": 10.214686903953552
+        }
+      },
+      {
+        "rollout": 33,
+        "reason": "rollout_boundary",
+        "progress_pct": 70.38718737476621,
+        "race_time_s": 102.42,
+        "episode_steps": 2048,
+        "position": [
+          446.42559814453125,
+          10.021169662475586,
+          627.3699951171875
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7395489540696144,
+          "control_brake": 0.32918580412864684,
+          "projected_velocity_mps": 15.688419818878174,
+          "nearest_distance_m": 9.92382315158844
+        }
+      },
+      {
+        "rollout": 34,
+        "reason": "rollout_boundary",
+        "progress_pct": 73.4776642650329,
+        "race_time_s": 102.41,
+        "episode_steps": 2048,
+        "position": [
+          478.02496337890625,
+          10.011636734008789,
+          563.4120483398438
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7508322611451149,
+          "control_brake": 0.35068993389606473,
+          "projected_velocity_mps": 14.66577898979187,
+          "nearest_distance_m": 11.571395816802978
+        }
+      },
+      {
+        "rollout": 35,
+        "reason": "rollout_boundary",
+        "progress_pct": 71.30971383698973,
+        "race_time_s": 102.42,
+        "episode_steps": 2048,
+        "position": [
+          462.6573181152344,
+          10.020439147949219,
+          609.4961547851562
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8300084966421127,
+          "control_brake": 0.3519278156757355,
+          "projected_velocity_mps": 18.173062295913695,
+          "nearest_distance_m": 10.745387754440308
+        }
+      },
+      {
+        "rollout": 36,
+        "reason": "rollout_boundary",
+        "progress_pct": 79.47408908689383,
+        "race_time_s": 102.42,
+        "episode_steps": 2048,
+        "position": [
+          551.9854736328125,
+          10.014084815979004,
+          572.7114868164062
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7201715958118439,
+          "control_brake": 0.3463360804319382,
+          "projected_velocity_mps": 13.666931228637695,
+          "nearest_distance_m": 11.29769965171814
+        }
+      },
+      {
+        "rollout": 37,
+        "reason": "rollout_boundary",
+        "progress_pct": 75.27659621944409,
+        "race_time_s": 102.41,
+        "episode_steps": 2048,
+        "position": [
+          497.7840576171875,
+          10.035541534423828,
+          542.6586303710938
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7130273076891899,
+          "control_brake": 0.2507092422246933,
+          "projected_velocity_mps": 16.5395729637146,
+          "nearest_distance_m": 11.5875856590271
+        }
+      },
+      {
+        "rollout": 38,
+        "reason": "rollout_boundary",
+        "progress_pct": 85.23952025626242,
+        "race_time_s": 102.42,
+        "episode_steps": 2048,
+        "position": [
+          600.841064453125,
+          10.014915466308594,
+          503.24322509765625
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7875119897723198,
+          "control_brake": 0.3403439730405807,
+          "projected_velocity_mps": 15.196474533081055,
+          "nearest_distance_m": 10.854842920303344
+        }
+      },
+      {
+        "rollout": 39,
+        "reason": "rollout_boundary",
+        "progress_pct": 89.4370187585283,
+        "race_time_s": 102.41,
+        "episode_steps": 2048,
+        "position": [
+          541.9370727539062,
+          10.013263702392578,
+          426.8434143066406
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7798761063814164,
+          "control_brake": 0.3843880930542946,
+          "projected_velocity_mps": 24.783076057434084,
+          "nearest_distance_m": 7.365972547531128
+        }
+      },
+      {
+        "rollout": 40,
+        "reason": "rollout_boundary",
+        "progress_pct": 93.49615435068661,
+        "race_time_s": 102.41,
+        "episode_steps": 2048,
+        "position": [
+          449.0696716308594,
+          10.011547088623047,
+          445.2798767089844
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8217964172363281,
+          "control_brake": 0.26762082666158676,
+          "projected_velocity_mps": 15.596122026443481,
+          "nearest_distance_m": 10.93773344039917
+        }
+      },
+      {
+        "rollout": 41,
+        "reason": "no_progress",
+        "progress_pct": 65.72841155434826,
+        "race_time_s": 67.01,
+        "episode_steps": 1340,
+        "position": [
+          378.6363220214844,
+          10.017019271850586,
+          672.6450805664062
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5997945022583008,
+          "control_brake": 0.5275326526165008,
+          "projected_velocity_mps": 0.2031209778501943,
+          "nearest_distance_m": 10.715423917770385
+        }
+      },
+      {
+        "rollout": 41,
+        "reason": "rollout_boundary",
+        "progress_pct": 33.44066437186901,
+        "race_time_s": 35.41,
+        "episode_steps": 708,
+        "position": [
+          644.8829345703125,
+          10.024413108825684,
+          727.6918334960938
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8015558037161827,
+          "control_brake": 0.33520706564188,
+          "projected_velocity_mps": 22.223707733154296,
+          "nearest_distance_m": 6.638976517915726
+        }
+      },
+      {
+        "rollout": 42,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 94.24,
+        "episode_steps": 1885,
+        "position": [
+          383.0433044433594,
+          10.007238388061523,
+          565.0711059570312
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8040330010652542,
+          "control_brake": 0.3010882374644279,
+          "projected_velocity_mps": 17.128231620788576,
+          "nearest_distance_m": 8.016092877089978
+        }
+      },
+      {
+        "rollout": 42,
+        "reason": "rollout_boundary",
+        "progress_pct": 5.534870693366379,
+        "race_time_s": 8.16,
+        "episode_steps": 163,
+        "position": [
+          535.0073852539062,
+          10.006046295166016,
+          718.0989379882812
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7525466707348824,
+          "control_brake": 0.333672334253788,
+          "projected_velocity_mps": 21.953872909545897,
+          "nearest_distance_m": 5.771323514133692
+        }
+      },
+      {
+        "rollout": 43,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 95.75,
+        "episode_steps": 1915,
+        "position": [
+          382.9486999511719,
+          10.029208183288574,
+          570.025634765625
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7855070063471794,
+          "control_brake": 0.28922642409801486,
+          "projected_velocity_mps": 22.595527877807616,
+          "nearest_distance_m": 7.988319414556027
+        }
+      },
+      {
+        "rollout": 43,
+        "reason": "rollout_boundary",
+        "progress_pct": 4.243559602380326,
+        "race_time_s": 6.66,
+        "episode_steps": 133,
+        "position": [
+          494.9668273925781,
+          10.013863563537598,
+          722.4913940429688
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7617781811952591,
+          "control_brake": 0.34301012098789213,
+          "projected_velocity_mps": 18.43418493270874,
+          "nearest_distance_m": 4.921165112257004
+        }
+      },
+      {
+        "rollout": 44,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 98.34,
+        "episode_steps": 1967,
+        "position": [
+          383.0015563964844,
+          10.033366203308105,
+          568.4846801757812
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8201594370603561,
+          "control_brake": 0.3042954260110855,
+          "projected_velocity_mps": 32.06515571594238,
+          "nearest_distance_m": 6.884373535513878
+        }
+      },
+      {
+        "rollout": 44,
+        "reason": "rollout_boundary",
+        "progress_pct": 2.2140465696704443,
+        "race_time_s": 4.07,
+        "episode_steps": 81,
+        "position": [
+          504.3848876953125,
+          10.013986587524414,
+          673.1818237304688
+        ],
+        "tail_steps": 81,
+        "tail": {
+          "control_gas": 0.8195593710298892,
+          "control_brake": 0.34688063977677147,
+          "projected_velocity_mps": 12.311705338441007,
+          "nearest_distance_m": 3.1603236658337677
+        }
+      },
+      {
+        "rollout": 45,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 94.69,
+        "episode_steps": 1894,
+        "position": [
+          382.9359130859375,
+          10.015993118286133,
+          556.1473388671875
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7393307927250862,
+          "control_brake": 0.3417035326361656,
+          "projected_velocity_mps": 25.782634963989256,
+          "nearest_distance_m": 6.013312568664551
+        }
+      },
+      {
+        "rollout": 45,
+        "reason": "rollout_boundary",
+        "progress_pct": 4.428056160860026,
+        "race_time_s": 7.71,
+        "episode_steps": 154,
+        "position": [
+          504.7976989746094,
+          10.016820907592773,
+          719.2447509765625
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7067343944311142,
+          "control_brake": 0.3133551225066185,
+          "projected_velocity_mps": 16.83139747619629,
+          "nearest_distance_m": 4.337010795176029
+        }
+      },
+      {
+        "rollout": 46,
+        "reason": "rollout_boundary",
+        "progress_pct": 98.89296148355243,
+        "race_time_s": 102.41,
+        "episode_steps": 2048,
+        "position": [
+          403.0682067871094,
+          10.029254913330078,
+          549.0033569335938
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7889213600754738,
+          "control_brake": 0.30011813431978224,
+          "projected_velocity_mps": 22.403642148971556,
+          "nearest_distance_m": 9.890308389663696
+        }
+      },
+      {
+        "rollout": 47,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 94.56,
+        "episode_steps": 1868,
+        "position": [
+          383.0039978027344,
+          10.02602481842041,
+          560.361328125
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8109524953365326,
+          "control_brake": 0.3041094827651978,
+          "projected_velocity_mps": 31.41343402862549,
+          "nearest_distance_m": 7.770210911631584
+        }
+      },
+      {
+        "rollout": 47,
+        "reason": "rollout_boundary",
+        "progress_pct": 4.935369574629984,
+        "race_time_s": 9.01,
+        "episode_steps": 180,
+        "position": [
+          513.845458984375,
+          10.017008781433105,
+          711.2222290039062
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7341235601902008,
+          "control_brake": 0.27933573991060257,
+          "projected_velocity_mps": 13.207378377914429,
+          "nearest_distance_m": 7.463785469532013
+        }
+      },
+      {
+        "rollout": 48,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 97.6,
+        "episode_steps": 1952,
+        "position": [
+          383.0207214355469,
+          10.023354530334473,
+          556.8995361328125
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7977215787768364,
+          "control_brake": 0.34531616538763044,
+          "projected_velocity_mps": 29.530222682952882,
+          "nearest_distance_m": 8.593904089331627
+        }
+      },
+      {
+        "rollout": 48,
+        "reason": "rollout_boundary",
+        "progress_pct": 1.3837788639230222,
+        "race_time_s": 4.81,
+        "episode_steps": 96,
+        "position": [
+          496.5262451171875,
+          10.013374328613281,
+          654.9625244140625
+        ],
+        "tail_steps": 96,
+        "tail": {
+          "control_gas": 0.6715668719261885,
+          "control_brake": 0.3412378625944257,
+          "projected_velocity_mps": 6.560669765953397,
+          "nearest_distance_m": 0.7304155638751885
+        }
+      },
+      {
+        "rollout": 49,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 86.88,
+        "episode_steps": 1738,
+        "position": [
+          383.4117126464844,
+          10.023285865783691,
+          571.3585815429688
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.81657247453928,
+          "control_brake": 0.393354075551033,
+          "projected_velocity_mps": 34.3114436340332,
+          "nearest_distance_m": 4.265435124486685
+        }
+      },
+      {
+        "rollout": 49,
+        "reason": "rollout_boundary",
+        "progress_pct": 12.868602905942296,
+        "race_time_s": 15.52,
+        "episode_steps": 310,
+        "position": [
+          635.7305908203125,
+          10.020065307617188,
+          608.8037719726562
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.777896446287632,
+          "control_brake": 0.3307823896408081,
+          "projected_velocity_mps": 24.48533272743225,
+          "nearest_distance_m": 7.968885236978531
+        }
+      },
+      {
+        "rollout": 50,
+        "reason": "slow_progress",
+        "progress_pct": 65.59004300942456,
+        "race_time_s": 60.71,
+        "episode_steps": 1214,
+        "position": [
+          377.9840087890625,
+          10.012571334838867,
+          677.7888793945312
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.5097101074457169,
+          "control_brake": 0.6012348711490632,
+          "projected_velocity_mps": 0.0887878004371305,
+          "nearest_distance_m": 10.700300045013428
+        }
+      },
+      {
+        "rollout": 50,
+        "reason": "rollout_boundary",
+        "progress_pct": 47.00109450668537,
+        "race_time_s": 41.71,
+        "episode_steps": 834,
+        "position": [
+          498.7862548828125,
+          10.007096290588379,
+          808.5445556640625
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8444715869426728,
+          "control_brake": 0.3820019966363907,
+          "projected_velocity_mps": 20.004450397491453,
+          "nearest_distance_m": 8.800714855194093
+        }
+      },
+      {
+        "rollout": 51,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 91.9,
+        "episode_steps": 1838,
+        "position": [
+          382.8526306152344,
+          10.023794174194336,
+          563.4459838867188
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8125724759697914,
+          "control_brake": 0.39532806366682055,
+          "projected_velocity_mps": 26.32452112197876,
+          "nearest_distance_m": 5.0500898298621175
+        }
+      },
+      {
+        "rollout": 51,
+        "reason": "rollout_boundary",
+        "progress_pct": 6.272787196435551,
+        "race_time_s": 10.51,
+        "episode_steps": 210,
+        "position": [
+          540.1189575195312,
+          10.003786087036133,
+          698.3778076171875
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7791300052404404,
+          "control_brake": 0.38317704916000367,
+          "projected_velocity_mps": 11.604532012939453,
+          "nearest_distance_m": 9.399038068801165
+        }
+      },
+      {
+        "rollout": 52,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 89.18,
+        "episode_steps": 1784,
+        "position": [
+          383.1092224121094,
+          10.014713287353516,
+          569.650634765625
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.799872282743454,
+          "control_brake": 0.37315206408500673,
+          "projected_velocity_mps": 28.360131664276125,
+          "nearest_distance_m": 7.008348560333252
+        }
+      },
+      {
+        "rollout": 52,
+        "reason": "rollout_boundary",
+        "progress_pct": 9.732125489834566,
+        "race_time_s": 13.22,
+        "episode_steps": 264,
+        "position": [
+          582.4310913085938,
+          10.016582489013672,
+          651.0845336914062
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7058310589194298,
+          "control_brake": 0.339184972345829,
+          "projected_velocity_mps": 15.121329560279847,
+          "nearest_distance_m": 7.890705744922161
+        }
+      },
+      {
+        "rollout": 53,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 93.1,
+        "episode_steps": 1862,
+        "position": [
+          382.9617919921875,
+          10.01667594909668,
+          570.3035278320312
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8458811742067337,
+          "control_brake": 0.28835364818573,
+          "projected_velocity_mps": 32.21640478134155,
+          "nearest_distance_m": 5.6410258507728575
+        }
+      },
+      {
+        "rollout": 53,
+        "reason": "rollout_boundary",
+        "progress_pct": 5.212071094700523,
+        "race_time_s": 9.31,
+        "episode_steps": 186,
+        "position": [
+          524.9235229492188,
+          10.005709648132324,
+          723.7044067382812
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6600260028243065,
+          "control_brake": 0.469268274307251,
+          "projected_velocity_mps": 11.348838052749635,
+          "nearest_distance_m": 6.53229874432087
+        }
+      },
+      {
+        "rollout": 54,
+        "reason": "no_progress",
+        "progress_pct": 65.77453815920023,
+        "race_time_s": 65.62,
+        "episode_steps": 1312,
+        "position": [
+          378.6463928222656,
+          10.01340389251709,
+          672.265869140625
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6667417481541633,
+          "control_brake": 0.6748841065168381,
+          "projected_velocity_mps": 0.05816408988801413,
+          "nearest_distance_m": 10.64541566848755
+        }
+      },
+      {
+        "rollout": 54,
+        "reason": "rollout_boundary",
+        "progress_pct": 40.58996975681486,
+        "race_time_s": 36.81,
+        "episode_steps": 736,
+        "position": [
+          579.42529296875,
+          10.015727996826172,
+          730.6885986328125
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7457070741057396,
+          "control_brake": 0.4907865285873413,
+          "projected_velocity_mps": 13.862461652755737,
+          "nearest_distance_m": 10.060487821400166
+        }
+      },
+      {
+        "rollout": 55,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 98.08,
+        "episode_steps": 1962,
+        "position": [
+          382.8628845214844,
+          10.020709991455078,
+          568.0057983398438
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8112831994891166,
+          "control_brake": 0.34677170813083646,
+          "projected_velocity_mps": 23.25153108596802,
+          "nearest_distance_m": 4.476454738676548
+        }
+      },
+      {
+        "rollout": 55,
+        "reason": "rollout_boundary",
+        "progress_pct": 2.167919964818462,
+        "race_time_s": 4.31,
+        "episode_steps": 86,
+        "position": [
+          498.45458984375,
+          10.015013694763184,
+          672.272216796875
+        ],
+        "tail_steps": 86,
+        "tail": {
+          "control_gas": 0.7806263604136401,
+          "control_brake": 0.29516020036020946,
+          "projected_velocity_mps": 11.35675634623142,
+          "nearest_distance_m": 0.5930014211944369
+        }
+      },
+      {
+        "rollout": 56,
+        "reason": "rollout_boundary",
+        "progress_pct": 99.58486055633216,
+        "race_time_s": 102.41,
+        "episode_steps": 2048,
+        "position": [
+          394.4671936035156,
+          10.021085739135742,
+          570.728515625
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8748725569248199,
+          "control_brake": 0.3883498546481132,
+          "projected_velocity_mps": 19.577003917694093,
+          "nearest_distance_m": 8.147589764595033
+        }
+      },
+      {
+        "rollout": 57,
+        "reason": "rollout_boundary",
+        "progress_pct": 89.02188494967659,
+        "race_time_s": 102.41,
+        "episode_steps": 2048,
+        "position": [
+          541.3892822265625,
+          10.009267807006836,
+          450.24285888671875
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8221683806180954,
+          "control_brake": 0.3836024588346481,
+          "projected_velocity_mps": 13.675931711196899,
+          "nearest_distance_m": 11.639230346679687
+        }
+      },
+      {
+        "rollout": 58,
+        "reason": "rollout_boundary",
+        "progress_pct": 93.49615435068661,
+        "race_time_s": 102.41,
+        "episode_steps": 2048,
+        "position": [
+          464.4853820800781,
+          10.009987831115723,
+          462.8583068847656
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8036583912372589,
+          "control_brake": 0.35288371533155444,
+          "projected_velocity_mps": 13.582453050613402,
+          "nearest_distance_m": 11.624197673797607
+        }
+      },
+      {
+        "rollout": 59,
+        "reason": "rollout_boundary",
+        "progress_pct": 91.05144429353155,
+        "race_time_s": 102.41,
+        "episode_steps": 2048,
+        "position": [
+          505.0851135253906,
+          10.032153129577637,
+          443.9585876464844
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8281519529223442,
+          "control_brake": 0.35834049195051193,
+          "projected_velocity_mps": 15.27314995765686,
+          "nearest_distance_m": 11.503412008285522
+        }
+      },
+      {
+        "rollout": 60,
+        "reason": "slow_progress",
+        "progress_pct": 37.63799946446707,
+        "race_time_s": 40.56,
+        "episode_steps": 811,
+        "position": [
+          594.0787963867188,
+          10.01150894165039,
+          790.7181396484375
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7958505138754844,
+          "control_brake": 0.2439650735259056,
+          "projected_velocity_mps": 0.05241533962500398,
+          "nearest_distance_m": 10.743308153152466
+        }
+      },
+      {
+        "rollout": 60,
+        "reason": "no_progress",
+        "progress_pct": 37.130674428888845,
+        "race_time_s": 36.76,
+        "episode_steps": 735,
+        "position": [
+          610.3192138671875,
+          10.029292106628418,
+          794.6016845703125
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8192348885536194,
+          "control_brake": 0.32534529715776445,
+          "projected_velocity_mps": -0.021875557163730262,
+          "nearest_distance_m": 10.701076393127442
+        }
+      },
+      {
+        "rollout": 60,
+        "reason": "rollout_boundary",
+        "progress_pct": 29.796761197844706,
+        "race_time_s": 25.11,
+        "episode_steps": 502,
+        "position": [
+          715.0916748046875,
+          10.039313316345215,
+          698.1890258789062
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8020077604055404,
+          "control_brake": 0.3011970990896225,
+          "projected_velocity_mps": 40.56037998199463,
+          "nearest_distance_m": 4.234716289192438
+        }
+      },
+      {
+        "rollout": 61,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 101.79,
+        "episode_steps": 2036,
+        "position": [
+          382.9576416015625,
+          10.016131401062012,
+          568.8767700195312
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8610568454861641,
+          "control_brake": 0.2849041327834129,
+          "projected_velocity_mps": 24.566943340301513,
+          "nearest_distance_m": 8.195299422740936
+        }
+      },
+      {
+        "rollout": 61,
+        "reason": "rollout_boundary",
+        "progress_pct": 0.04612695152524048,
+        "race_time_s": 0.61,
+        "episode_steps": 12,
+        "position": [
+          496.0584411621094,
+          10.005903244018555,
+          626.1905517578125
+        ],
+        "tail_steps": 12,
+        "tail": {
+          "control_gas": 0.8449980467557907,
+          "control_brake": 0.1765630915760994,
+          "projected_velocity_mps": 4.0141807500928435,
+          "nearest_distance_m": 0.830213226377964
+        }
+      },
+      {
+        "rollout": 62,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 94.8,
+        "episode_steps": 1896,
+        "position": [
+          383.4449768066406,
+          10.015512466430664,
+          569.3782958984375
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8412602171301842,
+          "control_brake": 0.3147810024023056,
+          "projected_velocity_mps": 31.995244636535645,
+          "nearest_distance_m": 2.6524711090326307
+        }
+      },
+      {
+        "rollout": 62,
+        "reason": "rollout_boundary",
+        "progress_pct": 5.442632979406776,
+        "race_time_s": 7.62,
+        "episode_steps": 152,
+        "position": [
+          532.3978271484375,
+          10.009066581726074,
+          718.542724609375
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6840543618798256,
+          "control_brake": 0.4437230411171913,
+          "projected_velocity_mps": 15.851555705070496,
+          "nearest_distance_m": 6.467661198079586
+        }
+      },
+      {
+        "rollout": 63,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 93.28,
+        "episode_steps": 1866,
+        "position": [
+          382.62200927734375,
+          10.016152381896973,
+          568.7106323242188
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8607033187150955,
+          "control_brake": 0.2849169808626175,
+          "projected_velocity_mps": 25.75050042152405,
+          "nearest_distance_m": 5.415851507782936
+        }
+      },
+      {
+        "rollout": 63,
+        "reason": "rollout_boundary",
+        "progress_pct": 5.442632979406776,
+        "race_time_s": 9.12,
+        "episode_steps": 182,
+        "position": [
+          533.8408203125,
+          10.02370834350586,
+          720.8544311523438
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.6733651623129845,
+          "control_brake": 0.4260134947299957,
+          "projected_velocity_mps": 10.602436680793762,
+          "nearest_distance_m": 8.883239318430423
+        }
+      },
+      {
+        "rollout": 64,
+        "reason": "no_progress",
+        "progress_pct": 38.329833736861296,
+        "race_time_s": 38.41,
+        "episode_steps": 768,
+        "position": [
+          581.4644165039062,
+          10.032796859741211,
+          770.2359008789062
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8390183037519455,
+          "control_brake": 0.30462503582239153,
+          "projected_velocity_mps": -0.007637730893911794,
+          "nearest_distance_m": 10.737889347076417
+        }
+      },
+      {
+        "rollout": 64,
+        "reason": "rollout_boundary",
+        "progress_pct": 76.70650970022328,
+        "race_time_s": 64.01,
+        "episode_steps": 1280,
+        "position": [
+          523.3994750976562,
+          10.02197551727295,
+          529.5272827148438
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8082625949382782,
+          "control_brake": 0.23424639731645583,
+          "projected_velocity_mps": 25.908408842086793,
+          "nearest_distance_m": 5.051627627760172
+        }
+      },
+      {
+        "rollout": 65,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 97.08,
+        "episode_steps": 1942,
+        "position": [
+          382.6434631347656,
+          10.026248931884766,
+          566.2278442382812
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8225333860516548,
+          "control_brake": 0.2763495910167694,
+          "projected_velocity_mps": 27.272411308288575,
+          "nearest_distance_m": 4.828152860701084
+        }
+      },
+      {
+        "rollout": 65,
+        "reason": "rollout_boundary",
+        "progress_pct": 4.566418366615562,
+        "race_time_s": 5.31,
+        "episode_steps": 106,
+        "position": [
+          509.99432373046875,
+          10.032309532165527,
+          710.67041015625
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7879980608820916,
+          "control_brake": 0.3879216423630714,
+          "projected_velocity_mps": 17.334118313789368,
+          "nearest_distance_m": 4.2719245856627825
+        }
+      },
+      {
+        "rollout": 66,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 87.11,
+        "episode_steps": 1742,
+        "position": [
+          383.1112365722656,
+          10.015547752380371,
+          564.5390625
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7832024213671684,
+          "control_brake": 0.31184807360172273,
+          "projected_velocity_mps": 25.08479892730713,
+          "nearest_distance_m": 5.140268075466156
+        }
+      },
+      {
+        "rollout": 66,
+        "reason": "rollout_boundary",
+        "progress_pct": 16.281899821083318,
+        "race_time_s": 15.31,
+        "episode_steps": 306,
+        "position": [
+          655.8843383789062,
+          10.020816802978516,
+          544.5399780273438
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7827587643265724,
+          "control_brake": 0.2532525381445885,
+          "projected_velocity_mps": 28.724152240753174,
+          "nearest_distance_m": 4.219165853410959
+        }
+      },
+      {
+        "rollout": 67,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 87.38,
+        "episode_steps": 1748,
+        "position": [
+          382.8619079589844,
+          10.006070137023926,
+          564.5427856445312
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8106446391344071,
+          "control_brake": 0.2812188729643822,
+          "projected_velocity_mps": 20.9568701171875,
+          "nearest_distance_m": 5.817080252766609
+        }
+      },
+      {
+        "rollout": 67,
+        "reason": "slow_progress",
+        "progress_pct": 3.3671949626096143,
+        "race_time_s": 11.86,
+        "episode_steps": 237,
+        "position": [
+          506.6595764160156,
+          10.02689266204834,
+          698.8731079101562
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8409162133932113,
+          "control_brake": 0.2216196444630623,
+          "projected_velocity_mps": 0.283155307052657,
+          "nearest_distance_m": 10.555894546508789
+        }
+      },
+      {
+        "rollout": 67,
+        "reason": "rollout_boundary",
+        "progress_pct": 1.6605357636708529,
+        "race_time_s": 3.16,
+        "episode_steps": 63,
+        "position": [
+          503.23046875,
+          10.031266212463379,
+          661.767578125
+        ],
+        "tail_steps": 63,
+        "tail": {
+          "control_gas": 0.8115550563448951,
+          "control_brake": 0.28174804695068845,
+          "projected_velocity_mps": 12.227197158987746,
+          "nearest_distance_m": 1.8335113176514233
+        }
+      },
+      {
+        "rollout": 68,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 81.94,
+        "episode_steps": 1639,
+        "position": [
+          383.0941467285156,
+          10.025552749633789,
+          563.4180297851562
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7772082269191742,
+          "control_brake": 0.24968829810619353,
+          "projected_velocity_mps": 24.36485315322876,
+          "nearest_distance_m": 6.180764375030995
+        }
+      },
+      {
+        "rollout": 68,
+        "reason": "rollout_boundary",
+        "progress_pct": 30.396395791288214,
+        "race_time_s": 20.46,
+        "episode_steps": 409,
+        "position": [
+          701.5535278320312,
+          10.030823707580566,
+          695.8419799804688
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.7949781781435012,
+          "control_brake": 0.2753063064813614,
+          "projected_velocity_mps": 53.412002067565915,
+          "nearest_distance_m": 6.354991282224655
+        }
+      },
+      {
+        "rollout": 69,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 84.67,
+        "episode_steps": 1694,
+        "position": [
+          383.0648193359375,
+          10.019794464111328,
+          571.324462890625
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8534240993857384,
+          "control_brake": 0.29377271980047226,
+          "projected_velocity_mps": 35.10581356048584,
+          "nearest_distance_m": 6.465050228834152
+        }
+      },
+      {
+        "rollout": 69,
+        "reason": "rollout_boundary",
+        "progress_pct": 17.71179358000605,
+        "race_time_s": 17.71,
+        "episode_steps": 354,
+        "position": [
+          682.324951171875,
+          10.014182090759277,
+          524.2122802734375
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8023400434851646,
+          "control_brake": 0.2594897601008415,
+          "projected_velocity_mps": 35.2692239189148,
+          "nearest_distance_m": 6.568420256078244
+        }
+      },
+      {
+        "rollout": 70,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 82.48,
+        "episode_steps": 1650,
+        "position": [
+          382.9111633300781,
+          10.02907657623291,
+          563.2535400390625
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8316159453988076,
+          "control_brake": 0.3139540541172028,
+          "projected_velocity_mps": 30.237365283966064,
+          "nearest_distance_m": 4.889645925890655
+        }
+      },
+      {
+        "rollout": 70,
+        "reason": "rollout_boundary",
+        "progress_pct": 25.368671932439906,
+        "race_time_s": 19.92,
+        "episode_steps": 398,
+        "position": [
+          790.1168823242188,
+          10.039177894592285,
+          629.8016967773438
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.792473032772541,
+          "control_brake": 0.22636161625385284,
+          "projected_velocity_mps": 45.796085815429684,
+          "nearest_distance_m": 4.4697133874893185
+        }
+      },
+      {
+        "rollout": 71,
+        "reason": "finished",
+        "progress_pct": 100.0,
+        "race_time_s": 74.45,
+        "episode_steps": 1489,
+        "position": [
+          382.7893371582031,
+          10.02871322631836,
+          562.8308715820312
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8371139973402023,
+          "control_brake": 0.3317060273885727,
+          "projected_velocity_mps": 33.09792610168457,
+          "nearest_distance_m": 2.4855344206094743
+        }
+      },
+      {
+        "rollout": 71,
+        "reason": "rollout_boundary",
+        "progress_pct": 36.48491886540948,
+        "race_time_s": 27.96,
+        "episode_steps": 559,
+        "position": [
+          623.1159057617188,
+          10.023977279663086,
+          780.9425048828125
+        ],
+        "tail_steps": 100,
+        "tail": {
+          "control_gas": 0.8333458742499351,
+          "control_brake": 0.28755654871463776,
+          "projected_velocity_mps": 39.57290691375732,
+          "nearest_distance_m": 5.162506179213524
+        }
+      }
+    ],
+    "rollout_controls": [
+      {
+        "rollout": 1,
+        "control_gas": 0.4965222882165108,
+        "control_brake": 0.5028415388660505,
+        "projected_velocity_mps": 2.669148998580404,
+        "nearest_distance_m": 3.7390173313369814
+      },
+      {
+        "rollout": 2,
+        "control_gas": 0.5087549634481547,
+        "control_brake": 0.4930047107482096,
+        "projected_velocity_mps": 3.587597391996162,
+        "nearest_distance_m": 3.3054831110734995
+      },
+      {
+        "rollout": 3,
+        "control_gas": 0.5183491422212683,
+        "control_brake": 0.497675617763889,
+        "projected_velocity_mps": 3.8198178075791756,
+        "nearest_distance_m": 3.59826599774442
+      },
+      {
+        "rollout": 4,
+        "control_gas": 0.5500798287685029,
+        "control_brake": 0.4804402529698564,
+        "projected_velocity_mps": 4.683987978361952,
+        "nearest_distance_m": 4.677902516031736
+      },
+      {
+        "rollout": 5,
+        "control_gas": 0.5343294439517194,
+        "control_brake": 0.5004712137888419,
+        "projected_velocity_mps": 4.297575689348527,
+        "nearest_distance_m": 4.1636318866158035
+      },
+      {
+        "rollout": 6,
+        "control_gas": 0.546490696418914,
+        "control_brake": 0.4719089239661116,
+        "projected_velocity_mps": 5.210058179756063,
+        "nearest_distance_m": 8.165289261065482
+      },
+      {
+        "rollout": 7,
+        "control_gas": 0.5717643594980473,
+        "control_brake": 0.4813630212447606,
+        "projected_velocity_mps": 6.084209307600677,
+        "nearest_distance_m": 7.499414474250443
+      },
+      {
+        "rollout": 8,
+        "control_gas": 0.584491391768097,
+        "control_brake": 0.4347654547309503,
+        "projected_velocity_mps": 8.18234029635946,
+        "nearest_distance_m": 7.12713734143108
+      },
+      {
+        "rollout": 9,
+        "control_gas": 0.6008280809619464,
+        "control_brake": 0.42452742635214236,
+        "projected_velocity_mps": 8.873280303355312,
+        "nearest_distance_m": 8.575346311874455
+      },
+      {
+        "rollout": 10,
+        "control_gas": 0.6245060825895052,
+        "control_brake": 0.4103026810917072,
+        "projected_velocity_mps": 9.104121686896804,
+        "nearest_distance_m": 9.900446040848692
+      },
+      {
+        "rollout": 11,
+        "control_gas": 0.624613754771417,
+        "control_brake": 0.39294643176253885,
+        "projected_velocity_mps": 10.01724495248048,
+        "nearest_distance_m": 9.67760492659363
+      },
+      {
+        "rollout": 12,
+        "control_gas": 0.6275923072826117,
+        "control_brake": 0.39121934003196657,
+        "projected_velocity_mps": 9.623250603447152,
+        "nearest_distance_m": 9.420348611009103
+      },
+      {
+        "rollout": 13,
+        "control_gas": 0.6348635182075668,
+        "control_brake": 0.3638908143766457,
+        "projected_velocity_mps": 10.067268617330845,
+        "nearest_distance_m": 8.471826093569689
+      },
+      {
+        "rollout": 14,
+        "control_gas": 0.6513046166073764,
+        "control_brake": 0.37369297655823175,
+        "projected_velocity_mps": 10.32258567172274,
+        "nearest_distance_m": 9.176610483647892
+      },
+      {
+        "rollout": 15,
+        "control_gas": 0.6665955087228213,
+        "control_brake": 0.3550897019158583,
+        "projected_velocity_mps": 12.319982965647116,
+        "nearest_distance_m": 9.641078614564321
+      },
+      {
+        "rollout": 16,
+        "control_gas": 0.6780022563470993,
+        "control_brake": 0.35847679925791454,
+        "projected_velocity_mps": 11.881804860353302,
+        "nearest_distance_m": 9.348797426135206
+      },
+      {
+        "rollout": 17,
+        "control_gas": 0.6998190234153299,
+        "control_brake": 0.3479499249951914,
+        "projected_velocity_mps": 13.563130733450473,
+        "nearest_distance_m": 10.1938813686902
+      },
+      {
+        "rollout": 18,
+        "control_gas": 0.7009568858047714,
+        "control_brake": 0.3504551616642857,
+        "projected_velocity_mps": 13.016292729584864,
+        "nearest_distance_m": 9.218854263750472
+      },
+      {
+        "rollout": 19,
+        "control_gas": 0.7084659409301821,
+        "control_brake": 0.35425180332094897,
+        "projected_velocity_mps": 12.976363166165195,
+        "nearest_distance_m": 10.146757538463135
+      },
+      {
+        "rollout": 20,
+        "control_gas": 0.7119737149478169,
+        "control_brake": 0.3597608773125103,
+        "projected_velocity_mps": 12.649190115887743,
+        "nearest_distance_m": 10.200287445089089
+      },
+      {
+        "rollout": 21,
+        "control_gas": 0.6989965171087533,
+        "control_brake": 0.3658182245417265,
+        "projected_velocity_mps": 13.483182561330132,
+        "nearest_distance_m": 9.50254544515883
+      },
+      {
+        "rollout": 22,
+        "control_gas": 0.6898478387738578,
+        "control_brake": 0.3530004956701305,
+        "projected_velocity_mps": 11.419037406051183,
+        "nearest_distance_m": 8.278888123764318
+      },
+      {
+        "rollout": 23,
+        "control_gas": 0.7137469026929466,
+        "control_brake": 0.3165297142404597,
+        "projected_velocity_mps": 13.65068960289029,
+        "nearest_distance_m": 10.188000992437537
+      },
+      {
+        "rollout": 24,
+        "control_gas": 0.6925358748849249,
+        "control_brake": 0.36624727143498603,
+        "projected_velocity_mps": 11.313529870280918,
+        "nearest_distance_m": 9.93640650810812
+      },
+      {
+        "rollout": 25,
+        "control_gas": 0.7200708832533564,
+        "control_brake": 0.3387864637625171,
+        "projected_velocity_mps": 13.92917515582667,
+        "nearest_distance_m": 10.7537621143465
+      },
+      {
+        "rollout": 26,
+        "control_gas": 0.7092090242076665,
+        "control_brake": 0.34268883158802055,
+        "projected_velocity_mps": 13.46322420548677,
+        "nearest_distance_m": 9.851597594173654
+      },
+      {
+        "rollout": 27,
+        "control_gas": 0.7361538919940358,
+        "control_brake": 0.32851580168062355,
+        "projected_velocity_mps": 13.581997024322598,
+        "nearest_distance_m": 10.18275703839572
+      },
+      {
+        "rollout": 28,
+        "control_gas": 0.7273119070159737,
+        "control_brake": 0.34417537340777926,
+        "projected_velocity_mps": 15.056275994897826,
+        "nearest_distance_m": 10.190542579039175
+      },
+      {
+        "rollout": 29,
+        "control_gas": 0.7313380264386069,
+        "control_brake": 0.34615894246962853,
+        "projected_velocity_mps": 14.002058821434959,
+        "nearest_distance_m": 10.71939964815465
+      },
+      {
+        "rollout": 30,
+        "control_gas": 0.7199654044234194,
+        "control_brake": 0.34270178791484796,
+        "projected_velocity_mps": 13.685581429570448,
+        "nearest_distance_m": 10.366153498014683
+      },
+      {
+        "rollout": 31,
+        "control_gas": 0.7259931674198015,
+        "control_brake": 0.34067201461584773,
+        "projected_velocity_mps": 13.671742564680992,
+        "nearest_distance_m": 10.701501875499162
+      },
+      {
+        "rollout": 32,
+        "control_gas": 0.7368395079538459,
+        "control_brake": 0.32684749660256784,
+        "projected_velocity_mps": 14.166813252132508,
+        "nearest_distance_m": 10.389677067332741
+      },
+      {
+        "rollout": 33,
+        "control_gas": 0.7373934094357537,
+        "control_brake": 0.3028575822536368,
+        "projected_velocity_mps": 13.75040035711868,
+        "nearest_distance_m": 10.284557880720968
+      },
+      {
+        "rollout": 34,
+        "control_gas": 0.7474021370144328,
+        "control_brake": 0.3196391913952539,
+        "projected_velocity_mps": 14.771982540034623,
+        "nearest_distance_m": 10.352635447288776
+      },
+      {
+        "rollout": 35,
+        "control_gas": 0.7317513870075345,
+        "control_brake": 0.3098711230268236,
+        "projected_velocity_mps": 14.122509164383475,
+        "nearest_distance_m": 10.201422634809205
+      },
+      {
+        "rollout": 36,
+        "control_gas": 0.7520310209074523,
+        "control_brake": 0.3138749555510003,
+        "projected_velocity_mps": 15.86514725274799,
+        "nearest_distance_m": 10.406342179594503
+      },
+      {
+        "rollout": 37,
+        "control_gas": 0.7349140834703576,
+        "control_brake": 0.2997824379708618,
+        "projected_velocity_mps": 15.057468739573617,
+        "nearest_distance_m": 10.287866297878281
+      },
+      {
+        "rollout": 38,
+        "control_gas": 0.7490267028042581,
+        "control_brake": 0.3120464361127233,
+        "projected_velocity_mps": 17.250000997354846,
+        "nearest_distance_m": 8.708943568551604
+      },
+      {
+        "rollout": 39,
+        "control_gas": 0.7431179258419434,
+        "control_brake": 0.3302917004766641,
+        "projected_velocity_mps": 17.688722013441584,
+        "nearest_distance_m": 8.741412545055937
+      },
+      {
+        "rollout": 40,
+        "control_gas": 0.790014105514274,
+        "control_brake": 0.30427360883913934,
+        "projected_velocity_mps": 19.100160436537408,
+        "nearest_distance_m": 8.86298327816985
+      },
+      {
+        "rollout": 41,
+        "control_gas": 0.7727179505309323,
+        "control_brake": 0.31478750020323787,
+        "projected_velocity_mps": 20.299706455413823,
+        "nearest_distance_m": 7.959181730915589
+      },
+      {
+        "rollout": 42,
+        "control_gas": 0.7704783678782405,
+        "control_brake": 0.3307127981825033,
+        "projected_velocity_mps": 21.636674553877196,
+        "nearest_distance_m": 7.364117719948808
+      },
+      {
+        "rollout": 43,
+        "control_gas": 0.7633104511769488,
+        "control_brake": 0.3207286589895375,
+        "projected_velocity_mps": 21.94462048867395,
+        "nearest_distance_m": 7.281894457046292
+      },
+      {
+        "rollout": 44,
+        "control_gas": 0.759714603118482,
+        "control_brake": 0.32380138743610587,
+        "projected_velocity_mps": 20.729145976569054,
+        "nearest_distance_m": 6.957360935997713
+      },
+      {
+        "rollout": 45,
+        "control_gas": 0.7469867489853641,
+        "control_brake": 0.34051943926897366,
+        "projected_velocity_mps": 21.405761310530256,
+        "nearest_distance_m": 7.206611113459076
+      },
+      {
+        "rollout": 46,
+        "control_gas": 0.7534105076920241,
+        "control_brake": 0.32947080592566635,
+        "projected_velocity_mps": 19.576784229025016,
+        "nearest_distance_m": 7.9875812031441455
+      },
+      {
+        "rollout": 47,
+        "control_gas": 0.7665202315984061,
+        "control_brake": 0.32922363774559926,
+        "projected_velocity_mps": 21.061845724097697,
+        "nearest_distance_m": 7.371957429848408
+      },
+      {
+        "rollout": 48,
+        "control_gas": 0.7705071805539774,
+        "control_brake": 0.3505057277070591,
+        "projected_velocity_mps": 19.905390562768627,
+        "nearest_distance_m": 7.109455805810285
+      },
+      {
+        "rollout": 49,
+        "control_gas": 0.7778976602276089,
+        "control_brake": 0.3484757825208362,
+        "projected_velocity_mps": 22.795343088566437,
+        "nearest_distance_m": 6.384531596153465
+      },
+      {
+        "rollout": 50,
+        "control_gas": 0.76629262221104,
+        "control_brake": 0.3497652407095302,
+        "projected_velocity_mps": 22.502089964789466,
+        "nearest_distance_m": 6.57556353302607
+      },
+      {
+        "rollout": 51,
+        "control_gas": 0.7830389310256578,
+        "control_brake": 0.36615164105023723,
+        "projected_velocity_mps": 21.745450562618153,
+        "nearest_distance_m": 6.812696743920242
+      },
+      {
+        "rollout": 52,
+        "control_gas": 0.773255097315996,
+        "control_brake": 0.35275612480472773,
+        "projected_velocity_mps": 21.54196529908064,
+        "nearest_distance_m": 6.1486608782306575
+      },
+      {
+        "rollout": 53,
+        "control_gas": 0.775136498050415,
+        "control_brake": 0.3590443401481025,
+        "projected_velocity_mps": 21.18480088268645,
+        "nearest_distance_m": 6.5768850211056815
+      },
+      {
+        "rollout": 54,
+        "control_gas": 0.7663329048082232,
+        "control_brake": 0.3710206428077072,
+        "projected_velocity_mps": 21.396669881546092,
+        "nearest_distance_m": 6.711869394222958
+      },
+      {
+        "rollout": 55,
+        "control_gas": 0.7844787552021444,
+        "control_brake": 0.35335944933467545,
+        "projected_velocity_mps": 20.575029254372243,
+        "nearest_distance_m": 6.655360008005118
+      },
+      {
+        "rollout": 56,
+        "control_gas": 0.7919176919240272,
+        "control_brake": 0.33371310196525883,
+        "projected_velocity_mps": 20.788282065717794,
+        "nearest_distance_m": 7.718554072303959
+      },
+      {
+        "rollout": 57,
+        "control_gas": 0.7706298945704475,
+        "control_brake": 0.34765343816252425,
+        "projected_velocity_mps": 18.880775898355587,
+        "nearest_distance_m": 7.665803871448588
+      },
+      {
+        "rollout": 58,
+        "control_gas": 0.7856433364213444,
+        "control_brake": 0.34533462781109847,
+        "projected_velocity_mps": 19.26996844830137,
+        "nearest_distance_m": 8.032223853686446
+      },
+      {
+        "rollout": 59,
+        "control_gas": 0.769552556812414,
+        "control_brake": 0.34516528229869436,
+        "projected_velocity_mps": 19.044090651618554,
+        "nearest_distance_m": 7.873692474822747
+      },
+      {
+        "rollout": 60,
+        "control_gas": 0.7815472834627144,
+        "control_brake": 0.30069476091011893,
+        "projected_velocity_mps": 21.722832361676588,
+        "nearest_distance_m": 6.382680052298838
+      },
+      {
+        "rollout": 61,
+        "control_gas": 0.7884413836873136,
+        "control_brake": 0.3063904348819051,
+        "projected_velocity_mps": 21.07360892517831,
+        "nearest_distance_m": 8.47524021974823
+      },
+      {
+        "rollout": 62,
+        "control_gas": 0.8049678757670335,
+        "control_brake": 0.3217256471980363,
+        "projected_velocity_mps": 21.88976803531705,
+        "nearest_distance_m": 7.097970721453748
+      },
+      {
+        "rollout": 63,
+        "control_gas": 0.7919059235282475,
+        "control_brake": 0.3412036948138848,
+        "projected_velocity_mps": 21.836668363309236,
+        "nearest_distance_m": 7.531353601207684
+      },
+      {
+        "rollout": 64,
+        "control_gas": 0.7977407351136208,
+        "control_brake": 0.3150332686927868,
+        "projected_velocity_mps": 23.95969773786324,
+        "nearest_distance_m": 7.200190311114056
+      },
+      {
+        "rollout": 65,
+        "control_gas": 0.7863246714841807,
+        "control_brake": 0.3513936965173343,
+        "projected_velocity_mps": 21.187905391267414,
+        "nearest_distance_m": 7.039403198186847
+      },
+      {
+        "rollout": 66,
+        "control_gas": 0.7933024553058203,
+        "control_brake": 0.3377143671241356,
+        "projected_velocity_mps": 24.12648894466624,
+        "nearest_distance_m": 6.732399214728503
+      },
+      {
+        "rollout": 67,
+        "control_gas": 0.7961230393411824,
+        "control_brake": 0.3185030045424355,
+        "projected_velocity_mps": 21.308132204117687,
+        "nearest_distance_m": 6.69868706896159
+      },
+      {
+        "rollout": 68,
+        "control_gas": 0.7981672313180752,
+        "control_brake": 0.32571835893031675,
+        "projected_velocity_mps": 26.746155848819075,
+        "nearest_distance_m": 5.73425914592417
+      },
+      {
+        "rollout": 69,
+        "control_gas": 0.8173543447774136,
+        "control_brake": 0.3115841038816143,
+        "projected_velocity_mps": 24.82271119062138,
+        "nearest_distance_m": 6.192493955210921
+      },
+      {
+        "rollout": 70,
+        "control_gas": 0.8203209078637883,
+        "control_brake": 0.3227387138613267,
+        "projected_velocity_mps": 26.598443724955427,
+        "nearest_distance_m": 6.314152178561017
+      },
+      {
+        "rollout": 71,
+        "control_gas": 0.8162324420118239,
+        "control_brake": 0.2981741782859899,
+        "projected_velocity_mps": 28.805747077165183,
+        "nearest_distance_m": 5.362672505303635
+      }
+    ],
+    "limitation": "Endpoint telemetry is post-action, not causal current model input"
+  },
+  "updates": {
+    "updates": 71,
+    "early_stop_count": 63.0,
+    "first": {
+      "counters": {
+        "episodes": 4,
+        "transitions": 2048,
+        "updates": 1
+      },
+      "loss/policy": -0.008977361023426056,
+      "loss/value": 0.1214912086725235,
+      "replay_size": 2048,
+      "state/approx_kl": 0.003936671651899815,
+      "state/clip_fraction": 0.04008788987994194,
+      "state/early_stop": 0.0,
+      "state/entropy": 0.6183499693870544,
+      "state/learning_rate": 0.0003
+    },
+    "last": {
+      "counters": {
+        "episodes": 138,
+        "transitions": 145408,
+        "updates": 71
+      },
+      "loss/policy": -0.008690974675118923,
+      "loss/value": 2.940411329269409,
+      "replay_size": 2048,
+      "state/approx_kl": 0.018117668107151985,
+      "state/clip_fraction": 0.15478515625,
+      "state/early_stop": 1.0,
+      "state/entropy": -0.7741381525993347,
+      "state/learning_rate": 0.00029475
+    },
+    "blocks": [
+      {
+        "first_update": 1,
+        "last_update": 10,
+        "state/approx_kl": 0.01135428580455482,
+        "state/clip_fraction": 0.13575195334851742,
+        "state/early_stop": 0.3,
+        "state/entropy": 0.5261033177375793,
+        "loss/value": 0.09364716112613677,
+        "state/learning_rate": 0.00029966249999999997
+      },
+      {
+        "first_update": 11,
+        "last_update": 20,
+        "state/approx_kl": 0.015592417120933533,
+        "state/clip_fraction": 0.15431908518075943,
+        "state/early_stop": 0.9,
+        "state/entropy": 0.14031988345086574,
+        "loss/value": 0.20015408247709274,
+        "state/learning_rate": 0.0002989125
+      },
+      {
+        "first_update": 21,
+        "last_update": 30,
+        "state/approx_kl": 0.016558711975812913,
+        "state/clip_fraction": 0.1389509357511997,
+        "state/early_stop": 1.0,
+        "state/entropy": -0.11917907912284136,
+        "loss/value": 0.29627339988946916,
+        "state/learning_rate": 0.0002981625
+      },
+      {
+        "first_update": 31,
+        "last_update": 40,
+        "state/approx_kl": 0.016727639827877283,
+        "state/clip_fraction": 0.1489922247827053,
+        "state/early_stop": 1.0,
+        "state/entropy": -0.28160677701234815,
+        "loss/value": 0.37361527532339095,
+        "state/learning_rate": 0.0002974125
+      },
+      {
+        "first_update": 41,
+        "last_update": 50,
+        "state/approx_kl": 0.016638182383030654,
+        "state/clip_fraction": 0.15339355766773224,
+        "state/early_stop": 1.0,
+        "state/entropy": -0.3947594821453094,
+        "loss/value": 1.413496494293213,
+        "state/learning_rate": 0.00029666249999999995
+      },
+      {
+        "first_update": 51,
+        "last_update": 60,
+        "state/approx_kl": 0.016555643919855357,
+        "state/clip_fraction": 0.16218668818473816,
+        "state/early_stop": 1.0,
+        "state/entropy": -0.5357505351305007,
+        "loss/value": 1.5204082369804381,
+        "state/learning_rate": 0.00029591249999999996
+      },
+      {
+        "first_update": 61,
+        "last_update": 70,
+        "state/approx_kl": 0.01562931714579463,
+        "state/clip_fraction": 0.15785598307847976,
+        "state/early_stop": 1.0,
+        "state/entropy": -0.6663843750953674,
+        "loss/value": 1.9753276348114013,
+        "state/learning_rate": 0.00029516249999999997
+      },
+      {
+        "first_update": 71,
+        "last_update": 71,
+        "state/approx_kl": 0.018117668107151985,
+        "state/clip_fraction": 0.15478515625,
+        "state/early_stop": 1.0,
+        "state/entropy": -0.7741381525993347,
+        "loss/value": 2.940411329269409,
+        "state/learning_rate": 0.00029475
+      }
+    ],
+    "mean_kl_is_epoch_average_not_final_full_batch_kl": true
+  },
+  "checkpoints": [
+    {
+      "name": "update-00000060.pt",
+      "sha256": "cd44052d6b2da296f78b327a846a10981e547bc41ac18a6cd11a864f6c009f6b",
+      "counters": {
+        "transitions": 122880,
+        "updates": 60,
+        "episodes": 115,
+        "fractional_updates": 0.0,
+        "next_episode_index": 115
+      },
+      "log_std": [
+        -0.046038102358579636,
+        -0.12988866865634918,
+        -0.06073632836341858
+      ],
+      "latent_std": [
+        0.9550055861473083,
+        0.878193199634552,
+        0.9410713315010071
+      ],
+      "optimizer_lr": [
+        0.00029557499999999996
+      ],
+      "observation_normalization": false,
+      "reward_normalization": false,
+      "saved_replay_present": false
+    },
+    {
+      "name": "update-00000070.pt",
+      "sha256": "da7024e903abb18443420b9bfcd4b59c88a5a8e8865ecfca7851232a35e04a00",
+      "counters": {
+        "transitions": 143360,
+        "updates": 70,
+        "episodes": 136,
+        "fractional_updates": 0.0,
+        "next_episode_index": 136
+      },
+      "log_std": [
+        -0.057317521423101425,
+        -0.13583798706531525,
+        -0.08093336224555969
+      ],
+      "latent_std": [
+        0.9442941546440125,
+        0.8729840517044067,
+        0.9222551584243774
+      ],
+      "optimizer_lr": [
+        0.00029482499999999997
+      ],
+      "observation_normalization": false,
+      "reward_normalization": false,
+      "saved_replay_present": false
+    },
+    {
+      "name": "update-00000071.pt",
+      "sha256": "f9b5a4309f9e9ce5bce77a2b08c77cb4212400ed7c47d94e9e206d884532ab96",
+      "counters": {
+        "transitions": 145408,
+        "updates": 71,
+        "episodes": 138,
+        "fractional_updates": 0.0,
+        "next_episode_index": 138
+      },
+      "log_std": [
+        -0.05986116826534271,
+        -0.13575534522533417,
+        -0.08338869363069534
+      ],
+      "latent_std": [
+        0.9418953061103821,
+        0.8730562329292297,
+        0.9199934601783752
+      ],
+      "optimizer_lr": [
+        0.00029475
+      ],
+      "observation_normalization": false,
+      "reward_normalization": false,
+      "saved_replay_present": false
+    }
+  ],
+  "evaluation_trials": [
+    {
+      "trial_index": 0,
+      "finished": false,
+      "progress_pct": 81.18058751748484,
+      "steps": 981,
+      "termination_reason": "no_progress",
+      "finish_time_s": null
+    },
+    {
+      "trial_index": 1,
+      "finished": false,
+      "progress_pct": 40.86668994221383,
+      "steps": 551,
+      "termination_reason": "no_progress",
+      "finish_time_s": null
+    },
+    {
+      "trial_index": 2,
+      "finished": false,
+      "progress_pct": 81.18058751748484,
+      "steps": 986,
+      "termination_reason": "no_progress",
+      "finish_time_s": null
+    },
+    {
+      "trial_index": 3,
+      "finished": true,
+      "progress_pct": 100.0,
+      "steps": 1132,
+      "termination_reason": "finished",
+      "finish_time_s": 56.6
+    },
+    {
+      "trial_index": 4,
+      "finished": false,
+      "progress_pct": 5.0276044711815215,
+      "steps": 203,
+      "termination_reason": "slow_progress",
+      "finish_time_s": null
+    },
+    {
+      "trial_index": 5,
+      "finished": true,
+      "progress_pct": 100.0,
+      "steps": 1105,
+      "termination_reason": "finished",
+      "finish_time_s": 55.25
+    },
+    {
+      "trial_index": 6,
+      "finished": false,
+      "progress_pct": 81.13448345189738,
+      "steps": 958,
+      "termination_reason": "no_progress",
+      "finish_time_s": null
+    },
+    {
+      "trial_index": 7,
+      "finished": true,
+      "progress_pct": 100.0,
+      "steps": 1110,
+      "termination_reason": "finished",
+      "finish_time_s": 55.51
+    },
+    {
+      "trial_index": 8,
+      "finished": false,
+      "progress_pct": 40.86668994221383,
+      "steps": 542,
+      "termination_reason": "no_progress",
+      "finish_time_s": null
+    },
+    {
+      "trial_index": 9,
+      "finished": false,
+      "progress_pct": 4.981490896841843,
+      "steps": 188,
+      "termination_reason": "no_progress",
+      "finish_time_s": null
+    }
+  ],
+  "evaluation_failure_clusters": {
+    "80-85%": 3,
+    "35-45%": 2,
+    "0-10%": 2
+  },
+  "discount_at_55s": 0.004030777450394628,
+  "discount_e_folding_seconds": 9.974979114417806,
+  "gae_direct_residual_e_folding_seconds": 0.8880074138770654,
+  "prefix_fraction_of_campaign": 0.01775,
+  "limitations": [
+    "No saved per-step evaluation observations or action traces",
+    "No evidence that optimizer or entropy changes would repair driving",
+    "Training samples actions; evaluation uses squashed latent means",
+    "Rollout resets censor ongoing races; natural-termination rates are conditional",
+    "One training seed and ten trials do not establish multi-seed reliability"
+  ]
+}
