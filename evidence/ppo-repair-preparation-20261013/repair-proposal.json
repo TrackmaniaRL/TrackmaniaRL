@@ -1,0 +1,32 @@
+{
+  "status": "OFFLINE_PREPARATION_ONLY",
+  "variants": {
+    "kl-transaction": {
+      "configuration": "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\ppo-repair-preparation-20261013\\kl-transaction.yaml",
+      "schema_valid": true,
+      "status": "REVIEW_ONLY_NOT_LAUNCHABLE",
+      "training_started": false,
+      "resume_allowed": false,
+      "fresh_runtime_required": true
+    },
+    "persistent-recovery": {
+      "configuration": "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\ppo-repair-preparation-20261013\\persistent-recovery.yaml",
+      "schema_valid": true,
+      "status": "REVIEW_ONLY_NOT_LAUNCHABLE",
+      "training_started": false,
+      "resume_allowed": false,
+      "fresh_runtime_required": true
+    }
+  },
+  "no_combination_before_isolated_controls": true,
+  "baseline_control": "Original InstrumentedPrefixPPO + BoundaryGraphFeaturePipelineV5, matching new-runtime source and budget",
+  "seeds_for_future_control": [
+    17,
+    29
+  ],
+  "quality_evaluations": [
+    102400,
+    204800
+  ],
+  "no_new_training_authorized": true
+}

@@ -1,0 +1,376 @@
+{
+  "checked_at": "2026-10-13T20:56:03.721082+00:00",
+  "status": "OFFLINE_CANDIDATES_ONLY",
+  "optimizer_steps": 0,
+  "game_controls": 0,
+  "model_inference_calls": 0,
+  "trace_recovery_control": [
+    {
+      "phase": 50,
+      "trial": 0,
+      "changed_feature_frames": 0,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 4,
+      "tail100_candidate_gate_active": 4,
+      "tail_samples": []
+    },
+    {
+      "phase": 50,
+      "trial": 1,
+      "changed_feature_frames": 0,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 4,
+      "tail100_candidate_gate_active": 4,
+      "tail_samples": []
+    },
+    {
+      "phase": 50,
+      "trial": 2,
+      "changed_feature_frames": 0,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 3,
+      "tail100_candidate_gate_active": 3,
+      "tail_samples": []
+    },
+    {
+      "phase": 50,
+      "trial": 3,
+      "changed_feature_frames": 0,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 4,
+      "tail100_candidate_gate_active": 4,
+      "tail_samples": []
+    },
+    {
+      "phase": 50,
+      "trial": 4,
+      "changed_feature_frames": 0,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 4,
+      "tail100_candidate_gate_active": 4,
+      "tail_samples": []
+    },
+    {
+      "phase": 50,
+      "trial": 5,
+      "changed_feature_frames": 0,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 6,
+      "tail100_candidate_gate_active": 6,
+      "tail_samples": []
+    },
+    {
+      "phase": 50,
+      "trial": 6,
+      "changed_feature_frames": 0,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 3,
+      "tail100_candidate_gate_active": 3,
+      "tail_samples": []
+    },
+    {
+      "phase": 50,
+      "trial": 7,
+      "changed_feature_frames": 0,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 8,
+      "tail100_candidate_gate_active": 8,
+      "tail_samples": []
+    },
+    {
+      "phase": 50,
+      "trial": 8,
+      "changed_feature_frames": 0,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 4,
+      "tail100_candidate_gate_active": 4,
+      "tail_samples": []
+    },
+    {
+      "phase": 50,
+      "trial": 9,
+      "changed_feature_frames": 0,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 3,
+      "tail100_candidate_gate_active": 3,
+      "tail_samples": []
+    },
+    {
+      "phase": 100,
+      "trial": 0,
+      "changed_feature_frames": 0,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 0,
+      "tail100_candidate_gate_active": 0,
+      "tail_samples": []
+    },
+    {
+      "phase": 100,
+      "trial": 1,
+      "changed_feature_frames": 0,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 0,
+      "tail100_candidate_gate_active": 0,
+      "tail_samples": []
+    },
+    {
+      "phase": 100,
+      "trial": 2,
+      "changed_feature_frames": 125,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 12,
+      "tail100_candidate_gate_active": 100,
+      "tail_samples": [
+        {
+          "step": 1081,
+          "baseline_gate": 0.8486819175573496,
+          "candidate_gate": 0.8486819175573496,
+          "counter": 1,
+          "speed": 6.76089334487915,
+          "baseline_memory": 0.23032864928245544,
+          "candidate_memory": 0.23032864928245544
+        },
+        {
+          "step": 1101,
+          "baseline_gate": 0.0,
+          "candidate_gate": 0.5542280949079074,
+          "counter": 21,
+          "speed": 0.40697920322418213,
+          "baseline_memory": 0.07036006450653076,
+          "candidate_memory": 0.19204965233802795
+        },
+        {
+          "step": 1121,
+          "baseline_gate": 0.0,
+          "candidate_gate": 0.5542280949079074,
+          "counter": 41,
+          "speed": 0.2562974989414215,
+          "baseline_memory": 0.019247721880674362,
+          "candidate_memory": 0.19204965233802795
+        },
+        {
+          "step": 1141,
+          "baseline_gate": 0.0,
+          "candidate_gate": 0.5542280949079074,
+          "counter": 61,
+          "speed": 0.28047969937324524,
+          "baseline_memory": 0.005598326679319143,
+          "candidate_memory": 0.19204965233802795
+        },
+        {
+          "step": 1161,
+          "baseline_gate": 0.0,
+          "candidate_gate": 0.5542280949079074,
+          "counter": 81,
+          "speed": 0.26535484194755554,
+          "baseline_memory": 0.0020268717780709267,
+          "candidate_memory": 0.19204965233802795
+        }
+      ]
+    },
+    {
+      "phase": 100,
+      "trial": 3,
+      "changed_feature_frames": 0,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 0,
+      "tail100_candidate_gate_active": 0,
+      "tail_samples": []
+    },
+    {
+      "phase": 100,
+      "trial": 4,
+      "changed_feature_frames": 98,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 9,
+      "tail100_candidate_gate_active": 100,
+      "tail_samples": [
+        {
+          "step": 1024,
+          "baseline_gate": 0.5956167578697205,
+          "candidate_gate": 0.5956167578697205,
+          "counter": 1,
+          "speed": 2.0297718048095703,
+          "baseline_memory": 0.19743017852306366,
+          "candidate_memory": 0.19743017852306366
+        },
+        {
+          "step": 1044,
+          "baseline_gate": 0.0,
+          "candidate_gate": 0.5162727741094736,
+          "counter": 21,
+          "speed": 1.017827033996582,
+          "baseline_memory": 0.05623477324843407,
+          "candidate_memory": 0.18711546063423157
+        },
+        {
+          "step": 1064,
+          "baseline_gate": 0.0,
+          "candidate_gate": 0.5162727741094736,
+          "counter": 41,
+          "speed": 0.43626654148101807,
+          "baseline_memory": 0.016139959916472435,
+          "candidate_memory": 0.18711546063423157
+        },
+        {
+          "step": 1084,
+          "baseline_gate": 0.0,
+          "candidate_gate": 0.5162727741094736,
+          "counter": 61,
+          "speed": 0.46014994382858276,
+          "baseline_memory": 0.004811094142496586,
+          "candidate_memory": 0.18711546063423157
+        },
+        {
+          "step": 1104,
+          "baseline_gate": 0.0,
+          "candidate_gate": 0.5162727741094736,
+          "counter": 81,
+          "speed": 0.4800454080104828,
+          "baseline_memory": 0.0018622977659106255,
+          "candidate_memory": 0.18711546063423157
+        }
+      ]
+    },
+    {
+      "phase": 100,
+      "trial": 5,
+      "changed_feature_frames": 93,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 13,
+      "tail100_candidate_gate_active": 100,
+      "tail_samples": [
+        {
+          "step": 1031,
+          "baseline_gate": 0.8903432717690101,
+          "candidate_gate": 0.8903432717690101,
+          "counter": 1,
+          "speed": 6.01845645904541,
+          "baseline_memory": 0.2357446253299713,
+          "candidate_memory": 0.2357446253299713
+        },
+        {
+          "step": 1051,
+          "baseline_gate": 0.0,
+          "candidate_gate": 0.3027740946182838,
+          "counter": 21,
+          "speed": 0.6130706071853638,
+          "baseline_memory": 0.07547429949045181,
+          "candidate_memory": 0.1593606323003769
+        },
+        {
+          "step": 1071,
+          "baseline_gate": 0.0,
+          "candidate_gate": 0.3027740946182838,
+          "counter": 41,
+          "speed": 0.4838300347328186,
+          "baseline_memory": 0.02051173523068428,
+          "candidate_memory": 0.1593606323003769
+        },
+        {
+          "step": 1091,
+          "baseline_gate": 0.0,
+          "candidate_gate": 0.3027740946182838,
+          "counter": 61,
+          "speed": 0.4237445294857025,
+          "baseline_memory": 0.00599792180582881,
+          "candidate_memory": 0.1593606323003769
+        },
+        {
+          "step": 1111,
+          "baseline_gate": 0.0,
+          "candidate_gate": 0.3027740946182838,
+          "counter": 81,
+          "speed": 0.446760892868042,
+          "baseline_memory": 0.002026274334639311,
+          "candidate_memory": 0.1593606323003769
+        }
+      ]
+    },
+    {
+      "phase": 100,
+      "trial": 6,
+      "changed_feature_frames": 4,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 0,
+      "tail100_candidate_gate_active": 0,
+      "tail_samples": []
+    },
+    {
+      "phase": 100,
+      "trial": 7,
+      "changed_feature_frames": 0,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 0,
+      "tail100_candidate_gate_active": 0,
+      "tail_samples": []
+    },
+    {
+      "phase": 100,
+      "trial": 8,
+      "changed_feature_frames": 0,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 0,
+      "tail100_candidate_gate_active": 0,
+      "tail_samples": []
+    },
+    {
+      "phase": 100,
+      "trial": 9,
+      "changed_feature_frames": 10,
+      "moving_feature_max_error": 0.0,
+      "other_branch_max_error": 0.0,
+      "tail100_baseline_gate_active": 0,
+      "tail100_candidate_gate_active": 0,
+      "tail_samples": []
+    }
+  ],
+  "regression_review": {
+    "reference": {
+      "measurement_valid": true,
+      "finishes": 10,
+      "median_finish_s": 51.885000000000005,
+      "maximum_step_ms": 130.0,
+      "timing_gate_passed": false,
+      "quality_gate_passed": true
+    },
+    "candidate": {
+      "measurement_valid": true,
+      "finishes": 7,
+      "median_finish_s": 63.14,
+      "maximum_step_ms": 120.0,
+      "timing_gate_passed": false,
+      "quality_gate_passed": false
+    },
+    "median_time_ratio": 1.2169220391249878,
+    "review_required": true,
+    "reasons": [
+      "fewer finishes",
+      "median slowdown >10%"
+    ],
+    "strict_gate_passed": false,
+    "automatic_checkpoint_selection": false,
+    "automatic_full_training": false,
+    "note": "Review trigger only; no statistical proof or replacement of final evaluation"
+  },
+  "interpretation": "Recovery gate observability restored while stalled; no claim of learned recovery or improved driving; independent KL/feature candidates require fresh runtime and controlled evaluation."
+}

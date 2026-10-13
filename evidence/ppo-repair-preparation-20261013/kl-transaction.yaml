@@ -1,0 +1,200 @@
+# OFFLINE REVIEW ONLY: fresh frozen runtime and authorization required before launch
+api_version: '2.0'
+run_id: tmrl-ppo-kl-transaction-candidate-s17
+seed: 17
+artifacts_dir: H:\Studia\inzynierskie\inzynierkav2\AITrackmania\artifacts\tmrl-test-comparison
+components:
+  learner:
+    class_path: pilot_tools.ppo_guarded:GuardedPrefixPPO
+    kwargs:
+      execution:
+        device: cuda
+        precision: float32
+        torch_threads: 2
+      learning_rate: 0.0003
+      clip_epsilon: 0.2
+      value_clip_epsilon: 0.2
+      gae_lambda: 0.95
+      entropy_coefficient: 0.01
+      value_coefficient: 0.5
+      max_gradient_norm: 0.5
+      target_kl: 0.02
+      normalize_observations: false
+      normalize_rewards: false
+      update_epochs: 10
+      minibatch_size: 256
+      schedule_transitions: 8192000
+  environment:
+    class_path: trackmaniarl.trackmania.environment:OpenPlanetEnvironmentFactory
+    kwargs:
+      config:
+        geometry_path: H:\Studia\inzynierskie\inzynierkav2\AITrackmania\artifacts\tmrl-test-comparison\ppo-trend-runtime-20261013\my-trackmania-agent\assets\trackmaniarl-test.geometry.npz
+        use_racing_line: false
+        expected_map_uid: oqIJ5rQDRrNwLPTh9H2p_W4tLof
+        reset_settle_s: 0
+        confirm_finish_before_reset: true
+        restart_input: editor_validation
+        action_repeat_frames: 1
+        decision_interval_ms: 50
+        demonstration_action_lead_ms: 0
+        demonstration_control_aggregation: true
+        control_backend: gamepad
+        nearest_forward_points: 100
+        nearest_backward_points: 40
+        limit_progress_by_kinematics: false
+        crash_distance: 15
+        slow_progress_window_steps: 120
+        no_progress_steps: 100
+        minimum_progress_per_window_m: 3
+        maximum_race_time_s: 150
+        terminal_failure_penalty: 2
+        collision_penalty: 0.15
+        collision_cooldown_s: 0
+        time_penalty_per_second: 1
+        max_time_delta_s: 1
+        progress_reward_full_lap: 200
+        finish_reward: 70
+        potential_progress_weight: 0
+        max_projected_speed_mps: 100
+        velocity_to_mps_scale: 1
+        projected_velocity_scale: 0.0576
+        projected_speed_bonus_scale: 0
+        steering_delta_penalty: 0
+        time_attack_target_s: 35
+        time_attack_bonus_scale: 0
+        time_attack_linear_scale: 2
+        pace_reward_scale: 0
+        reward_gamma: 0.995
+        steering_curve_path: C:\Users\szulc\.codex\worktrees\tmrl-training-fixes\AITrackmania\artifacts\tmrl-test-comparison\steering-local.json
+  model_factory:
+    class_path: trackmaniarl.models.sensor_actor_critic:SensorActorCriticModelFactory
+    kwargs:
+      algorithm: ppo
+      encoder:
+        class_path: experiments.tmrl_test_comparison.components:BatchedIncidentEncoder
+        kwargs:
+          context_residual_scale: 0.02
+          spatial_residual_scale: 0.02
+          recovery_residual_scale: 0.01
+          incident_gate_thresholds:
+          - 0.12
+          - 0.25
+          - 0.08
+          - 0.4
+      config:
+        feature_dim: 192
+        action_count: 78
+        critic_count: 2
+  replay_store:
+    class_path: trackmaniarl.core.replay:InMemoryReplayStore
+    kwargs:
+      capacity: 2048
+  sampler:
+    class_path: trackmaniarl.core.replay:OnPolicySequenceSampler
+    kwargs:
+      seed: 17
+  feature_pipeline:
+    class_path: trackmaniarl.experiments.graph_iqn_v5:BoundaryGraphFeaturePipelineV5
+    kwargs:
+      geometry_path: H:\Studia\inzynierskie\inzynierkav2\AITrackmania\artifacts\tmrl-test-comparison\ppo-trend-runtime-20261013\my-trackmania-agent\assets\trackmaniarl-test.geometry.npz
+      expected_map_uid: oqIJ5rQDRrNwLPTh9H2p_W4tLof
+  logger:
+    class_path: trackmaniarl.core.builtins:JsonlRunLogger
+    kwargs: {}
+  additional_loggers:
+  - class_path: pilot_tools.ppo_guarded:GuardedPpoWandbTracker
+    kwargs:
+      project: my-trackmania-agent
+  checkpoint_codec:
+    class_path: trackmaniarl.core.builtins:TorchCheckpointCodec
+    kwargs: {}
+  evaluator:
+    class_path: pilot_tools.ppo_trace:TraceEvaluator
+    kwargs: {}
+training:
+  total_transitions: 204800
+  max_episode_steps: 3000
+  batch_size: 1
+  sequence_length: 2048
+  reset_after_on_policy_rollout: true
+  n_step: 1
+  gamma: 0.995
+  beta: null
+  warmup_transitions: 0
+  offline_pretrain_updates: 0
+  updates_per_transition: 0.25
+  checkpoint_interval_updates: 10
+  checkpoint_keep_last: 3
+  save_final_checkpoint: true
+  metrics_interval_updates: 100
+  per_beta_final: null
+  per_beta_anneal_transitions: null
+  evaluate_every_episodes: null
+  evaluation_stop_min_finish_rate: null
+  evaluation_stop_median_s: null
+  evaluation_stop_consecutive_batches: null
+  max_episode_artifacts: 100
+distributed:
+  port: 8787
+  rollout_chunk_transitions: 128
+  rollout_flush_s: 2.0
+  policy_refresh_s: 5.0
+  heartbeat_s: 5.0
+  actor_timeout_s: 20.0
+  actor_stall_timeout_s: null
+  max_inflight_chunks: 4
+  spool_max_bytes: 2147483648
+  max_message_bytes: 16777216
+  soft_policy_lag_updates: 1000
+  hard_policy_lag_updates: 5000
+  max_update_credit: 512
+  strict_update_budget: true
+  epsilon_profiles:
+  - 1.0
+  epsilon_start: 0.3
+  epsilon_final: 0.01
+  epsilon_decay_transitions: 500000
+  epsilon_decay_updates: null
+  actor_execution:
+    device: cpu
+    precision: float32
+    torch_threads: 2
+  token_env: TRACKMANIARL_DISTRIBUTED_TOKEN
+evaluation:
+  name: tmrl-test-comparison
+  version: '1'
+  maps:
+  - id: trackmaniarl-test
+    map_path: H:\Studia\inzynierskie\inzynierkav2\AITrackmania\artifacts\tmrl-test-comparison\ppo-trend-runtime-20261013\my-trackmania-agent\maps\trackmaniarl-test.Map.Gbx
+    geometry_path: H:\Studia\inzynierskie\inzynierkav2\AITrackmania\artifacts\tmrl-test-comparison\ppo-trend-runtime-20261013\my-trackmania-agent\assets\trackmaniarl-test.geometry.npz
+    reward_points_path: null
+    expected_map_uid: oqIJ5rQDRrNwLPTh9H2p_W4tLof
+  trials_per_map: 10
+  time_buckets_s:
+  - 150.0
+  - 100.0
+  - 80.0
+  - 60.0
+  - 50.0
+  - 45.0
+  - 40.0
+  - 38.0
+  - 37.0
+  - 36.0
+  - 35.0
+  target_median_s: null
+  target_mean_s: null
+  max_step_race_time_ms: 100.0
+  reject_telemetry_skips: false
+  min_finish_rate: 0.8
+metadata:
+  algorithm: ppo
+  stage: fresh-pilot-20261013
+  initialization: random; no demos; no reference filter
+  group: continuous-3
+  encoder_source: V107I/V108 incident-gated GNN Simba V6
+  protocol: experiments/tmrl_test_comparison/README.md
+  campaign: weeks-20261008-v1
+  purpose: 100-rollout trend control; evaluate at 102400/204800; final-only gate
+  automatic_full_training: false
+  resume: false

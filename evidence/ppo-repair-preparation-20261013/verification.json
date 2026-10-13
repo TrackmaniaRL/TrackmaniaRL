@@ -1,0 +1,30 @@
+{
+  "checked_at": "2026-10-13T20:59:40.417111+00:00",
+  "status": "PREPARED_NOT_LAUNCHED",
+  "frozen_source_pins_valid": true,
+  "frozen_source_commit": "d8f2440b22f0dc595fe3946815f5d53de22ec1f9",
+  "frozen_source_pin_count": 351,
+  "original_checkpoints_sha256": [
+    "7fba0d9bf019aecc65ae6a7924a1614caa0841c9da0d30295e38522934a6dcb6",
+    "a5927a3187bc2533b99dfdca7a336181dd0bd1f0416aab0ced3aa491c5aa5e60"
+  ],
+  "original_checkpoints_unchanged": true,
+  "training_launched": false,
+  "optimizer_steps_taken": 0,
+  "game_controls": 0,
+  "checks": [
+    "14 offline simulated-state/pure-function tests PASS; no real optimizer steps",
+    "Ruff PASS",
+    "mypy follow-imports silent PASS",
+    "20 saved traces replayed through causal feature pipelines only",
+    "CP50 all10 successful traces: zero feature changes",
+    "All moving frames >=2m/s: zero feature changes",
+    "Failed tails baseline gates active12/9/13 -> candidate100/100/100",
+    "Prepared configuration schema parse PASS"
+  ],
+  "source_sha256": {
+    "ppo_guarded.py": "9864e5192530d2b1466bd818d3c5904f2e77070fc3b0d0ba9e4141fb52c1e27f",
+    "ppo_recovery.py": "5d331e12ddf61f7e1fd853d0c725ad0983d1d1d26dffd8bb44517de515dafe0b",
+    "ppo_regression_gate.py": "027e0b5aa2882af1b47de7cd2b828c47fbafb96e217f730e38ee445796508fad"
+  }
+}

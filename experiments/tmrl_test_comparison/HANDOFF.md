@@ -1,5 +1,11 @@
 # Przekazanie treningów na cztery komputery
 
+Nowe poprawkiPPO przygotowane, NIE uruchomione: opt-in pełnyrollback epoki
+przekraczającejKL oraz osobny pipelinepodtrzymujący recovery przystaniu przybandzie.
+14 testów kontrolnych/Ruff/mypyPASS, zerorealoptimizersteps. Oddzielne konfiguracje
+REVIEWONLY, żadnej nowej kolejki/gry/full/monitora. Wymagają freshfreeze/planu,
+bezresume starychCP. [Szczegóły](PPO_REPAIR_CANDIDATES_20261013.md).
+
 Diagnoza regresji bez treningu: CP100 zmienił komendy na477 wspólnych wejściach
 i traci stabilność nawrotu78–82%; trzy zatrzymania przy zewnętrznej krawędzi,
 gaz pozostaje, no_progress100 kończy próby. Jeden120ms spike nie wyjaśnia

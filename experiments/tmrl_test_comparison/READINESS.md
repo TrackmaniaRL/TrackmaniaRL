@@ -1,5 +1,12 @@
 # Gotowość — 8 października 2026
 
+PrzygotowaneOFFLINE opt-in kandydatyPPO: transactionalpostepochKL rollback
+oraz persistentincidentmemory tylko przy trwającym utknięciu.14 kontrolnych testów,
+Ruff/mypyPASS;20historycznychśladów: recoverygate12/9/13→100/100/100, bez zmian
+cech dobrychCP50jazd ani ruchomych klatek. To nie dowód naprawyjazdy.
+Bez treningu/optimizersteps, monitorPAUSED. KonfiguracjeREVIEWONLY wymagają nowego
+freeze/planu przed przyszłą próbą. [Uzasadnienie](PPO_REPAIR_CANDIDATES_20261013.md).
+
 DiagnozaCP50→100 offline: trzy zatrzymania przy81% silnie wskazują kontakt
 z zewnętrzną bandą nawrotu i brak odzyskania ruchu.477 wspólnych obserwacji
 potwierdza drift sterowania, błąd odtworzeniaakcji<0,000002. Spowolnienie zaczyna
