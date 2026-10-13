@@ -1,5 +1,14 @@
 # Gotowość — 8 października 2026
 
+AKTUALNE 13 października23:18Warszawa: człowiek autoryzował nocną pętlę
+PPO do14 października11:04Warszawa. Świeży izolowany KLguard pilot
+`tmrl-ppo-overnight-kl-s17-r2` wystartował, preflightREADY10ms/33fields/59reads.
+Frozen87832312; independentdeadlineguardREADY. SAVE03:08/HARD03:18Warszawa,
+204800/100, monitorACTIVE15min, fullBLOCKED. Start nie dowodzi poprawyjazdy.
+Pierwszy krótki start zamknięty po diagnozie guard forwarding-wrapper; brakCP/events,
+allobservedclosed/mutexfree/360pins, STOP i proof zachowane. Poniżej historia.
+[Aktualny plan](PPO_OVERNIGHT_20261013.md).
+
 PrzygotowaneOFFLINE opt-in kandydatyPPO: transactionalpostepochKL rollback
 oraz persistentincidentmemory tylko przy trwającym utknięciu.14 kontrolnych testów,
 Ruff/mypyPASS;20historycznychśladów: recoverygate12/9/13→100/100/100, bez zmian

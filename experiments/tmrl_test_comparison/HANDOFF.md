@@ -1,5 +1,13 @@
 # Przekazanie treningów na cztery komputery
 
+AKTUALNE13 października23:18Warszawa: autoryzowana nocna pętlaPPO do14 października
+11:04Warszawa. Aktywny świeży wariantKLguard `tmrl-ppo-overnight-kl-s17-r2`,
+preflightREADY, frozen87832312, independentguardREADY, SAVE03:08/HARD03:18Warszawa.
+MonitorACTIVE15min. Brak jeszcze wynikujazdy; fullBLOCKED. Ledger w
+BASE/ppo-overnight-20261013/repair-state.json, [kontrakt](PPO_OVERNIGHT_20261013.md).
+Pierwszy start zamknięty po naprawie forwarding-wrapper guarda, bezCP/events;
+nie wznowiony, STOP i closureproof zachowane. Starsze stany poniżej historyczne.
+
 Nowe poprawkiPPO przygotowane, NIE uruchomione: opt-in pełnyrollback epoki
 przekraczającejKL oraz osobny pipelinepodtrzymujący recovery przystaniu przybandzie.
 14 testów kontrolnych/Ruff/mypyPASS, zerorealoptimizersteps. Oddzielne konfiguracje

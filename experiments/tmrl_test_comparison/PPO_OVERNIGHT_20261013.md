@@ -49,3 +49,20 @@ both midpoint and the preserved baseline. Timing-only failure does not prove mod
 Operational ledger: BASE/ppo-overnight-20261013/repair-state.json. Current trial uses
 pilot_tools.ppo_overnight prepare/verify/launch with an explicit variant and seed.
 All source changes only in the editable checkout; no edits to frozen or main H.
+
+## Actual launch
+
+First queue `ppo-overnight-kl-s17-20261013` was deliberately stopped during startup
+after identifying that Windows venv Python adds a forwarding ancestor to the deadline
+guard. It could falsely count itself as a surviving workload at normal closure. No CP
+or events were saved. All observed identities closed, mutex free,360pins and predecessor
+actual SHA verified; STOP and new closure proof preserved. Old runtime1a148173 unchanged.
+The correction excludes the guard's own forwarding ancestry and has a regression test
+for normal COMPLETE as well as a hard-deadline test that preserves mismatched identities.
+
+Fresh queue `ppo-overnight-kl-s17-20261013-r2`, run `tmrl-ppo-overnight-kl-s17-r2`,
+runtime `ppo-overnight-runtime-20261013-r2` commit87832312. Actual start
+2026-10-13T21:18:09.354949UTC; SAVE2026-10-14T01:08:09.354949UTC,
+HARD2026-10-14T01:18:09.354949UTC. PreflightREADY10ms/33fields/59reads.
+Independent guard ready, monitoring15min. W&B runrwoi180y. No driving improvement
+claimed from launch or warmup. This is a fresh run; the stopped attempt is never resumed.

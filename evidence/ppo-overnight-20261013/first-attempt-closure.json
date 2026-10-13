@@ -1,0 +1,96 @@
+{
+  "checked_at": "2026-10-13T21:17:24.101313+00:00",
+  "status": "STOPPED_DIAGNOSED_SUPERVISOR_BUG",
+  "last_published_status": "SAVING",
+  "all_owned_closed": true,
+  "owned_identities": [
+    {
+      "pid": 50480,
+      "create_time": 1791926084.6199813
+    },
+    {
+      "pid": 52908,
+      "create_time": 1791926089.3816524
+    },
+    {
+      "pid": 48692,
+      "create_time": 1791926084.574,
+      "role": "wrapper"
+    },
+    {
+      "pid": 51492,
+      "create_time": 1791926089.4064188,
+      "hard_at": 1791940489.380288
+    },
+    {
+      "pid": 12964,
+      "create_time": 1791926114.3963697
+    },
+    {
+      "pid": 33884,
+      "create_time": 1791926100.4232042
+    },
+    {
+      "pid": 35016,
+      "create_time": 1791926096.091104
+    },
+    {
+      "pid": 40828,
+      "create_time": 1791926113.3203936
+    },
+    {
+      "pid": 49876,
+      "create_time": 1791926096.1002035
+    },
+    {
+      "pid": 50088,
+      "create_time": 1791926100.416344
+    },
+    {
+      "pid": 50520,
+      "create_time": 1791926113.2953691
+    },
+    {
+      "pid": 52972,
+      "create_time": 1791926113.2832224
+    },
+    {
+      "pid": 53256,
+      "create_time": 1791926096.1190655
+    },
+    {
+      "pid": 53496,
+      "create_time": 1791926103.5909257
+    },
+    {
+      "pid": 54220,
+      "create_time": 1791926101.2670252
+    },
+    {
+      "pid": 35488,
+      "create_time": 1791926089.5897703
+    },
+    {
+      "pid": 49108,
+      "create_time": 1791926089.614833
+    },
+    {
+      "pid": 51820,
+      "create_time": 1791926089.597898
+    },
+    {
+      "pid": 54156,
+      "create_time": 1791926092.43556
+    }
+  ],
+  "survivors": [],
+  "mutex_free": true,
+  "source_pins_verified": 360,
+  "predecessor_actual_sha256": "a5927a3187bc2533b99dfdca7a336181dd0bd1f0416aab0ced3aa491c5aa5e60",
+  "stop_sha256": "fd0d05825a73bc6dad7e0e47d4b7bd0b7d3cbd4b5acf93bfe61cc78636918e7d",
+  "stop_mtime_ns": 1791926117416803800,
+  "checkpoint_paths": [],
+  "events_tail": [],
+  "guard_exit_receipt_present": false,
+  "reason": "Explicit STOP for guard forwarding-wrapper bug. Old frozen preserved; exact observed processes closed; no driving conclusion."
+}
