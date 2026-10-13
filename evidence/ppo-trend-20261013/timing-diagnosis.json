@@ -1,0 +1,73 @@
+{
+  "checked_at": "2026-10-13T15:14:34.924442+00:00",
+  "steps": 10392,
+  "raw_clock_measurement_mismatches": [],
+  "over_100_ms": [
+    {
+      "trial_index": 6,
+      "step": 78,
+      "raw_current_race_ms": 3910.0,
+      "raw_next_race_ms": 4040.0,
+      "interval_ms": 130.0,
+      "action_latency_ms": 129.47500000154832,
+      "controller_apply_ms": 0.3637000008893665,
+      "skipped_frames": 18
+    }
+  ],
+  "over_50_ms": [
+    {
+      "trial_index": 0,
+      "step": 437,
+      "raw_current_race_ms": 21860.0,
+      "raw_next_race_ms": 21920.0,
+      "interval_ms": 60.0,
+      "action_latency_ms": 45.99710000184132,
+      "controller_apply_ms": 1.9070999987889081,
+      "skipped_frames": 4
+    },
+    {
+      "trial_index": 0,
+      "step": 440,
+      "raw_current_race_ms": 22020.0,
+      "raw_next_race_ms": 22080.0,
+      "interval_ms": 60.0,
+      "action_latency_ms": 65.63459999961196,
+      "controller_apply_ms": 0.7871999987401068,
+      "skipped_frames": 4
+    },
+    {
+      "trial_index": 0,
+      "step": 441,
+      "raw_current_race_ms": 22080.0,
+      "raw_next_race_ms": 22140.0,
+      "interval_ms": 60.0,
+      "action_latency_ms": 42.879399999947054,
+      "controller_apply_ms": 0.7772000026307069,
+      "skipped_frames": 4
+    },
+    {
+      "trial_index": 0,
+      "step": 443,
+      "raw_current_race_ms": 22190.0,
+      "raw_next_race_ms": 22250.0,
+      "interval_ms": 60.0,
+      "action_latency_ms": 45.65340000044671,
+      "controller_apply_ms": 0.9247000016330276,
+      "skipped_frames": 3
+    },
+    {
+      "trial_index": 6,
+      "step": 78,
+      "raw_current_race_ms": 3910.0,
+      "raw_next_race_ms": 4040.0,
+      "interval_ms": 130.0,
+      "action_latency_ms": 129.47500000154832,
+      "controller_apply_ms": 0.3637000008893665,
+      "skipped_frames": 18
+    }
+  ],
+  "max_action_latency_ms": 129.47500000154832,
+  "optimizer_steps": 0,
+  "game_controls": 0,
+  "conclusion": "Real isolated policy-call latency coincides with clock overrun; gate correctly rejected. Root cause within policy call versus OS scheduling unavailable from existing instrumentation. No hyperparameter, timing-limit or checkpoint changes justified."
+}

@@ -1,8 +1,10 @@
 # Przekazanie treningów na cztery komputery
 
-Aktywny lokalny pilot `tmrl-ppo-trend-s17` — od15:28 Warszawa,100 rolloutów,
-ocena przy102400 oraz204800, końcowa bramka8/10. W&B `mbf6v73g`, monitor15min,
-SAVE19:18/HARD19:28 Warszawa. Nie restartuj ani nie uruchamiaj full równolegle.
+Lokalny pilot `tmrl-ppo-trend-s17` ZAMKNIĘTY17:10 Warszawa:102400/204800 kroków,
+50/100 aktualizacji. Ocena pośrednia10/10, średnia51,963s, lecz max130ms>100ms;
+zatrzymany przez walidację czasu, bez końcowej oceny. W&B `mbf6v73g`.
+Wszystkie14 obserwowanych tożsamości zamknięte, mutex wolny,351pins zgodne.
+Monitor PAUSED. Bez restart/resume/nowej próby/full — bezpośrednia instrukcja człowieka.
 Aktualny plan: [PPO_TREND_PILOT_20261013.md](PPO_TREND_PILOT_20261013.md).
 Poniższe nieaktywne r3 nie jest bieżącą próbą.
 

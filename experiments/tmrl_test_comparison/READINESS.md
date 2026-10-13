@@ -1,9 +1,10 @@
 # Gotowość — 8 października 2026
 
-Aktualnie uruchomiony **tmrl-ppo-trend-s17** od13:28:06 UTC (15:28 Warszawa),
-204800 kroków/100 rolloutów, oceny10+10 przy102400/204800; tylko finał to bramka.
-Preflight PASS20ms/33fields/correctUID, W&B `mbf6v73g`, pierwszy rollout i nowe
-metryki PPO potwierdzone. Monitor ACTIVE co15min; SAVE19:18/HARD19:28 Warszawa.
+**tmrl-ppo-trend-s17 zamknięty 13 października o17:10 Warszawa** po102400 krokach/50 aktualizacjach.
+Ocena pośrednia10/10, średnia51,963s, ale jedna decyzja130ms przekroczyła limit100ms.
+Końcowej oceny ani pełnego budżetu204800 nie wykonano; full nadal BLOCKED.
+Wszystkie14 obserwowanych tożsamości procesów zamknięte, mutex wolny,351pins zgodne.
+Monitor PAUSED. Człowiek zakazał wznowienia; tylko diagnoza i naprawy offline.
 Szczegóły: [PPO_TREND_PILOT_20261013.md](PPO_TREND_PILOT_20261013.md).
 Nie restartować, nie resume/extend/full. Poniższy r3 to zakończony predecessor.
 

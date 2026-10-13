@@ -440,7 +440,39 @@ def pilot_measurement(checkpoint: Path, evaluation: dict[str, Any]) -> int:
             for t in trials
         )
     ):
-        raise RuntimeError("Final evaluation is incomplete or invalid; retain evidence")
+        timing_failures = [
+            {"trial_index": trial.get("trial_index"),
+             "maximum_step_ms": trial.get("step_race_time_ms_max")}
+            for trial in trials
+            if isinstance(trial.get("step_race_time_ms_max"), (int, float))
+            and trial["step_race_time_ms_max"] > 100
+        ]
+        details = {
+            "checkpoint": checkpoint.name,
+            "status": evaluation.get("status"),
+            "trial_count": len(trials),
+            "expected_trials": evaluation.get("expected_trials"),
+            "checkpoint_identity_valid": (
+                Path(evaluation.get("checkpoint") or "").resolve() == checkpoint.resolve()
+                and evaluation.get("checkpoint_sha256") == sha(checkpoint)
+            ),
+            "map_uids_valid": all(trial.get("map_uid") == MAP_UID for trial in trials),
+            "trial_indices_valid": {trial.get("trial_index") for trial in trials} == set(range(10)),
+            "timing_valid": timing_valid,
+            "maximum_step_ms": maximum_step,
+            "maximum_allowed_step_ms": 100,
+            "timing_failures": timing_failures,
+            "runtime_errors": _has_runtime_errors(trials),
+            "interruptions": [
+                trial.get("trial_index") for trial in trials
+                if trial.get("termination_reason")
+                in {"operator_interruption", "capture_interruption", "telemetry_error"}
+            ],
+        }
+        raise RuntimeError(
+            "Evaluation is incomplete or invalid; retain evidence: "
+            + json.dumps(details, allow_nan=False, default=str)
+        )
     return sum(t.get("finished") is True for t in trials)
 
 

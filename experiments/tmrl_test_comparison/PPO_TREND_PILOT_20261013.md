@@ -81,7 +81,36 @@ Wspólne źródła trackmaniarl i experiments helpers, stara kampania i wszystki
 frozen runtime'y pozostają niezmienione. Kod nowych adapterów wyłącznie editable;
 plan przypina ich źródła oraz zainstalowany plugin, assety, kalibrację i fingerprint.
 
-## Rzeczywisty start i monitor
+## Zamknięcie i diagnoza — 13 października 2026
+
+Pilot zakończył się błędem walidacji pośredniej15:10:10 UTC (17:10 Warszawa),
+po102400 krokach/50 aktualizacjach, bez wznowienia i bez końcowej oceny.
+Wszystkie10 przejazdów ukończone: średnia51,963s, mediana51,885s, najlepszy51,12s.
+To wynik pośredni; nie kwalifikuje pełnej kampanii.
+
+Na10392 decyzje jedna przekroczyła100ms: trial06, krok78, zegar3910→4040ms.
+Wywołanie policy.act trwało129,475ms, controller.apply0,364ms;18 pominiętych ramek.
+Pozostałe cztery odchylenia od50ms wynosiły60ms. Wszystkie delty surowego zegara
+zgadzają się z zapisanym step_race_time_ms. Zatrzymanie było prawidłowe.
+Ślad nie rozdziela czasu modelu, synchronizacjiGPU, garbage collection i planistyOS;
+nie wolno przypisać źródła ani obiecywać naprawy opóźnień na podstawie tego pomiaru.
+Nie uzasadnia to zmianyPPO/LR/clip/entropy ani podniesienia limitu100ms.
+
+Checkpoint50 SHA `7fba0d9bf019aecc65ae6a7924a1614caa0841c9da0d30295e38522934a6dcb6`,
+finite/fingerprint/processed102400/fractional_updates0 i wszystkie10 śladów zweryfikowane.
+Wszystkie14 obserwowanych tożsamości zamknięte, mutex wolny,351pins oraz predecessorCP
+zgodne; własnySTOP zachowany. Monitor PAUSED. Bezpośrednia instrukcja człowieka:
+nie wznawiać treningu; przemyśleć i naprawić uzasadnione problemy offline.
+
+Naprawa w editable: komunikat bramki nie nazywa oceny pośredniej „Final evaluation”;
+podaje checkpoint, numer próby, rzeczywiste maksimum i limit oraz stan tożsamości,
+UID, pomiarów i przerwań. Warunki odrzucenia pozostają identyczne.
+31 testów guardów PASS, Ruff PASS. Frozen/usedplan/CP/replay niezmienione.
+Dowody: `evidence/ppo-trend-20261013/timing-diagnosis.json` i
+`post-closure-verification.json`. Dalsza profilacja wymaga osobnego, uzasadnionego
+testu; obecne polecenie nie autoryzuje wznowienia ani nowego pilota.
+
+## Historyczny rzeczywisty start i monitor
 
 Pilot JUŻ uruchomiony 2026-10-13T13:28:06.412619Z (15:28 Warszawa).
 Frozen commit `d8f2440b22f0dc595fe3946815f5d53de22ec1f9`, fingerprint

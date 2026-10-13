@@ -321,6 +321,23 @@ def test_gate_counts_finished_field_and_retains_a_valid_quality_failure(
     assert pilot.pilot_measurement(path, data) == 7
 
 
+def test_timing_failure_identifies_checkpoint_trial_and_limit(
+    measurement: tuple[Path, dict],
+) -> None:
+    path, data = measurement
+    data["trials"][6]["step_race_time_ms_max"] = 130
+    with pytest.raises(RuntimeError, match="incomplete or invalid") as failure:
+        pilot.pilot_measurement(path, data)
+    details = json.loads(str(failure.value).split("retain evidence: ", 1)[1])
+    assert details["checkpoint"] == path.name
+    assert details["trial_count"] == 10
+    assert details["timing_valid"] is True
+    assert details["maximum_step_ms"] == 130
+    assert details["maximum_allowed_step_ms"] == 100
+    assert details["timing_failures"] == [{"trial_index": 6, "maximum_step_ms": 130}]
+    assert "Final evaluation" not in str(failure.value)
+
+
 def test_stage_requests_save_then_closes_its_process_at_hard_deadline(
     prepared: dict,
     monkeypatch: pytest.MonkeyPatch,
