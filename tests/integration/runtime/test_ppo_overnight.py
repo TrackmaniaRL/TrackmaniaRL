@@ -100,6 +100,7 @@ def test_guard_does_not_treat_own_forwarding_parent_as_orphan(tmp_path: Path) ->
         "save_margin_seconds": 10, "source_root": str(tmp_path)}))
     main(tmp_path)
     assert not (tmp_path / "STOP").exists()
+    assert json.loads((tmp_path / "deadline-guard-exit.json").read_text())["reason"] is None
 
 
 def test_predecessor_stop_appearance_and_touch_win(tmp_path: Path) -> None:
@@ -119,7 +120,6 @@ def test_predecessor_stop_appearance_and_touch_win(tmp_path: Path) -> None:
     assert predecessor_stop_changed(plan)
     stop.unlink()
     assert predecessor_stop_changed(plan)
-    assert json.loads((tmp_path / "deadline-guard-exit.json").read_text())["reason"] is None
 
 
 def test_real_windows_guard_subtree_closes_without_post_complete_stop(tmp_path: Path) -> None:
