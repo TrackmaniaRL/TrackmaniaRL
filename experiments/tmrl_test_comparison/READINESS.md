@@ -1,5 +1,13 @@
 # Gotowość — 8 października 2026
 
+AKTUALNE14 października06:17Warszawa: recoveryseed17 COMPLETE10/10,
+mean51.841s/median51.835s, CPfinitefingerprint204800/100/traces/closureverified.
+TimingFAILjedna140ms/10368decyzji, fullBLOCKED. Seed29potwierdzenie zatrzymane
+PRZEDresetem/treningiem: correctUID, player_not_ready;0updates, runnieutworzony.
+Wszystkieownedclosed/mutexfree/pins/priorCP/STOPverified. MonitorPAUSED po raporcie;
+brak ponowienia lub obchodzenia readiness. [Raport](PPO_OVERNIGHT_REPORT_20261014.md).
+StarszeACTIVEponiżej historyczne. Nie ogłaszamy gotowości na wiele tygodni.
+
 AKTUALNE14 października02:46Warszawa: KLvariant zakończony0/10, odrzucony;
 mid9/10→final0/10 mimo KL<=.02. Full204800/100, CP/traces/closure/mutex/pins verified.
 Osobno timingFAIL130ms. Nowy izolowany recoverypilot `tmrl-ppo-overnight-recovery-s17`

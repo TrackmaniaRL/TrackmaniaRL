@@ -1,5 +1,13 @@
 # Przekazanie treningów na cztery komputery
 
+AKTUALNE14 października06:17Warszawa: recoveryseed17 final10/10median51.835s,
+timingFAIL140ms, checkpoint/closureverified. Seed29nieprzetestowany: preflight
+correctUID→player_not_ready before_reset,0updates, brakrun; wszystkieownedclosed,
+mutexfree/360pins/predecessorCP i STOPverified. MonitorPAUSED po raporcie, fullBLOCKED.
+Przywróć grywalny stan wyścigu przed przyszłym świeżym potwierdzeniem; nie ponawiaj
+użytej kolejki i nie obchodź readiness. [Raport](PPO_OVERNIGHT_REPORT_20261014.md).
+WcześniejszeACTIVEponiżej historyczne.
+
 AKTUALNE14 października02:46Warszawa: KLvariant COMPLETE0/10, odrzucony,
 CPfinitefingerprint204800/100/traces/allownedclosed/mutexfree/sourcepins verified;
 timing osobnoFAIL130ms. Świeży isolatedrecoverypilot od00:46:40UTC, preflightREADY,

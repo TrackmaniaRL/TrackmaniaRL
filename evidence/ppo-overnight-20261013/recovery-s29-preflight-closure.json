@@ -1,0 +1,92 @@
+{
+  "checked_at": "2026-10-14T04:16:34.864506+00:00",
+  "status": "STOPPED_OR_FAILED",
+  "all_owned_closed": true,
+  "owned_identities": [
+    {
+      "pid": 49412,
+      "create_time": 1791951227.9082189,
+      "alive": false
+    },
+    {
+      "pid": 53384,
+      "create_time": 1791951233.072395,
+      "alive": false
+    },
+    {
+      "pid": 53616,
+      "create_time": 1791951233.0972593,
+      "alive": false
+    },
+    {
+      "pid": 33004,
+      "create_time": 1791951227.861,
+      "alive": false
+    },
+    {
+      "pid": 12300,
+      "create_time": 1791951233.406783,
+      "alive": false
+    },
+    {
+      "pid": 32300,
+      "create_time": 1791951233.388796,
+      "alive": false
+    },
+    {
+      "pid": 47372,
+      "create_time": 1791951233.381225,
+      "alive": false
+    }
+  ],
+  "mutex_free": true,
+  "source_pins_verified": 360,
+  "source_commit": "6ebf9e9d9bf63ca3539ab1cae472bfdf3e41a80a",
+  "config_sha256": "00997f0caf299f16c41f0c053c92f4ffdf364368bfabe38c57055d733cd10b53",
+  "predecessor_actual_sha256": "190f539038508e72d6e1e43e67473d57772966ea092ce1ed706423a6e2307215",
+  "predecessor_stop_expected_absent": true,
+  "stop_sha256": "a07efaeb81fa6c021c7b7610d7893fc600e133a8bc96235f484ef32b1263f539",
+  "stop_mtime_ns": 1791951237119705200,
+  "run_directory_exists": false,
+  "training_started": false,
+  "optimizer_updates": 0,
+  "preflight": {
+    "at": "2026-10-14T04:13:56.235820+00:00",
+    "config": "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\ppo-overnight-recovery-s29-20261013\\ppo.yaml",
+    "runtime": "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\ppo-overnight-confirm-runtime-20261014-r2",
+    "status": "failed",
+    "phase": "ready_before_reset",
+    "map_uid": "oqIJ5rQDRrNwLPTh9H2p_W4tLof",
+    "race_time_ms": null,
+    "finished": null,
+    "read_count": 0,
+    "fields": null,
+    "reason": "OpenPlanetSessionProtocolError: OpenPlanet session command 'confirm_ready' rejected: {'status': 'error', 'protocol_version': '2', 'error': 'player_not_ready'}"
+  },
+  "deadline_guard_exit": {
+    "checked_at": "2026-10-14T04:13:57.829398+00:00",
+    "reason": "launcher_exited_without_closed_complete",
+    "observed_identities": [
+      {
+        "pid": 49412,
+        "create_time": 1791951227.9082189
+      },
+      {
+        "pid": 32300,
+        "create_time": 1791951233.388796
+      },
+      {
+        "pid": 47372,
+        "create_time": 1791951233.381225
+      },
+      {
+        "pid": 12300,
+        "create_time": 1791951233.406783
+      }
+    ],
+    "survivors": []
+  },
+  "diagnosis": "Correct map verification passed; confirm_ready rejected player_not_ready before reset or telemetry read. Reference plugin requires GUIPlayer, ScriptAPI and ViewingPlayerState; which object is absent is not exposed. Prior seed17 trial finished all10; finish screen is plausible inference, not observed. Do not bypass readiness or retry used run.",
+  "quality_result": "Seed29 NOT TESTED; not0/10drivingfailure",
+  "automatic_full_training": false
+}

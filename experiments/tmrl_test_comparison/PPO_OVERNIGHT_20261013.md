@@ -119,3 +119,12 @@ predecessor recoveryCP17 actualSHA and predecessorSTOP absence pinned (appearanc
 Reject confirmation if<8/10, unresolved hairpin stalls or material time regression;
 report timing separately. After this final bounded confirmation, report honestly and
 pause the overnight automation; no new four-hour job may exceed09:04:23UTC window.
+
+Actual seed29 attempt used new runtime `ppo-overnight-confirm-runtime-20261014-r2`
+commit6ebf9e9d, queue `ppo-overnight-recovery-s29-20261013`, freshrun identity.
+Preflight failed2026-10-14T04:13:56UTC at ready_before_reset: correctUID but plugin
+confirm_ready rejected player_not_ready. No reset, telemetry reads, run directory,
+training or optimizer updates. Closure/360pins/predecessorCP/STOP verified;
+all observed processes closed and mutex free. Seed29 is NOT TESTED, not0/10.
+No retry or readiness bypass. Final report and monitor pause:
+[PPO_OVERNIGHT_REPORT_20261014.md](PPO_OVERNIGHT_REPORT_20261014.md).
