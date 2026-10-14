@@ -1,5 +1,12 @@
 # Gotowość — 8 października 2026
 
+AKTUALNE14 października02:46Warszawa: KLvariant zakończony0/10, odrzucony;
+mid9/10→final0/10 mimo KL<=.02. Full204800/100, CP/traces/closure/mutex/pins verified.
+Osobno timingFAIL130ms. Nowy izolowany recoverypilot `tmrl-ppo-overnight-recovery-s17`
+start00:46:40UTC, preflightREADY10ms/33fields/60reads; oryginalny updaterPPO,
+freshseed17, frozen1fd74717. SAVE06:36/HARD06:46Warszawa, monitorACTIVE15min.
+Brak jeszcze wyniku jazdy nowej próby. FullBLOCKED; wcześniejszeACTIVEKL historyczne.
+
 AKTUALNE 13 października23:18Warszawa: człowiek autoryzował nocną pętlę
 PPO do14 października11:04Warszawa. Świeży izolowany KLguard pilot
 `tmrl-ppo-overnight-kl-s17-r2` wystartował, preflightREADY10ms/33fields/59reads.

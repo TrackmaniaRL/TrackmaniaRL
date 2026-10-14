@@ -91,3 +91,11 @@ same budgets/settings, new runtime/queue/run/fingerprint, predecessor last compl
 for provenance only; no weights resumed and no KL component combined. Rejection: invalid
 measurements, final<8/10, median slowdown review or unresolved stalls. No promotion from
 training finishes. Pin predecessor STOP actualSHA+mtime; a change stops the new trial.
+
+Recovery trial actually launched2026-10-14T00:46:40.368328UTC, newqueue
+`ppo-overnight-recovery-s17-20261013`, run `tmrl-ppo-overnight-recovery-s17`,
+new runtime `ppo-overnight-recovery-runtime-20261014` commit1fd74717.
+PreflightREADY10ms/33fields/60reads. SAVE04:36:40.368328UTC,
+HARD04:46:40.368328UTC.20focusedtests and RuffPASS beforefreeze/launch;
+newconfig scope test confirms originalPPOupdater, not combined withKL.
+MonitorACTIVE15min; no driving outcome inferred from launch.

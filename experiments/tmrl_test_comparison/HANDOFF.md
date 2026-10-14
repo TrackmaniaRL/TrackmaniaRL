@@ -1,5 +1,12 @@
 # Przekazanie treningów na cztery komputery
 
+AKTUALNE14 października02:46Warszawa: KLvariant COMPLETE0/10, odrzucony,
+CPfinitefingerprint204800/100/traces/allownedclosed/mutexfree/sourcepins verified;
+timing osobnoFAIL130ms. Świeży isolatedrecoverypilot od00:46:40UTC, preflightREADY,
+oryginalny PPOupdater/freshseed17/frozen1fd74717, monitorACTIVE15min,
+SAVE06:36/HARD06:46Warszawa. Bez dowodu naprawyjazdy/full. Ledger i aktualny
+[plan](PPO_OVERNIGHT_20261013.md); stareACTIVEKL poniżej historyczne.
+
 AKTUALNE13 października23:18Warszawa: autoryzowana nocna pętlaPPO do14 października
 11:04Warszawa. Aktywny świeży wariantKLguard `tmrl-ppo-overnight-kl-s17-r2`,
 preflightREADY, frozen87832312, independentguardREADY, SAVE03:08/HARD03:18Warszawa.
