@@ -36,6 +36,13 @@ def measurement(checkpoint: Path, evaluation: dict[str, Any]) -> dict[str, Any]:
 
 
 def configure(variant: str, seed: int, revision: int = 1) -> None:
+    global PREDECESSOR, PREDECESSOR_SHA
+    if variant == "recovery":
+        PREDECESSOR = pilot.BASE / "tmrl-ppo-overnight-kl-s17-r2/checkpoints/update-00000100.pt"
+        PREDECESSOR_SHA = "0983f59f797592a117e443c8fdb60a8d6b258c2b7f2d70abb51ee406ee301a19"
+    else:
+        PREDECESSOR = pilot.BASE / "tmrl-ppo-trend-s17/checkpoints/update-00000100.pt"
+        PREDECESSOR_SHA = "a5927a3187bc2533b99dfdca7a336181dd0bd1f0416aab0ced3aa491c5aa5e60"
     suffix = "" if revision == 1 else "-r2"
     pilot.DIRECTORY = pilot.BASE / f"ppo-overnight-{variant}-s{seed}-20261013{suffix}"
     pilot.RUN_ID = f"tmrl-ppo-overnight-{variant}-s{seed}{suffix}"
@@ -66,6 +73,11 @@ def verify() -> dict[str, Any]:
             or plan.get("authorization_window_end") != WINDOW_END.isoformat()
             or plan.get("timing_policy") != "report_separately_no_strict_gate_waiver"):
         raise RuntimeError("Predecessor or overnight decision contract changed")
+    if plan.get("predecessor_stop"):
+        stop = Path(plan["predecessor_stop"])
+        if (not stop.is_file() or pilot.sha(stop) != plan["predecessor_stop_sha256"]
+                or stop.stat().st_mtime_ns != plan["predecessor_stop_mtime_ns"]):
+            raise RuntimeError("Predecessor STOP changed; do not launch or continue")
     return plan
 
 
@@ -143,6 +155,15 @@ def main() -> None:
                     predecessor_checkpoint_sha256=PREDECESSOR_SHA, seed=args.seed,
                     authorization_window_end=WINDOW_END.isoformat(),
                     timing_policy="report_separately_no_strict_gate_waiver")
+        if args.variant == "recovery":
+            previous = pilot.BASE / "ppo-overnight-kl-s17-20261013-r2"
+            closure = json.loads((previous / "post-closure-verification.json").read_text())
+            if not closure["all_owned_closed"] or not closure["mutex_free"]:
+                raise RuntimeError("Predecessor closure incomplete")
+            stop = previous / "STOP"
+            plan.update(predecessor_queue=str(previous), predecessor_stop=str(stop),
+                        predecessor_stop_sha256=pilot.sha(stop),
+                        predecessor_stop_mtime_ns=stop.stat().st_mtime_ns)
         path = pilot.DIRECTORY / "plan.json"
         path.write_text(json.dumps(plan, indent=2)+"\n", encoding="utf-8")
     plan = verify()

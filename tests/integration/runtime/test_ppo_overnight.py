@@ -4,6 +4,7 @@ import copy
 import json
 import subprocess
 import sys
+import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -35,8 +36,9 @@ def test_real_final_timing_failure_remains_strict_failure() -> None:
             overnight.measurement(overnight.PREDECESSOR, invalid)
 
 
-def test_kl_variant_changes_only_declared_components_and_metadata(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("variant", ["kl", "recovery"])
+def test_variant_changes_only_declared_components_and_metadata(
+    monkeypatch: pytest.MonkeyPatch, variant: str,
 ) -> None:
     from pilot_tools import ppo_pilot as pilot
 
@@ -45,13 +47,16 @@ def test_kl_variant_changes_only_declared_components_and_metadata(
     monkeypatch.setattr(pilot, "_launch_owned", pilot._launch_owned)
     monkeypatch.setattr(pilot, "DIRECTORY", pilot.DIRECTORY)
     monkeypatch.setattr(pilot, "RUN_ID", pilot.RUN_ID)
-    overnight.configure("kl", 17)
+    overnight.configure(variant, 17)
     candidate = pilot.configuration()
+    if variant == "recovery":
+        assert candidate["components"]["learner"] == baseline["components"]["learner"]
     candidate["run_id"] = baseline["run_id"]
     candidate["metadata"] = baseline["metadata"]
     for name in ("learner",):
         candidate["components"][name]["class_path"] = baseline["components"][name]["class_path"]
     candidate["components"]["additional_loggers"] = baseline["components"]["additional_loggers"]
+    candidate["components"]["feature_pipeline"] = baseline["components"]["feature_pipeline"]
     assert candidate == baseline
 
 
@@ -95,3 +100,33 @@ def test_guard_does_not_treat_own_forwarding_parent_as_orphan(tmp_path: Path) ->
     main(tmp_path)
     assert not (tmp_path / "STOP").exists()
     assert json.loads((tmp_path / "deadline-guard-exit.json").read_text())["reason"] is None
+
+
+def test_real_windows_guard_subtree_closes_without_post_complete_stop(tmp_path: Path) -> None:
+    (tmp_path / "plan.json").write_text(json.dumps({"maximum_seconds": 30,
+        "save_margin_seconds": 5, "source_root": str(tmp_path)}))
+    script = '''
+import json,subprocess,sys,time,psutil
+from pathlib import Path
+from datetime import datetime,UTC
+q=Path(sys.argv[1]);p=psutil.Process()
+s={'started_at':datetime.now(UTC).isoformat(),'status':'RUNNING',
+   'launcher':{'pid':p.pid,'create_time':p.create_time()},'owned_identities':[]}
+(q/'launch.json').write_text(json.dumps(s));(q/'status.json').write_text(json.dumps(s))
+guard=subprocess.Popen([sys.executable,'-m','pilot_tools.ppo_deadline_guard',str(q)],
+                      creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+limit=time.monotonic()+10
+while not (q/'deadline-guard-ready.json').exists():
+ if time.monotonic()>limit:raise RuntimeError('guard not ready')
+ time.sleep(.1)
+s['status']='COMPLETE';(q/'status.json').write_text(json.dumps(s))
+'''
+    launcher = subprocess.Popen([sys.executable, "-c", script, str(tmp_path)])
+    launcher.wait(timeout=15)
+    deadline = time.monotonic()+10
+    receipt = tmp_path / "deadline-guard-exit.json"
+    while not receipt.exists() and time.monotonic() < deadline:
+        time.sleep(.1)
+    assert receipt.exists()
+    assert json.loads(receipt.read_text())["reason"] is None
+    assert not (tmp_path / "STOP").exists()

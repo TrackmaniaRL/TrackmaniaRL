@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import time
@@ -21,6 +22,11 @@ def exact(identity: dict[str, Any]) -> psutil.Process | None:
     except psutil.NoSuchProcess:
         pass
     return None
+
+
+def guard_component(process: psutil.Process, ancestry: set[int]) -> bool:
+    """Exclude the entire guard subtree, including Windows console auxiliaries."""
+    return process.pid in ancestry or any(parent.pid in ancestry for parent in process.parents())
 
 
 def main(queue: Path) -> None:
@@ -57,7 +63,7 @@ def main(queue: Path) -> None:
         if root is not None:
             try:
                 for child in root.children(recursive=True):
-                    if child.pid not in guard_chain:
+                    if not guard_component(child, guard_chain):
                         identity = {"pid": child.pid, "create_time": child.create_time()}
                         observed[(child.pid, child.create_time())] = identity
             except psutil.NoSuchProcess:
@@ -74,6 +80,13 @@ def main(queue: Path) -> None:
             break
         if any(path.exists() for path in stop_paths):
             reason = "STOP"
+        if plan.get("predecessor_stop"):
+            previous_stop = Path(plan["predecessor_stop"])
+            if (not previous_stop.is_file()
+                    or hashlib.sha256(previous_stop.read_bytes()).hexdigest()
+                    != plan["predecessor_stop_sha256"]
+                    or previous_stop.stat().st_mtime_ns != plan["predecessor_stop_mtime_ns"]):
+                reason = "changed_predecessor_STOP"
         if elapsed >= plan["maximum_seconds"] - plan["save_margin_seconds"]:
             reason = "save_deadline"
         if reason:

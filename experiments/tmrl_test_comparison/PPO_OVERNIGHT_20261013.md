@@ -66,3 +66,28 @@ runtime `ppo-overnight-runtime-20261013-r2` commit87832312. Actual start
 HARD2026-10-14T01:18:09.354949UTC. PreflightREADY10ms/33fields/59reads.
 Independent guard ready, monitoring15min. W&B runrwoi180y. No driving improvement
 claimed from launch or warmup. This is a fresh run; the stopped attempt is never resumed.
+
+## KL result and next isolated hypothesis,2026-10-14 00:43UTC
+
+KL trial COMPLETE204800/100, final0/10 versus midpoint9/10. Final failures were
+two at41.28%, eight at65.59–65.73%, not the original81% hairpin. Accepted final
+rollout KL never exceeded.0199611, yet driving collapsed;15 updates entirely skipped.
+Reject this variant as a driving fix, no KL coefficient grid or seed29 confirmation.
+FinalCP SHA0983f59f797592a117e443c8fdb60a8d6b258c2b7f2d70abb51ee406ee301a19.
+Timing separatelyFAIL130ms, including120ms in another trial; eight failed at50ms max,
+so timing alone cannot explain all failures. Final CPfinite/fingerprint/budget/processed,
+both trace suites, actualSHA/sourcepins and all observed process closure/mutex verified.
+
+The guard generated a post-COMPLETE STOP for a console auxiliary in its own subtree;
+all identities are now closed and STOP preserved. New-source guard excludes its entire
+subtree; a real Windows subprocess regression test confirms COMPLETE closes without STOP.
+No used runtime edited. This cleanup issue happened after the completed evaluation.
+
+Next trial: persistent recovery ONLY, original PPO updater. It tests the independently
+supported original-baseline81% stall hypothesis, not a repair of the rejected KLvariant.
+Saved baseline traces showed recovery gate disappearing during sustained stalls, while
+shadow replay preserved it and left all10 successfulCP50 traces unchanged. Fresh seed17,
+same budgets/settings, new runtime/queue/run/fingerprint, predecessor last completedKLCP
+for provenance only; no weights resumed and no KL component combined. Rejection: invalid
+measurements, final<8/10, median slowdown review or unresolved stalls. No promotion from
+training finishes. Pin predecessor STOP actualSHA+mtime; a change stops the new trial.

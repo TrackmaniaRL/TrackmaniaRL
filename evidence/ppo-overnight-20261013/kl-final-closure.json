@@ -1,0 +1,350 @@
+{
+  "checked_at": "2026-10-14T00:43:04.322212+00:00",
+  "status": "COMPLETE",
+  "all_owned_closed": true,
+  "owned_identities": [
+    {
+      "pid": 49880,
+      "create_time": 1791926284.3137927,
+      "alive": false
+    },
+    {
+      "pid": 53256,
+      "create_time": 1791926289.3565245,
+      "alive": false
+    },
+    {
+      "pid": 51500,
+      "create_time": 1791926289.3828113,
+      "alive": false
+    },
+    {
+      "pid": 45212,
+      "create_time": 1791926284.268,
+      "alive": false
+    },
+    {
+      "pid": 11140,
+      "create_time": 1791926310.5959053,
+      "alive": false
+    },
+    {
+      "pid": 27716,
+      "create_time": 1791926295.5667336,
+      "alive": false
+    },
+    {
+      "pid": 36088,
+      "create_time": 1791926299.8806317,
+      "alive": false
+    },
+    {
+      "pid": 37336,
+      "create_time": 1791926300.5790968,
+      "alive": false
+    },
+    {
+      "pid": 39256,
+      "create_time": 1791926302.9133205,
+      "alive": false
+    },
+    {
+      "pid": 41488,
+      "create_time": 1791926305.9581885,
+      "alive": false
+    },
+    {
+      "pid": 42640,
+      "create_time": 1791926299.8771102,
+      "alive": false
+    },
+    {
+      "pid": 45672,
+      "create_time": 1791926305.9696305,
+      "alive": false
+    },
+    {
+      "pid": 47436,
+      "create_time": 1791926310.465258,
+      "alive": false
+    },
+    {
+      "pid": 47896,
+      "create_time": 1791926299.8352337,
+      "alive": false
+    },
+    {
+      "pid": 49304,
+      "create_time": 1791926295.593033,
+      "alive": false
+    },
+    {
+      "pid": 50696,
+      "create_time": 1791926299.8293912,
+      "alive": false
+    },
+    {
+      "pid": 52696,
+      "create_time": 1791926299.8577833,
+      "alive": false
+    },
+    {
+      "pid": 53316,
+      "create_time": 1791926295.5750132,
+      "alive": false
+    },
+    {
+      "pid": 43764,
+      "create_time": 1791926289.6750352,
+      "alive": false
+    },
+    {
+      "pid": 47180,
+      "create_time": 1791926289.6671505,
+      "alive": false
+    },
+    {
+      "pid": 49392,
+      "create_time": 1791926289.692489,
+      "alive": false
+    },
+    {
+      "pid": 51772,
+      "create_time": 1791926292.5375996,
+      "alive": false
+    },
+    {
+      "pid": 53368,
+      "create_time": 1791926289.3660069,
+      "alive": false
+    },
+    {
+      "pid": 53416,
+      "create_time": 1791926305.787354,
+      "alive": false
+    },
+    {
+      "pid": 50768,
+      "create_time": 1791926310.4753597,
+      "alive": false
+    }
+  ],
+  "mutex_free": true,
+  "source_pins_verified": 360,
+  "config_sha256": "55524fcc484b008551ac4e96ac2f38e26ae6290709a1c1d216e9ca9589e40a86",
+  "predecessor_actual_sha256": "a5927a3187bc2533b99dfdca7a336181dd0bd1f0416aab0ced3aa491c5aa5e60",
+  "checkpoint": "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\tmrl-ppo-overnight-kl-s17-r2\\checkpoints\\update-00000100.pt",
+  "checkpoint_sha256": "0983f59f797592a117e443c8fdb60a8d6b258c2b7f2d70abb51ee406ee301a19",
+  "final_checkpoint_finite_fingerprint_budget_processed_valid": true,
+  "final_counters": {
+    "episodes": 202,
+    "transitions": 204800,
+    "updates": 100
+  },
+  "midpoint_measurement": {
+    "measurement_valid": true,
+    "finishes": 9,
+    "median_finish_s": 64.84,
+    "maximum_step_ms": 140.0,
+    "timing_gate_passed": false,
+    "quality_gate_passed": true,
+    "strict_gate_passed": false
+  },
+  "final_measurement": {
+    "measurement_valid": true,
+    "finishes": 0,
+    "median_finish_s": null,
+    "maximum_step_ms": 130.0,
+    "timing_gate_passed": false,
+    "quality_gate_passed": false,
+    "strict_gate_passed": false
+  },
+  "failures": [
+    {
+      "trial_index": 0,
+      "termination_reason": "no_progress",
+      "progress_pct": 41.28174768104777,
+      "steps": 559,
+      "step_race_time_ms_max": 50.0,
+      "telemetry_skipped_frames_total": 881
+    },
+    {
+      "trial_index": 1,
+      "termination_reason": "no_progress",
+      "progress_pct": 65.72841155434826,
+      "steps": 836,
+      "step_race_time_ms_max": 50.0,
+      "telemetry_skipped_frames_total": 1272
+    },
+    {
+      "trial_index": 2,
+      "termination_reason": "no_progress",
+      "progress_pct": 65.63616397946042,
+      "steps": 825,
+      "step_race_time_ms_max": 50.0,
+      "telemetry_skipped_frames_total": 1244
+    },
+    {
+      "trial_index": 3,
+      "termination_reason": "no_progress",
+      "progress_pct": 65.6822905843124,
+      "steps": 820,
+      "step_race_time_ms_max": 130.0,
+      "telemetry_skipped_frames_total": 1205
+    },
+    {
+      "trial_index": 4,
+      "termination_reason": "no_progress",
+      "progress_pct": 65.63616397946042,
+      "steps": 826,
+      "step_race_time_ms_max": 120.0,
+      "telemetry_skipped_frames_total": 1219
+    },
+    {
+      "trial_index": 5,
+      "termination_reason": "no_progress",
+      "progress_pct": 41.28174768104777,
+      "steps": 563,
+      "step_race_time_ms_max": 50.0,
+      "telemetry_skipped_frames_total": 821
+    },
+    {
+      "trial_index": 6,
+      "termination_reason": "slow_progress",
+      "progress_pct": 65.6822905843124,
+      "steps": 863,
+      "step_race_time_ms_max": 50.0,
+      "telemetry_skipped_frames_total": 1202
+    },
+    {
+      "trial_index": 7,
+      "termination_reason": "no_progress",
+      "progress_pct": 65.59004300942456,
+      "steps": 826,
+      "step_race_time_ms_max": 50.0,
+      "telemetry_skipped_frames_total": 1396
+    },
+    {
+      "trial_index": 8,
+      "termination_reason": "no_progress",
+      "progress_pct": 65.63616397946042,
+      "steps": 827,
+      "step_race_time_ms_max": 50.0,
+      "telemetry_skipped_frames_total": 1304
+    },
+    {
+      "trial_index": 9,
+      "termination_reason": "no_progress",
+      "progress_pct": 65.63616397946042,
+      "steps": 810,
+      "step_race_time_ms_max": 50.0,
+      "telemetry_skipped_frames_total": 1236
+    }
+  ],
+  "source_commit": "87832312ce4a18e009e8f1a3e1de73b0bc6e1b90",
+  "stop_sha256": "bbf4ca0a21a6594294b71975bcad59bcfbaf751398ecd39ccb75df62407052ac",
+  "stop_mtime_ns": 1791938444366230300,
+  "deadline_guard_exit": {
+    "checked_at": "2026-10-14T00:40:44.366730+00:00",
+    "reason": "launcher_exited_without_closed_complete",
+    "observed_identities": [
+      {
+        "pid": 49880,
+        "create_time": 1791926284.3137927
+      },
+      {
+        "pid": 53368,
+        "create_time": 1791926289.3660069
+      },
+      {
+        "pid": 43764,
+        "create_time": 1791926289.6750352
+      },
+      {
+        "pid": 47180,
+        "create_time": 1791926289.6671505
+      },
+      {
+        "pid": 49392,
+        "create_time": 1791926289.692489
+      },
+      {
+        "pid": 51772,
+        "create_time": 1791926292.5375996
+      },
+      {
+        "pid": 27716,
+        "create_time": 1791926295.5667336
+      },
+      {
+        "pid": 53316,
+        "create_time": 1791926295.5750132
+      },
+      {
+        "pid": 49304,
+        "create_time": 1791926295.593033
+      },
+      {
+        "pid": 36088,
+        "create_time": 1791926299.8806317
+      },
+      {
+        "pid": 42640,
+        "create_time": 1791926299.8771102
+      },
+      {
+        "pid": 47896,
+        "create_time": 1791926299.8352337
+      },
+      {
+        "pid": 50696,
+        "create_time": 1791926299.8293912
+      },
+      {
+        "pid": 52696,
+        "create_time": 1791926299.8577833
+      },
+      {
+        "pid": 37336,
+        "create_time": 1791926300.5790968
+      },
+      {
+        "pid": 39256,
+        "create_time": 1791926302.9133205
+      },
+      {
+        "pid": 53416,
+        "create_time": 1791926305.787354
+      },
+      {
+        "pid": 41488,
+        "create_time": 1791926305.9581885
+      },
+      {
+        "pid": 45672,
+        "create_time": 1791926305.9696305
+      },
+      {
+        "pid": 47436,
+        "create_time": 1791926310.465258
+      },
+      {
+        "pid": 50768,
+        "create_time": 1791926310.4753597
+      },
+      {
+        "pid": 11140,
+        "create_time": 1791926310.5959053
+      }
+    ],
+    "survivors": [
+      {
+        "pid": 53368,
+        "create_time": 1791926289.3660069
+      }
+    ]
+  },
+  "guard_post_complete_stop": "Independent guard observed an auxiliary survivor after COMPLETE; STOP preserved, all current identities checked. Does not explain completed driving failure. Fix guard lifecycle before next fresh run.",
+  "skipped_updates": 15,
+  "maximum_accepted_final_kl": 0.019961044192314148
+}
