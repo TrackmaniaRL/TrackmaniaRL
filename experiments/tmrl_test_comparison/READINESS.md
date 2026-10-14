@@ -1,5 +1,13 @@
 # Gotowość — 8 października 2026
 
+AKTUALNE14 października09:40Warszawa: po nowym poleceniu człowieka świeże
+potwierdzenie recoveryseed29 `tmrl-ppo-overnight-recovery-s29-r2` DZIAŁA,
+preflightREADY20ms/33fields/55reads. ComputerUse zobaczył RaceValidationfinishmenu
+i przywrócił grę normalnymImprove. Nowyfrozen01459dbb/nowaqueue-r2/noresume,
+actualSTART07:40:50UTC,SAVE13:30/HARD13:40Warszawa; monitorACTIVE15min.
+To nowy boundedpilot, nie wydłużenie zakończonej nocy. FullBLOCKED.
+[Aktualne potwierdzenie](PPO_CONFIRMATION_20261014.md); starszePAUSEDhistoryczne.
+
 AKTUALNE14 października06:17Warszawa: recoveryseed17 COMPLETE10/10,
 mean51.841s/median51.835s, CPfinitefingerprint204800/100/traces/closureverified.
 TimingFAILjedna140ms/10368decyzji, fullBLOCKED. Seed29potwierdzenie zatrzymane

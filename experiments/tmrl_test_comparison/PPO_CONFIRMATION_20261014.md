@@ -24,3 +24,11 @@ source, helpers, CP, replay, STOP and closure proofs. Use ppo_confirm_day prepar
 launch with --variant recovery --seed29 --revision2 (separate CLI arguments).
 Monitor existing PPO heartbeat every15min, stay quiet on normal progress; after final
 evaluation and full closure report and pause only this monitor. Never automaticfull.
+
+ActualSTART2026-10-14T07:40:50.421032UTC, SAVE11:30:50.421032UTC,
+HARD11:40:50.421032UTC. Newfrozen `ppo-confirm-day-runtime-20261014`
+commit01459dbb, queue `ppo-overnight-recovery-s29-20261013-r2`, run
+`tmrl-ppo-overnight-recovery-s29-r2`. PreflightREADY20ms/33fields/55reads.
+21focusedtests/Ruff/mypyPASS beforefreeze; independentdeadlineguard ready,
+monitorACTIVE15min. Ledger BASE/ppo-confirm-day-20261014/repair-state.json.
+Warmup/preflight are not driving evidence; final100/traces and exact closure required.

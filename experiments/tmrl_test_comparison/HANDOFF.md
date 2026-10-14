@@ -1,5 +1,12 @@
 # Przekazanie treningów na cztery komputery
 
+AKTUALNE14 października09:40Warszawa: człowiek polecił kontynuować PPO.
+Nowe potwierdzenie seed29-r2 uruchomione od07:40:50UTC, preflightREADY20ms,
+ComputerUse normalImprove przywróciłoactiveplayer z RaceValidationfinishmenu.
+Źródło01459dbb, freshqueue/run/noresume, SAVE13:30/HARD13:40Warszawa,
+monitorACTIVE15min. FullBLOCKED do niezależnejoceny/timingu i zgodnego planu.
+[Aktualny kontrakt](PPO_CONFIRMATION_20261014.md). StarszePAUSEDhistoryczne.
+
 AKTUALNE14 października06:17Warszawa: recoveryseed17 final10/10median51.835s,
 timingFAIL140ms, checkpoint/closureverified. Seed29nieprzetestowany: preflight
 correctUID→player_not_ready before_reset,0updates, brakrun; wszystkieownedclosed,
