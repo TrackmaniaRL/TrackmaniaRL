@@ -1,5 +1,7 @@
 # Porównanie algorytmów na tmrl-test
 
+AKTUALNE14 października: człowiek jawnie zniósł blokadę za pojedyncze opóźnienia. Nowa kampania **weeks-20261014-v2** obejmuje QR/IQN/SAC/TQC oraz PPO persistent recovery. SD-SAC wyłączone. Timing nadal raportowany, próg100ms nie blokuje v2; błędy/niepełne pomiary nadal blokują. Przygotowano15świeżych runów, żadnego nie uruchomiono. [Instrukcja dla kolegów i polecenia startowe](release_20261014/START_HERE.md). Używaj wyłącznie skryptów z release_20261014; wszystkie wcześniejsze BLOCKED/ACTIVE/stare polecenia poniżej są historyczne.
+
 Przygotowane do późniejszego uruchomienia. Każdy wygenerowany eksperyment zapisuje
 lokalne JSONL/checkpointy oraz wysyła metryki do projektu W&B `my-trackmania-agent`.
 To eksperyment pokazujący wymienność algorytmów biblioteki, nie warunek publikacji

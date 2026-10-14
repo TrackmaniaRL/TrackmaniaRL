@@ -1,5 +1,7 @@
 # Kampania na czterech komputerach — przygotowana, nieuruchomiona
 
+AKTUALNE14 października: człowiek jawnie zniósł blokadę za pojedyncze opóźnienia. Nowa kampania **weeks-20261014-v2** obejmuje QR/IQN/SAC/TQC oraz PPO persistent recovery. SD-SAC wyłączone. Timing nadal raportowany, próg100ms nie blokuje v2; błędy/niepełne pomiary nadal blokują. Przygotowano15świeżych runów, żadnego nie uruchomiono. [Instrukcja dla kolegów i polecenia startowe](release_20261014/START_HERE.md). Używaj wyłącznie skryptów z release_20261014; wszystkie wcześniejsze BLOCKED/ACTIVE/stare polecenia poniżej są historyczne.
+
 Decyzja z 8 października 2026: SD-SAC pozostaje **experimental** i wypada ze
 standardowych pilotów, pełnych treningów oraz przydziału komputerów. Jego scheduler
 jest wstrzymany. Aktualnym planem jest `campaign.json`; stare kolejki nie są planem
