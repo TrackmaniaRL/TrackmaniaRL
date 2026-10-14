@@ -1,5 +1,7 @@
 # Porównanie algorytmów na tmrl-test
 
+AKTUALNE: używaj **weeks-20261014-v3**, wspólnego launchera Python dla Windows/Linux X11. [Instrukcja i podział dla zespołu](release_20261014_v3/START_HERE.md). V3 zastępuje paczkę v2 przy nowych startach; stare plany/pins pozostają historyczne i wymagają własnego commita. Nie aktualizuj aktywnych treningów. Linux/Proton wymaga lokalnego check-game; Wayland/WSL/headless nie są obsługiwane. Timing raportowany bez progu, SD-SAC wyłączone.
+
 AKTUALNE14 października: człowiek jawnie zniósł blokadę za pojedyncze opóźnienia. Nowa kampania **weeks-20261014-v2** obejmuje QR/IQN/SAC/TQC oraz PPO persistent recovery. SD-SAC wyłączone. Timing nadal raportowany, próg100ms nie blokuje v2; błędy/niepełne pomiary nadal blokują. Przygotowano15świeżych runów, żadnego nie uruchomiono. [Instrukcja dla kolegów i polecenia startowe](release_20261014/START_HERE.md). Używaj wyłącznie skryptów z release_20261014; wszystkie wcześniejsze BLOCKED/ACTIVE/stare polecenia poniżej są historyczne.
 
 Przygotowane do późniejszego uruchomienia. Każdy wygenerowany eksperyment zapisuje

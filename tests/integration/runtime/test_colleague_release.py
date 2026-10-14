@@ -1,5 +1,7 @@
 """Release invariants: equal budgets, portable assets and explicit timing decision."""
+
 import copy
+import json
 
 import pytest
 import yaml
@@ -15,13 +17,16 @@ def activated(monkeypatch: pytest.MonkeyPatch) -> dict:
     for name in ("HERE", "PLAN", "CAMPAIGN_ID", "source_pins", "configuration"):
         monkeypatch.setattr(base, name, getattr(base, name))
     release.configure()
+    # Test the archived v2 contract against its recorded source snapshot.
+    # Current source intentionally belongs to v3; never repin the historical plan.
+    recorded = json.loads(base.PLAN.read_text(encoding="utf-8"))
+    monkeypatch.setattr(base, "source_pins", lambda: recorded["source_pins"])
     return base.verify()
 
 
 def test_release_preserves_shared_protocol_and_assets(activated: dict) -> None:
     assert len(activated["jobs"]) == 15
-    assert not {"sd-sac", "dsac", "discrete-sac"} & {
-        job["algorithm"] for job in activated["jobs"]}
+    assert not {"sd-sac", "dsac", "discrete-sac"} & {job["algorithm"] for job in activated["jobs"]}
     assert len({job["run_id"] for job in activated["jobs"]}) == 15
     for job in activated["jobs"]:
         path = base.ROOT / job["config"]
@@ -41,14 +46,18 @@ def test_release_preserves_shared_protocol_and_assets(activated: dict) -> None:
             if job["algorithm"] == "ppo":
                 components["feature_pipeline"].pop("class_path")
         assert expected == actual
-        for asset in (data["evaluation"]["maps"][0]["map_path"],
-                      data["evaluation"]["maps"][0]["geometry_path"]):
+        for asset in (
+            data["evaluation"]["maps"][0]["map_path"],
+            data["evaluation"]["maps"][0]["geometry_path"],
+        ):
             assert (path.parent / asset).resolve().is_file()
         assert (path.parent / data["artifacts_dir"]).resolve() == (
-            base.ROOT / "artifacts/tmrl-test-comparison").resolve()
+            base.ROOT / "artifacts/tmrl-test-comparison"
+        ).resolve()
         if job["algorithm"] == "ppo":
             assert spec.components.feature_pipeline.class_path == (
-                "pilot_tools.ppo_recovery:PersistentPpoRecoveryPipeline")
+                "pilot_tools.ppo_recovery:PersistentPpoRecoveryPipeline"
+            )
 
 
 def test_pin_change_blocks_before_any_launch(
@@ -65,6 +74,7 @@ def test_pin_change_blocks_before_any_launch(
 def test_stop_paths_belong_to_new_campaign(activated: dict) -> None:
     for worker in activated["assignments"]:
         stops = base.stop_paths(worker)
-        assert base.ROOT / ("artifacts/tmrl-test-comparison/weeks-20261014-v2/"
-                            f"STOP-{worker}") in stops
+        assert (
+            base.ROOT / (f"artifacts/tmrl-test-comparison/weeks-20261014-v2/STOP-{worker}") in stops
+        )
         assert not any("weeks-20261008-v1" in str(path) for path in stops)

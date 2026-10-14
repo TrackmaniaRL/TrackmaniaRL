@@ -1,3 +1,5 @@
+**WERSJA HISTORYCZNA v2. Do nowych startów użyj [instrukcji v3 Windows/Linux](../release_20261014_v3/START_HERE.md). V2 uruchamiaj wyłącznie na jej zapisanym commicie, nie repinuj jej na nowym kodzie.**
+
 # Instrukcja dla zespołu — treningi od 14 października 2026
 
 Ta instrukcja dotyczy wyłącznie nowej kampanii **weeks-20261014-v2**.

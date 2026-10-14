@@ -193,6 +193,11 @@ def _tap_reset_key(key: int, guard: ResetGuard | None, window: _FocusedWindow) -
 
 
 def confirm_trackmania_finish(*, guard: ResetGuard | None = None) -> None:
+    if sys.platform == "linux":
+        from trackmaniarl.trackmania.linux_reset import tap_reset_key
+
+        tap_reset_key("Return", guard=guard)
+        return
     window = _focus_trackmania(guard=guard)
     if window is None:
         raise RuntimeError("Trackmania window was not found for keyboard confirmation")
@@ -200,6 +205,11 @@ def confirm_trackmania_finish(*, guard: ResetGuard | None = None) -> None:
 
 
 def restart_trackmania_race(*, guard: ResetGuard | None = None) -> None:
+    if sys.platform == "linux":
+        from trackmaniarl.trackmania.linux_reset import tap_reset_key
+
+        tap_reset_key("Delete", guard=guard)
+        return
     window = _focus_trackmania(guard=guard)
     if window is None:
         raise RuntimeError("Trackmania window was not found for keyboard restart")

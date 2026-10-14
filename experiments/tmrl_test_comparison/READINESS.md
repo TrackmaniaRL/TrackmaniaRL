@@ -1,5 +1,7 @@
 # Gotowość — 8 października 2026
 
+AKTUALNE: używaj **weeks-20261014-v3**, wspólnego launchera Python dla Windows/Linux X11. [Instrukcja i podział dla zespołu](release_20261014_v3/START_HERE.md). V3 zastępuje paczkę v2 przy nowych startach; stare plany/pins pozostają historyczne i wymagają własnego commita. Nie aktualizuj aktywnych treningów. Linux/Proton wymaga lokalnego check-game; Wayland/WSL/headless nie są obsługiwane. Timing raportowany bez progu, SD-SAC wyłączone.
+
 AKTUALNE14 października: człowiek jawnie zniósł blokadę za pojedyncze opóźnienia. Nowa kampania **weeks-20261014-v2** obejmuje QR/IQN/SAC/TQC oraz PPO persistent recovery. SD-SAC wyłączone. Timing nadal raportowany, próg100ms nie blokuje v2; błędy/niepełne pomiary nadal blokują. Przygotowano15świeżych runów, żadnego nie uruchomiono. [Instrukcja dla kolegów i polecenia startowe](release_20261014/START_HERE.md). Używaj wyłącznie skryptów z release_20261014; wszystkie wcześniejsze BLOCKED/ACTIVE/stare polecenia poniżej są historyczne.
 
 AKTUALNE14 października: potwierdzenie PPO recoveryseed29 COMPLETE9/10, median51.980s; seed17 10/10median51.835s. Oba qualityPASS, timingFAIL140/180ms. Seed29 jeden no_progress79.75% przy max50ms; outlier180ms w ukończonej próbie. Wszystkie21ownedclosed/mutexfree/CP100/traces/pinsverified. MonitorPAUSED po zakończeniu; fullBLOCKED. [Wynik i następna decyzja](PPO_CONFIRMATION_RESULT_20261014.md). Poniżej historyczne stany.

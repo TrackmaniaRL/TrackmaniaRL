@@ -70,6 +70,15 @@ process and virtual controller run natively. WSL is not a supported game host.
    uv run trackmaniarl track check --config run.yaml
    ```
 
+The multi-computer comparison campaign uses editor-validation resets rather than
+native gamepad Give Up. On Linux that reset path additionally requires a local
+X11 session and `xdotool`, with Trackmania already focused. It rejects Wayland,
+SSH and headless sessions and does not activate background windows. See the
+[current Windows/Linux campaign guide](../experiments/tmrl_test_comparison/release_20261014_v3/START_HERE.md)
+for native Python launch commands and mandatory host/game checks. The Linux
+reset implementation has software tests; a successful local game preflight is
+still required before a long run.
+
 Install **TrackmaniaRL Connect** from Openplanet's in-game Plugin Manager just as
 on Windows. The native Python process and the Proton game share localhost, so no
 port forwarding is required. If Openplanet stops loading after a Trackmania
