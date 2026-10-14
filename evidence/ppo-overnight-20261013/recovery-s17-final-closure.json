@@ -1,0 +1,180 @@
+{
+  "checked_at": "2026-10-14T04:10:19.949108+00:00",
+  "status": "COMPLETE",
+  "all_owned_closed": true,
+  "owned_identities": [
+    {
+      "pid": 52240,
+      "create_time": 1791938795.1798809,
+      "alive": false
+    },
+    {
+      "pid": 22112,
+      "create_time": 1791938800.3699813,
+      "alive": false
+    },
+    {
+      "pid": 36944,
+      "create_time": 1791938800.3958335,
+      "alive": false
+    },
+    {
+      "pid": 53200,
+      "create_time": 1791938795.131,
+      "alive": false
+    },
+    {
+      "pid": 6868,
+      "create_time": 1791938814.4781375,
+      "alive": false
+    },
+    {
+      "pid": 14816,
+      "create_time": 1791938812.1630127,
+      "alive": false
+    },
+    {
+      "pid": 28560,
+      "create_time": 1791938806.6665735,
+      "alive": false
+    },
+    {
+      "pid": 40392,
+      "create_time": 1791938826.1957707,
+      "alive": false
+    },
+    {
+      "pid": 40684,
+      "create_time": 1791938806.6457884,
+      "alive": false
+    },
+    {
+      "pid": 50660,
+      "create_time": 1791938806.633683,
+      "alive": false
+    },
+    {
+      "pid": 17580,
+      "create_time": 1791938800.68795,
+      "alive": false
+    },
+    {
+      "pid": 30736,
+      "create_time": 1791938800.7057815,
+      "alive": false
+    },
+    {
+      "pid": 38216,
+      "create_time": 1791938800.6795156,
+      "alive": false
+    },
+    {
+      "pid": 53204,
+      "create_time": 1791938803.6078403,
+      "alive": false
+    },
+    {
+      "pid": 49416,
+      "create_time": 1791938800.3786025,
+      "alive": false
+    }
+  ],
+  "mutex_free": true,
+  "source_pins_verified": 360,
+  "config_sha256": "1e191c80a91bf79ebdec6daa501489d61595542ada63c2094b2054f86eaaad1d",
+  "predecessor_actual_sha256": "0983f59f797592a117e443c8fdb60a8d6b258c2b7f2d70abb51ee406ee301a19",
+  "predecessor_stop_sha256": "bbf4ca0a21a6594294b71975bcad59bcfbaf751398ecd39ccb75df62407052ac",
+  "predecessor_stop_mtime_ns": 1791938444366230300,
+  "baseline_actual_sha256": "a5927a3187bc2533b99dfdca7a336181dd0bd1f0416aab0ced3aa491c5aa5e60",
+  "checkpoint": "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\tmrl-ppo-overnight-recovery-s17\\checkpoints\\update-00000100.pt",
+  "checkpoint_sha256": "190f539038508e72d6e1e43e67473d57772966ea092ce1ed706423a6e2307215",
+  "final_checkpoint_finite_fingerprint_budget_processed_valid": true,
+  "final_counters": {
+    "episodes": 241,
+    "transitions": 204800,
+    "updates": 100
+  },
+  "midpoint_measurement": {
+    "measurement_valid": true,
+    "finishes": 0,
+    "median_finish_s": null,
+    "maximum_step_ms": 60.0,
+    "timing_gate_passed": true,
+    "quality_gate_passed": false,
+    "strict_gate_passed": false
+  },
+  "final_measurement": {
+    "measurement_valid": true,
+    "finishes": 10,
+    "median_finish_s": 51.835,
+    "maximum_step_ms": 140.0,
+    "timing_gate_passed": false,
+    "quality_gate_passed": true,
+    "strict_gate_passed": false
+  },
+  "timing_failures": [
+    {
+      "trial_index": 5,
+      "step_race_time_ms_max": 140.0,
+      "steps": 1015,
+      "telemetry_skipped_frames_total": 1609
+    }
+  ],
+  "final_steps": 10368,
+  "failures": [],
+  "source_commit": "1fd74717c68f0d1338fec0fd27298ab89d90e402",
+  "stop_present": false,
+  "deadline_guard_exit": {
+    "checked_at": "2026-10-14T04:05:11.585502+00:00",
+    "reason": null,
+    "observed_identities": [
+      {
+        "pid": 52240,
+        "create_time": 1791938795.1798809
+      },
+      {
+        "pid": 17580,
+        "create_time": 1791938800.68795
+      },
+      {
+        "pid": 38216,
+        "create_time": 1791938800.6795156
+      },
+      {
+        "pid": 30736,
+        "create_time": 1791938800.7057815
+      },
+      {
+        "pid": 53204,
+        "create_time": 1791938803.6078403
+      },
+      {
+        "pid": 40684,
+        "create_time": 1791938806.6457884
+      },
+      {
+        "pid": 50660,
+        "create_time": 1791938806.633683
+      },
+      {
+        "pid": 28560,
+        "create_time": 1791938806.6665735
+      },
+      {
+        "pid": 14816,
+        "create_time": 1791938812.1630127
+      },
+      {
+        "pid": 6868,
+        "create_time": 1791938814.4781375
+      },
+      {
+        "pid": 40392,
+        "create_time": 1791938826.1957707
+      }
+    ],
+    "survivors": []
+  },
+  "automatic_full_training": false,
+  "decision": "Quality candidate10/10 with median51.835s; no CP50->100 collapse in this seed. Timing140ms strictFAIL. Does not establish causal recovery effect or multiweek stability. Fresh seed29 confirmation justified, no full or timing waiver."
+}

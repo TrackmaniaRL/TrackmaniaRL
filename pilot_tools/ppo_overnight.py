@@ -16,6 +16,7 @@ import psutil
 
 from experiments.tmrl_test_comparison.launch_checks import LaunchRun, final_checkpoint
 from pilot_tools import ppo_pilot as pilot
+from pilot_tools.ppo_deadline_guard import predecessor_stop_changed
 from pilot_tools.ppo_regression_gate import _suite
 
 WINDOW_END = datetime(2026, 10, 14, 9, 4, 23, tzinfo=UTC)
@@ -37,7 +38,10 @@ def measurement(checkpoint: Path, evaluation: dict[str, Any]) -> dict[str, Any]:
 
 def configure(variant: str, seed: int, revision: int = 1) -> None:
     global PREDECESSOR, PREDECESSOR_SHA
-    if variant == "recovery":
+    if variant == "recovery" and seed == 29:
+        PREDECESSOR = pilot.BASE / "tmrl-ppo-overnight-recovery-s17/checkpoints/update-00000100.pt"
+        PREDECESSOR_SHA = "190f539038508e72d6e1e43e67473d57772966ea092ce1ed706423a6e2307215"
+    elif variant == "recovery":
         PREDECESSOR = pilot.BASE / "tmrl-ppo-overnight-kl-s17-r2/checkpoints/update-00000100.pt"
         PREDECESSOR_SHA = "0983f59f797592a117e443c8fdb60a8d6b258c2b7f2d70abb51ee406ee301a19"
     else:
@@ -73,11 +77,8 @@ def verify() -> dict[str, Any]:
             or plan.get("authorization_window_end") != WINDOW_END.isoformat()
             or plan.get("timing_policy") != "report_separately_no_strict_gate_waiver"):
         raise RuntimeError("Predecessor or overnight decision contract changed")
-    if plan.get("predecessor_stop"):
-        stop = Path(plan["predecessor_stop"])
-        if (not stop.is_file() or pilot.sha(stop) != plan["predecessor_stop_sha256"]
-                or stop.stat().st_mtime_ns != plan["predecessor_stop_mtime_ns"]):
-            raise RuntimeError("Predecessor STOP changed; do not launch or continue")
+    if predecessor_stop_changed(plan):
+        raise RuntimeError("Predecessor STOP changed; do not launch or continue")
     return plan
 
 
@@ -156,14 +157,18 @@ def main() -> None:
                     authorization_window_end=WINDOW_END.isoformat(),
                     timing_policy="report_separately_no_strict_gate_waiver")
         if args.variant == "recovery":
-            previous = pilot.BASE / "ppo-overnight-kl-s17-20261013-r2"
+            previous_name = ("ppo-overnight-recovery-s17-20261013" if args.seed == 29
+                             else "ppo-overnight-kl-s17-20261013-r2")
+            previous = pilot.BASE / previous_name
             closure = json.loads((previous / "post-closure-verification.json").read_text())
             if not closure["all_owned_closed"] or not closure["mutex_free"]:
                 raise RuntimeError("Predecessor closure incomplete")
             stop = previous / "STOP"
             plan.update(predecessor_queue=str(previous), predecessor_stop=str(stop),
-                        predecessor_stop_sha256=pilot.sha(stop),
-                        predecessor_stop_mtime_ns=stop.stat().st_mtime_ns)
+                        predecessor_stop_present=stop.exists(),
+                        predecessor_stop_sha256=pilot.sha(stop) if stop.exists() else None,
+                        predecessor_stop_mtime_ns=(stop.stat().st_mtime_ns
+                                                   if stop.exists() else None))
         path = pilot.DIRECTORY / "plan.json"
         path.write_text(json.dumps(plan, indent=2)+"\n", encoding="utf-8")
     plan = verify()

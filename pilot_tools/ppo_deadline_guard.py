@@ -29,6 +29,22 @@ def guard_component(process: psutil.Process, ancestry: set[int]) -> bool:
     return process.pid in ancestry or any(parent.pid in ancestry for parent in process.parents())
 
 
+def predecessor_stop_changed(plan: dict[str, Any]) -> bool:
+    if not plan.get("predecessor_stop"):
+        return False
+    stop = Path(plan["predecessor_stop"])
+    expected_present = plan.get("predecessor_stop_present", True)
+    if stop.exists() != expected_present:
+        return True
+    if not expected_present:
+        return False
+    try:
+        return (hashlib.sha256(stop.read_bytes()).hexdigest() != plan["predecessor_stop_sha256"]
+                or stop.stat().st_mtime_ns != plan["predecessor_stop_mtime_ns"])
+    except OSError:
+        return True
+
+
 def main(queue: Path) -> None:
     launch = json.loads((queue / "launch.json").read_text())
     plan = json.loads((queue / "plan.json").read_text())
@@ -80,13 +96,8 @@ def main(queue: Path) -> None:
             break
         if any(path.exists() for path in stop_paths):
             reason = "STOP"
-        if plan.get("predecessor_stop"):
-            previous_stop = Path(plan["predecessor_stop"])
-            if (not previous_stop.is_file()
-                    or hashlib.sha256(previous_stop.read_bytes()).hexdigest()
-                    != plan["predecessor_stop_sha256"]
-                    or previous_stop.stat().st_mtime_ns != plan["predecessor_stop_mtime_ns"]):
-                reason = "changed_predecessor_STOP"
+        if predecessor_stop_changed(plan):
+            reason = "changed_predecessor_STOP"
         if elapsed >= plan["maximum_seconds"] - plan["save_margin_seconds"]:
             reason = "save_deadline"
         if reason:

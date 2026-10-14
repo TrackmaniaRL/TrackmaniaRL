@@ -99,3 +99,23 @@ PreflightREADY10ms/33fields/60reads. SAVE04:36:40.368328UTC,
 HARD04:46:40.368328UTC.20focusedtests and RuffPASS beforefreeze/launch;
 newconfig scope test confirms originalPPOupdater, not combined withKL.
 MonitorACTIVE15min; no driving outcome inferred from launch.
+
+## Recovery seed17 result and independent confirmation
+
+Recovery COMPLETE2026-10-14T04:05:10.843792UTC,204800/100,final10/10,
+median51.835s,mean51.841s. Midpoint0/10 became10/10; stochastic training progress
+must not replace deterministic evaluation. One140ms interval in trial5 out of10368
+decisions makes timing strictFAIL; qualityPASS and fullBLOCKED remain separate.
+CP100 actualSHA190f539038508e72d6e1e43e67473d57772966ea092ce1ed706423a6e2307215.
+Finite/fingerprint/fullbudget/processed, both suites/traces/identity,360sourcepins,
+predecessorSTOP+CP and baselineCPactualSHAs verified. All observed processes closed,
+mutexfree, guard normalexit with reasonnull; no newSTOP. Proof preserved.
+
+Next justified decision: fresh recovery seed29 with identical settings, rollout budget,
+original updater and recovery thresholds, no resume or extra evaluation. This tests
+whether finalquality and hairpin handling repeat under another initialization; it is
+not causal proof, a timing waiver or multiweek readiness. Freshqueue/runtime/plan,
+predecessor recoveryCP17 actualSHA and predecessorSTOP absence pinned (appearance wins).
+Reject confirmation if<8/10, unresolved hairpin stalls or material time regression;
+report timing separately. After this final bounded confirmation, report honestly and
+pause the overnight automation; no new four-hour job may exceed09:04:23UTC window.

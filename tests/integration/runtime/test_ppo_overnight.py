@@ -2,6 +2,7 @@
 
 import copy
 import json
+import os
 import subprocess
 import sys
 import time
@@ -99,6 +100,25 @@ def test_guard_does_not_treat_own_forwarding_parent_as_orphan(tmp_path: Path) ->
         "save_margin_seconds": 10, "source_root": str(tmp_path)}))
     main(tmp_path)
     assert not (tmp_path / "STOP").exists()
+
+
+def test_predecessor_stop_appearance_and_touch_win(tmp_path: Path) -> None:
+    from pilot_tools.ppo_deadline_guard import predecessor_stop_changed
+    from pilot_tools.ppo_pilot import sha
+
+    stop = tmp_path / "STOP"
+    plan = {"predecessor_stop": str(stop), "predecessor_stop_present": False}
+    assert not predecessor_stop_changed(plan)
+    stop.write_text("operator stop")
+    assert predecessor_stop_changed(plan)
+    plan.update(predecessor_stop_present=True, predecessor_stop_sha256=sha(stop),
+                predecessor_stop_mtime_ns=stop.stat().st_mtime_ns)
+    assert not predecessor_stop_changed(plan)
+    stat = stop.stat()
+    os.utime(stop, ns=(stat.st_atime_ns, stat.st_mtime_ns+1_000_000_000))
+    assert predecessor_stop_changed(plan)
+    stop.unlink()
+    assert predecessor_stop_changed(plan)
     assert json.loads((tmp_path / "deadline-guard-exit.json").read_text())["reason"] is None
 
 
