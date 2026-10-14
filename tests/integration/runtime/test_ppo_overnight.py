@@ -120,6 +120,13 @@ def test_predecessor_stop_appearance_and_touch_win(tmp_path: Path) -> None:
     assert predecessor_stop_changed(plan)
     stop.unlink()
     assert predecessor_stop_changed(plan)
+    absent = {"prior_stop_pins": [plan]}
+    assert predecessor_stop_changed(absent)
+    absent["prior_stop_pins"][0] = {"predecessor_stop": str(stop),
+                                    "predecessor_stop_present": False}
+    assert not predecessor_stop_changed(absent)
+    stop.write_text("new stop")
+    assert predecessor_stop_changed(absent)
 
 
 def test_real_windows_guard_subtree_closes_without_post_complete_stop(tmp_path: Path) -> None:

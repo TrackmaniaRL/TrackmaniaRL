@@ -29,7 +29,7 @@ def guard_component(process: psutil.Process, ancestry: set[int]) -> bool:
     return process.pid in ancestry or any(parent.pid in ancestry for parent in process.parents())
 
 
-def predecessor_stop_changed(plan: dict[str, Any]) -> bool:
+def _stop_pin_changed(plan: dict[str, Any]) -> bool:
     if not plan.get("predecessor_stop"):
         return False
     stop = Path(plan["predecessor_stop"])
@@ -39,10 +39,16 @@ def predecessor_stop_changed(plan: dict[str, Any]) -> bool:
     if not expected_present:
         return False
     try:
-        return (hashlib.sha256(stop.read_bytes()).hexdigest() != plan["predecessor_stop_sha256"]
-                or stop.stat().st_mtime_ns != plan["predecessor_stop_mtime_ns"])
+        return bool(hashlib.sha256(stop.read_bytes()).hexdigest() != plan["predecessor_stop_sha256"]
+                    or stop.stat().st_mtime_ns != plan["predecessor_stop_mtime_ns"])
     except OSError:
         return True
+
+
+def predecessor_stop_changed(plan: dict[str, Any]) -> bool:
+    return _stop_pin_changed(plan) or any(
+        _stop_pin_changed(pin) for pin in plan.get("prior_stop_pins", [])
+    )
 
 
 def main(queue: Path) -> None:
