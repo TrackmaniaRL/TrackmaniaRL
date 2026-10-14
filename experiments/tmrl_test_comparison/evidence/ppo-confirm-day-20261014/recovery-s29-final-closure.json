@@ -1,0 +1,417 @@
+{
+  "checked_at": "2026-10-14T11:13:40.797367+00:00",
+  "status": "COMPLETE",
+  "all_owned_closed": true,
+  "exact_identities": [
+    {
+      "pid": 51960,
+      "create_time": 1791963645.54093
+    },
+    {
+      "pid": 53864,
+      "create_time": 1791963650.4223979
+    },
+    {
+      "pid": 48608,
+      "create_time": 1791963650.4511592
+    },
+    {
+      "pid": 49408,
+      "create_time": 1791963645.491
+    },
+    {
+      "pid": 11328,
+      "create_time": 1791963667.8125136
+    },
+    {
+      "pid": 24744,
+      "create_time": 1791963664.3364632
+    },
+    {
+      "pid": 24960,
+      "create_time": 1791963656.7343428
+    },
+    {
+      "pid": 27756,
+      "create_time": 1791963662.0067165
+    },
+    {
+      "pid": 42920,
+      "create_time": 1791963664.3377395
+    },
+    {
+      "pid": 49096,
+      "create_time": 1791963664.3320024
+    },
+    {
+      "pid": 50008,
+      "create_time": 1791963677.2036097
+    },
+    {
+      "pid": 50416,
+      "create_time": 1791963676.9305317
+    },
+    {
+      "pid": 50760,
+      "create_time": 1791963656.7449307
+    },
+    {
+      "pid": 51284,
+      "create_time": 1791963656.7671435
+    },
+    {
+      "pid": 52532,
+      "create_time": 1791963664.359628
+    },
+    {
+      "pid": 53416,
+      "create_time": 1791963676.9429317
+    },
+    {
+      "pid": 33516,
+      "create_time": 1791963650.7618732
+    },
+    {
+      "pid": 49244,
+      "create_time": 1791963650.742509
+    },
+    {
+      "pid": 52400,
+      "create_time": 1791963650.7333214
+    },
+    {
+      "pid": 53944,
+      "create_time": 1791963653.7465434
+    },
+    {
+      "pid": 51700,
+      "create_time": 1791963650.4321804
+    }
+  ],
+  "survivors": [],
+  "mutex_free": true,
+  "checkpoint": "H:\\Studia\\inzynierskie\\inzynierkav2\\AITrackmania\\artifacts\\tmrl-test-comparison\\tmrl-ppo-overnight-recovery-s29-r2\\checkpoints\\update-00000100.pt",
+  "checkpoint_sha256": "22b0709ff65e1a4ad1c1e93ae81cc7c08b0f5233955c90dea05f2ec246eaf0f4",
+  "final_checkpoint_verified": true,
+  "both_trace_suites_verified": true,
+  "final_evaluation_root_matches": true,
+  "source_pins_verified": true,
+  "predecessor_sha256": "190f539038508e72d6e1e43e67473d57772966ea092ce1ed706423a6e2307215",
+  "prior_stop_pins_verified": true,
+  "active_stop_absent": true,
+  "final_measurement": {
+    "measurement_valid": true,
+    "finishes": 9,
+    "median_finish_s": 51.98,
+    "maximum_step_ms": 180.0,
+    "timing_gate_passed": false,
+    "quality_gate_passed": true,
+    "strict_gate_passed": false
+  },
+  "analysis": {
+    "seed17": {
+      "finishes": 10,
+      "mean_finish_s": 51.841,
+      "median_finish_s": 51.835,
+      "total_decisions": 10368,
+      "over_100ms": [
+        {
+          "trial": 5,
+          "step": 818,
+          "interval_ms": 140.0,
+          "race_time_ms": 41050.0,
+          "progress_pct": 80.39658174022055,
+          "action_latency_ms": 141.42400000127964,
+          "controller_apply_ms": 0.4394999996293336,
+          "telemetry_skipped_frames": 20,
+          "finished": true
+        }
+      ],
+      "trials": [
+        {
+          "trial_index": 0,
+          "finished": true,
+          "finish_time_s": 51.11,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1022,
+          "step_race_time_ms_max": 50.0,
+          "telemetry_skipped_frames_total": 1706,
+          "action_latency_ms_p95": 22.12050001253374,
+          "controller_error": null,
+          "telemetry_error": null
+        },
+        {
+          "trial_index": 1,
+          "finished": true,
+          "finish_time_s": 53.03,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1061,
+          "step_race_time_ms_max": 50.0,
+          "telemetry_skipped_frames_total": 1791,
+          "action_latency_ms_p95": 22.85219999612309,
+          "controller_error": null,
+          "telemetry_error": null
+        },
+        {
+          "trial_index": 2,
+          "finished": true,
+          "finish_time_s": 51.64,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1033,
+          "step_race_time_ms_max": 50.0,
+          "telemetry_skipped_frames_total": 1753,
+          "action_latency_ms_p95": 22.616400005063042,
+          "controller_error": null,
+          "telemetry_error": null
+        },
+        {
+          "trial_index": 3,
+          "finished": true,
+          "finish_time_s": 53.03,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1061,
+          "step_race_time_ms_max": 50.0,
+          "telemetry_skipped_frames_total": 1699,
+          "action_latency_ms_p95": 21.028799994383007,
+          "controller_error": null,
+          "telemetry_error": null
+        },
+        {
+          "trial_index": 4,
+          "finished": true,
+          "finish_time_s": 52.26,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1045,
+          "step_race_time_ms_max": 50.0,
+          "telemetry_skipped_frames_total": 1667,
+          "action_latency_ms_p95": 21.48450000095181,
+          "controller_error": null,
+          "telemetry_error": null
+        },
+        {
+          "trial_index": 5,
+          "finished": true,
+          "finish_time_s": 50.84,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1015,
+          "step_race_time_ms_max": 140.0,
+          "telemetry_skipped_frames_total": 1609,
+          "action_latency_ms_p95": 21.716499992180616,
+          "controller_error": null,
+          "telemetry_error": null
+        },
+        {
+          "trial_index": 6,
+          "finished": true,
+          "finish_time_s": 53.33,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1067,
+          "step_race_time_ms_max": 50.0,
+          "telemetry_skipped_frames_total": 1659,
+          "action_latency_ms_p95": 21.139200005563907,
+          "controller_error": null,
+          "telemetry_error": null
+        },
+        {
+          "trial_index": 7,
+          "finished": true,
+          "finish_time_s": 52.03,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1041,
+          "step_race_time_ms_max": 50.0,
+          "telemetry_skipped_frames_total": 1831,
+          "action_latency_ms_p95": 23.18020000529941,
+          "controller_error": null,
+          "telemetry_error": null
+        },
+        {
+          "trial_index": 8,
+          "finished": true,
+          "finish_time_s": 50.4,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1008,
+          "step_race_time_ms_max": 50.0,
+          "telemetry_skipped_frames_total": 1646,
+          "action_latency_ms_p95": 22.55690000311006,
+          "controller_error": null,
+          "telemetry_error": null
+        },
+        {
+          "trial_index": 9,
+          "finished": true,
+          "finish_time_s": 50.74,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1015,
+          "step_race_time_ms_max": 50.0,
+          "telemetry_skipped_frames_total": 1611,
+          "action_latency_ms_p95": 21.954600000754,
+          "controller_error": null,
+          "telemetry_error": null
+        }
+      ]
+    },
+    "seed29": {
+      "finishes": 9,
+      "mean_finish_s": 52.13111111111111,
+      "median_finish_s": 51.98,
+      "total_decisions": 10297,
+      "over_100ms": [
+        {
+          "trial": 5,
+          "step": 1028,
+          "interval_ms": 180.0,
+          "race_time_ms": 51590.0,
+          "progress_pct": 96.95564407976916,
+          "action_latency_ms": 175.59869999240618,
+          "controller_apply_ms": 0.5722999921999872,
+          "telemetry_skipped_frames": 25,
+          "finished": true
+        }
+      ],
+      "trials": [
+        {
+          "trial_index": 0,
+          "finished": true,
+          "finish_time_s": 55.08,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1102,
+          "step_race_time_ms_max": 50.0,
+          "telemetry_skipped_frames_total": 1986,
+          "action_latency_ms_p95": 24.123299997881986,
+          "controller_error": null,
+          "telemetry_error": null
+        },
+        {
+          "trial_index": 1,
+          "finished": true,
+          "finish_time_s": 50.74,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1015,
+          "step_race_time_ms_max": 50.0,
+          "telemetry_skipped_frames_total": 1883,
+          "action_latency_ms_p95": 25.16200000536628,
+          "controller_error": null,
+          "telemetry_error": null
+        },
+        {
+          "trial_index": 2,
+          "finished": true,
+          "finish_time_s": 51.98,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1040,
+          "step_race_time_ms_max": 50.0,
+          "telemetry_skipped_frames_total": 2023,
+          "action_latency_ms_p95": 27.696700009983033,
+          "controller_error": null,
+          "telemetry_error": null
+        },
+        {
+          "trial_index": 3,
+          "finished": true,
+          "finish_time_s": 50.29,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1006,
+          "step_race_time_ms_max": 50.0,
+          "telemetry_skipped_frames_total": 2007,
+          "action_latency_ms_p95": 27.63910000794567,
+          "controller_error": null,
+          "telemetry_error": null
+        },
+        {
+          "trial_index": 4,
+          "finished": true,
+          "finish_time_s": 51.5,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1030,
+          "step_race_time_ms_max": 50.0,
+          "telemetry_skipped_frames_total": 2258,
+          "action_latency_ms_p95": 30.907500011380762,
+          "controller_error": null,
+          "telemetry_error": null
+        },
+        {
+          "trial_index": 5,
+          "finished": true,
+          "finish_time_s": 53.26,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1063,
+          "step_race_time_ms_max": 180.0,
+          "telemetry_skipped_frames_total": 2482,
+          "action_latency_ms_p95": 31.687499998952262,
+          "controller_error": null,
+          "telemetry_error": null
+        },
+        {
+          "trial_index": 6,
+          "finished": true,
+          "finish_time_s": 53.01,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1060,
+          "step_race_time_ms_max": 50.0,
+          "telemetry_skipped_frames_total": 2115,
+          "action_latency_ms_p95": 28.269900009036064,
+          "controller_error": null,
+          "telemetry_error": null
+        },
+        {
+          "trial_index": 7,
+          "finished": true,
+          "finish_time_s": 52.59,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1052,
+          "step_race_time_ms_max": 50.0,
+          "telemetry_skipped_frames_total": 1632,
+          "action_latency_ms_p95": 21.672100003343076,
+          "controller_error": null,
+          "telemetry_error": null
+        },
+        {
+          "trial_index": 8,
+          "finished": false,
+          "finish_time_s": null,
+          "progress_pct": 79.75084871600572,
+          "termination_reason": "no_progress",
+          "steps": 914,
+          "step_race_time_ms_max": 50.0,
+          "telemetry_skipped_frames_total": 1488,
+          "action_latency_ms_p95": 22.05359999788925,
+          "controller_error": null,
+          "telemetry_error": null
+        },
+        {
+          "trial_index": 9,
+          "finished": true,
+          "finish_time_s": 50.73,
+          "progress_pct": 100.0,
+          "termination_reason": "finished",
+          "steps": 1015,
+          "step_race_time_ms_max": 50.0,
+          "telemetry_skipped_frames_total": 1539,
+          "action_latency_ms_p95": 20.990000004530884,
+          "controller_error": null,
+          "telemetry_error": null
+        }
+      ]
+    },
+    "interpretation": "Race-clock intervals above 100ms are observed, but traces lack per-step telemetry wait and OS scheduling/GPU timestamps; no causal attribution to OS, telemetry or inference is established. Controller apply and action latency are reported at the outlier. Skipped telemetry frames are reported, not automatically errors. No extra evaluation/training was run."
+  },
+  "automatic_full_training": false
+}

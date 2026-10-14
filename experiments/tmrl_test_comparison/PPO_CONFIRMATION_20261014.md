@@ -1,3 +1,5 @@
+FINAL: COMPLETE, seed29 9/10 median51.980s, timingFAIL180ms; all21closed/mutexfree/pins/CP/traces verified. MonitorPAUSED after final report; nofull. [Final report](PPO_CONFIRMATION_RESULT_20261014.md).
+
 # Fresh PPO confirmation after new human instruction
 
 Human asked "Dobra to ogarniaj dalej PPO" after the overnight loop ended.

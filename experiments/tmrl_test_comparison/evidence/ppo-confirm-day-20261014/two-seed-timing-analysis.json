@@ -1,0 +1,310 @@
+{
+  "seed17": {
+    "finishes": 10,
+    "mean_finish_s": 51.841,
+    "median_finish_s": 51.835,
+    "total_decisions": 10368,
+    "over_100ms": [
+      {
+        "trial": 5,
+        "step": 818,
+        "interval_ms": 140.0,
+        "race_time_ms": 41050.0,
+        "progress_pct": 80.39658174022055,
+        "action_latency_ms": 141.42400000127964,
+        "controller_apply_ms": 0.4394999996293336,
+        "telemetry_skipped_frames": 20,
+        "finished": true
+      }
+    ],
+    "trials": [
+      {
+        "trial_index": 0,
+        "finished": true,
+        "finish_time_s": 51.11,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1022,
+        "step_race_time_ms_max": 50.0,
+        "telemetry_skipped_frames_total": 1706,
+        "action_latency_ms_p95": 22.12050001253374,
+        "controller_error": null,
+        "telemetry_error": null
+      },
+      {
+        "trial_index": 1,
+        "finished": true,
+        "finish_time_s": 53.03,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1061,
+        "step_race_time_ms_max": 50.0,
+        "telemetry_skipped_frames_total": 1791,
+        "action_latency_ms_p95": 22.85219999612309,
+        "controller_error": null,
+        "telemetry_error": null
+      },
+      {
+        "trial_index": 2,
+        "finished": true,
+        "finish_time_s": 51.64,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1033,
+        "step_race_time_ms_max": 50.0,
+        "telemetry_skipped_frames_total": 1753,
+        "action_latency_ms_p95": 22.616400005063042,
+        "controller_error": null,
+        "telemetry_error": null
+      },
+      {
+        "trial_index": 3,
+        "finished": true,
+        "finish_time_s": 53.03,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1061,
+        "step_race_time_ms_max": 50.0,
+        "telemetry_skipped_frames_total": 1699,
+        "action_latency_ms_p95": 21.028799994383007,
+        "controller_error": null,
+        "telemetry_error": null
+      },
+      {
+        "trial_index": 4,
+        "finished": true,
+        "finish_time_s": 52.26,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1045,
+        "step_race_time_ms_max": 50.0,
+        "telemetry_skipped_frames_total": 1667,
+        "action_latency_ms_p95": 21.48450000095181,
+        "controller_error": null,
+        "telemetry_error": null
+      },
+      {
+        "trial_index": 5,
+        "finished": true,
+        "finish_time_s": 50.84,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1015,
+        "step_race_time_ms_max": 140.0,
+        "telemetry_skipped_frames_total": 1609,
+        "action_latency_ms_p95": 21.716499992180616,
+        "controller_error": null,
+        "telemetry_error": null
+      },
+      {
+        "trial_index": 6,
+        "finished": true,
+        "finish_time_s": 53.33,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1067,
+        "step_race_time_ms_max": 50.0,
+        "telemetry_skipped_frames_total": 1659,
+        "action_latency_ms_p95": 21.139200005563907,
+        "controller_error": null,
+        "telemetry_error": null
+      },
+      {
+        "trial_index": 7,
+        "finished": true,
+        "finish_time_s": 52.03,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1041,
+        "step_race_time_ms_max": 50.0,
+        "telemetry_skipped_frames_total": 1831,
+        "action_latency_ms_p95": 23.18020000529941,
+        "controller_error": null,
+        "telemetry_error": null
+      },
+      {
+        "trial_index": 8,
+        "finished": true,
+        "finish_time_s": 50.4,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1008,
+        "step_race_time_ms_max": 50.0,
+        "telemetry_skipped_frames_total": 1646,
+        "action_latency_ms_p95": 22.55690000311006,
+        "controller_error": null,
+        "telemetry_error": null
+      },
+      {
+        "trial_index": 9,
+        "finished": true,
+        "finish_time_s": 50.74,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1015,
+        "step_race_time_ms_max": 50.0,
+        "telemetry_skipped_frames_total": 1611,
+        "action_latency_ms_p95": 21.954600000754,
+        "controller_error": null,
+        "telemetry_error": null
+      }
+    ]
+  },
+  "seed29": {
+    "finishes": 9,
+    "mean_finish_s": 52.13111111111111,
+    "median_finish_s": 51.98,
+    "total_decisions": 10297,
+    "over_100ms": [
+      {
+        "trial": 5,
+        "step": 1028,
+        "interval_ms": 180.0,
+        "race_time_ms": 51590.0,
+        "progress_pct": 96.95564407976916,
+        "action_latency_ms": 175.59869999240618,
+        "controller_apply_ms": 0.5722999921999872,
+        "telemetry_skipped_frames": 25,
+        "finished": true
+      }
+    ],
+    "trials": [
+      {
+        "trial_index": 0,
+        "finished": true,
+        "finish_time_s": 55.08,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1102,
+        "step_race_time_ms_max": 50.0,
+        "telemetry_skipped_frames_total": 1986,
+        "action_latency_ms_p95": 24.123299997881986,
+        "controller_error": null,
+        "telemetry_error": null
+      },
+      {
+        "trial_index": 1,
+        "finished": true,
+        "finish_time_s": 50.74,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1015,
+        "step_race_time_ms_max": 50.0,
+        "telemetry_skipped_frames_total": 1883,
+        "action_latency_ms_p95": 25.16200000536628,
+        "controller_error": null,
+        "telemetry_error": null
+      },
+      {
+        "trial_index": 2,
+        "finished": true,
+        "finish_time_s": 51.98,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1040,
+        "step_race_time_ms_max": 50.0,
+        "telemetry_skipped_frames_total": 2023,
+        "action_latency_ms_p95": 27.696700009983033,
+        "controller_error": null,
+        "telemetry_error": null
+      },
+      {
+        "trial_index": 3,
+        "finished": true,
+        "finish_time_s": 50.29,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1006,
+        "step_race_time_ms_max": 50.0,
+        "telemetry_skipped_frames_total": 2007,
+        "action_latency_ms_p95": 27.63910000794567,
+        "controller_error": null,
+        "telemetry_error": null
+      },
+      {
+        "trial_index": 4,
+        "finished": true,
+        "finish_time_s": 51.5,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1030,
+        "step_race_time_ms_max": 50.0,
+        "telemetry_skipped_frames_total": 2258,
+        "action_latency_ms_p95": 30.907500011380762,
+        "controller_error": null,
+        "telemetry_error": null
+      },
+      {
+        "trial_index": 5,
+        "finished": true,
+        "finish_time_s": 53.26,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1063,
+        "step_race_time_ms_max": 180.0,
+        "telemetry_skipped_frames_total": 2482,
+        "action_latency_ms_p95": 31.687499998952262,
+        "controller_error": null,
+        "telemetry_error": null
+      },
+      {
+        "trial_index": 6,
+        "finished": true,
+        "finish_time_s": 53.01,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1060,
+        "step_race_time_ms_max": 50.0,
+        "telemetry_skipped_frames_total": 2115,
+        "action_latency_ms_p95": 28.269900009036064,
+        "controller_error": null,
+        "telemetry_error": null
+      },
+      {
+        "trial_index": 7,
+        "finished": true,
+        "finish_time_s": 52.59,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1052,
+        "step_race_time_ms_max": 50.0,
+        "telemetry_skipped_frames_total": 1632,
+        "action_latency_ms_p95": 21.672100003343076,
+        "controller_error": null,
+        "telemetry_error": null
+      },
+      {
+        "trial_index": 8,
+        "finished": false,
+        "finish_time_s": null,
+        "progress_pct": 79.75084871600572,
+        "termination_reason": "no_progress",
+        "steps": 914,
+        "step_race_time_ms_max": 50.0,
+        "telemetry_skipped_frames_total": 1488,
+        "action_latency_ms_p95": 22.05359999788925,
+        "controller_error": null,
+        "telemetry_error": null
+      },
+      {
+        "trial_index": 9,
+        "finished": true,
+        "finish_time_s": 50.73,
+        "progress_pct": 100.0,
+        "termination_reason": "finished",
+        "steps": 1015,
+        "step_race_time_ms_max": 50.0,
+        "telemetry_skipped_frames_total": 1539,
+        "action_latency_ms_p95": 20.990000004530884,
+        "controller_error": null,
+        "telemetry_error": null
+      }
+    ]
+  },
+  "interpretation": "Race-clock intervals above 100ms are observed, but traces lack per-step telemetry wait and OS scheduling/GPU timestamps; no causal attribution to OS, telemetry or inference is established. Controller apply and action latency are reported at the outlier. Skipped telemetry frames are reported, not automatically errors. No extra evaluation/training was run.",
+  "source_localization": {
+    "source": "trackmaniarl/trackmania/evaluation.py:350-354",
+    "finding": "action_latency_ms times policy.act alone; environment.step and telemetry wait occur afterwards. Both final outliers coincide with long policy.act wall time (141.424ms and 175.599ms). This localizes observed delay to policy.act wall-clock path, not controller application or subsequent telemetry wait. CPU scheduling, preprocessing, GPU queue/synchronization and inference cannot be separated by saved traces.",
+    "next_action": "Instrument policy.act components with CPU wall time plus CUDA events, include warmup and host scheduling context in a new reviewed plan; do not change PPO hyperparameters or waive the 100ms gate based on these outliers."
+  }
+}

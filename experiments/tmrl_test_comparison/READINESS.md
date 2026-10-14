@@ -1,5 +1,7 @@
 # Gotowość — 8 października 2026
 
+AKTUALNE14 października: potwierdzenie PPO recoveryseed29 COMPLETE9/10, median51.980s; seed17 10/10median51.835s. Oba qualityPASS, timingFAIL140/180ms. Seed29 jeden no_progress79.75% przy max50ms; outlier180ms w ukończonej próbie. Wszystkie21ownedclosed/mutexfree/CP100/traces/pinsverified. MonitorPAUSED po zakończeniu; fullBLOCKED. [Wynik i następna decyzja](PPO_CONFIRMATION_RESULT_20261014.md). Poniżej historyczne stany.
+
 AKTUALNE14 października09:40Warszawa: po nowym poleceniu człowieka świeże
 potwierdzenie recoveryseed29 `tmrl-ppo-overnight-recovery-s29-r2` DZIAŁA,
 preflightREADY20ms/33fields/55reads. ComputerUse zobaczył RaceValidationfinishmenu
