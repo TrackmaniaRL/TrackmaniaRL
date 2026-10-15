@@ -21,8 +21,9 @@ geometry uses (position, velocity, heading, speed, timing, inputs) are exact.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 import numpy as np
@@ -125,16 +126,19 @@ def _control(extras: dict[str, Any]) -> tuple[float, float, float]:
 
 
 def ghost_frames(lap: GhostLap) -> np.ndarray:
-    """Telemetry frames in the plugin's 33-field layout, one per sample plus the finish.
+    """Telemetry frames in the plugin's 33-field layout, including exactly one finish.
 
     The last frame sits exactly at the finish time, extrapolated from the final
     sample's velocity, and is the only one with the finished flag set.
     """
 
     finish_dt_s = (lap.finish_time_ms - lap.times_ms[-1]) / 1_000.0
-    times = np.append(lap.times_ms, lap.finish_time_ms)
-    positions = np.vstack([lap.positions, lap.positions[-1] + lap.velocities[-1] * finish_dt_s])
-    rows = np.append(np.arange(len(lap.times_ms)), len(lap.times_ms) - 1)
+    times, positions = lap.times_ms, lap.positions
+    rows = np.arange(len(times))
+    if finish_dt_s > 0.0:
+        times = np.append(times, lap.finish_time_ms)
+        positions = np.vstack([positions, positions[-1] + lap.velocities[-1] * finish_dt_s])
+        rows = np.append(rows, len(lap.times_ms) - 1)
     frames = np.zeros((len(times), DEFAULT_TELEMETRY_FIELD_COUNT), dtype=np.float32)
     frames[:, 0] = np.searchsorted(lap.checkpoint_times_ms, times, side="right")
     frames[-1, 2] = 1.0
@@ -224,12 +228,26 @@ class GhostAssets:
     finish_time_s: float
 
 
+def _asset_stem(output_dir: Path, map_uid: str) -> Path:
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", map_uid):
+        raise ValueError("map UID must contain only ASCII letters, digits, underscores or hyphens")
+    directory = output_dir.resolve()
+    stem = directory / map_uid
+    for suffix in ("-left.npy", "-right.npy", ".geometry.npz", ".pace.npz"):
+        target = Path(f"{stem}{suffix}")
+        if PureWindowsPath(target.name).is_reserved() or target.resolve().parent != directory:
+            raise ValueError(
+                "ghost asset path must be a regular filename inside the output directory"
+            )
+    return stem
+
+
 def build_ghost_assets(request: GhostAssetRequest) -> GhostAssets:
     """Write corridor walls, a geometry asset and a pace reference for the ghost's map."""
 
     lap = load_ghost_lap(request.ghost_path, request.map_uid)
+    stem = _asset_stem(request.output_dir, lap.map_uid)
     request.output_dir.mkdir(parents=True, exist_ok=True)
-    stem = request.output_dir / lap.map_uid
     left, right = corridor_boundaries(lap, request.half_width_m)
     left_path, right_path = Path(f"{stem}-left.npy"), Path(f"{stem}-right.npy")
     np.save(left_path, left.astype(np.float32))

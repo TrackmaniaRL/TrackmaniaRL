@@ -97,8 +97,14 @@ def test_inner_wall_stays_inside_a_turn_tighter_than_the_corridor(tmp_path: Path
     assert np.all(inner[2:-2] >= 0.15 * RADIUS_M)
 
 
-def test_ghost_assets_load_as_geometry_pace_and_a_finishing_reward(tmp_path: Path) -> None:
+@pytest.mark.parametrize("finish_ms", [FINISH_MS, 4_700.0])
+def test_ghost_assets_load_as_geometry_pace_and_a_finishing_reward(
+    tmp_path: Path, finish_ms: float
+) -> None:
     ghost = _left_turn_ghost(tmp_path / "ghost.json")
+    document = json.loads(ghost.read_text(encoding="utf-8"))
+    document["checkpoints"][-1]["time_ms"] = finish_ms
+    ghost.write_text(json.dumps(document), encoding="utf-8")
     map_path = tmp_path / "map.Map.Gbx"
     map_path.write_bytes(b"map")
 
@@ -108,8 +114,8 @@ def test_ghost_assets_load_as_geometry_pace_and_a_finishing_reward(tmp_path: Pat
     pace = ReferencePaceProfile.from_demonstration(
         PaceDemonstrationRequest(assets.pace_path, geometry, geometry.reward_center)
     )
-    assert assets.finish_time_s == pytest.approx(FINISH_MS / 1_000.0)
-    assert pace.time_at_index(len(geometry.reward_center) - 1) == pytest.approx(4.73)
+    assert assets.finish_time_s == pytest.approx(finish_ms / 1_000.0)
+    assert pace.time_at_index(len(geometry.reward_center) - 1) == pytest.approx(finish_ms / 1_000.0)
     frames = ghost_frames(load_ghost_lap(ghost))
     reward = TrajectoryReward(geometry.reward_center, RewardConfig(minimum_finish_steps=1))
     reward.reset(frames[0, 4:7], velocity=frames[0, 7:10], race_time_ms=0.0)
@@ -197,3 +203,36 @@ def test_ghost_demonstration_loads_as_finishing_transitions(tmp_path: Path) -> N
 
     assert len(transitions) == int(np.ceil(FINISH_MS / 50.0))
     assert transitions[-1].terminated
+
+
+@pytest.mark.parametrize("uid", ["../escaped", r"..\escaped", "/escaped", "C:escaped", "CON"])
+def test_ghost_import_rejects_unsafe_uid_before_writing(tmp_path: Path, uid: str) -> None:
+    ghost = _left_turn_ghost(tmp_path / "ghost.json")
+    document = json.loads(ghost.read_text(encoding="utf-8"))
+    document["map_uid"] = uid
+    ghost.write_text(json.dumps(document), encoding="utf-8")
+    for override in (None, uid):
+        with pytest.raises(ValueError, match=r"map UID|asset path"):
+            build_ghost_assets(
+                GhostAssetRequest(
+                    ghost, tmp_path / "map.Map.Gbx", tmp_path / "assets", map_uid=override
+                )
+            )
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["ghost.json"]
+
+
+@pytest.mark.parametrize("suffix", ["-left.npy", "-right.npy", ".geometry.npz", ".pace.npz"])
+def test_ghost_import_rejects_output_symlink_before_any_write(tmp_path: Path, suffix: str) -> None:
+    ghost = _left_turn_ghost(tmp_path / "ghost.json")
+    output = tmp_path / "assets"
+    output.mkdir()
+    victim = tmp_path / "existing-file"
+    victim.write_bytes(b"preserve")
+    try:
+        (output / f"ghost-test-map{suffix}").symlink_to(victim)
+    except OSError:
+        pytest.skip("creating symlinks requires OS permission")
+    with pytest.raises(ValueError, match="asset path"):
+        build_ghost_assets(GhostAssetRequest(ghost, tmp_path / "map.Map.Gbx", output))
+    assert victim.read_bytes() == b"preserve"
+    assert len(list(output.iterdir())) == 1
