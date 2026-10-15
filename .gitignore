@@ -235,3 +235,6 @@ output/
 # Generated plans pin the agreed source checkout.
 /experiments/tmrl_test_comparison/team_campaign/campaign.json
 /experiments/tmrl_test_comparison/team_campaign/configs/
+
+!/experiments/jakub_1212/
+/experiments/jakub_1212/plan.json
