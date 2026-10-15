@@ -13,7 +13,11 @@ it does not change the released learner, reward, model or game controller code.
   checkpoint, reference-policy filter, or selected checkpoint.
 - Budget: 8,192,000 environment transitions; warmup 10,000; uniform replay
   capacity 1,000,000; batch 256; 0.25 updates per eligible transition; gamma .995.
-  Strict accounting requires 2,045,500 updates and drained final update credit.
+  The asynchronous collector stops after the nominal transition threshold; an
+  already in-flight batch may cause an overshoot. Report actual transitions and
+  the overshoot for every seed. Strict update accounting requires
+  floor((actual_transitions - 10,000) * .25) updates and drained credit
+  (2,045,500 updates if transitions equal the nominal budget exactly).
 - Historical V5 graph observations and incident-gated V6 encoder; QR uses
   64 quantiles, 78 discrete controls, dueling head, Adam LR .0001, hard target
   every 1,000 updates. All resolved options are recorded in qr.yaml and manifest.
