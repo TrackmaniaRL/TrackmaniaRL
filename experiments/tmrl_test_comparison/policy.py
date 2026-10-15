@@ -18,8 +18,7 @@ def require_standard_algorithm(algorithm: str) -> str:
     if algorithm in {"sd-sac", "dsac", "discrete-sac"}:
         raise ValueError(
             "SD-SAC is EXPERIMENTAL and excluded from standard pilots and full campaigns. "
-            "See RUN_ALGORITHMS.md and its historical evidence link; "
-            "a separate repair project needs explicit authorization."
+            "See experiments/tmrl_test_comparison/team_campaign/START_HERE.md."
         )
     if algorithm not in STANDARD_ALGORITHMS:
         raise ValueError(f"Unknown comparison algorithm: {algorithm}")

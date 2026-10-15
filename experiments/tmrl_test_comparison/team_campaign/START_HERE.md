@@ -6,6 +6,24 @@ Nowy launcher jest napisany w Pythonie; nie potrzebuje PowerShella ani skryptów
 Nie aktualizuj kodu już trenującego v2 lub v3: dokończ na jego commicie i zgłoś to
 koordynatorowi. Nie wznawiaj starego checkpointu na nowej integracji.
 
+## Własne treningi poza kampanią
+
+Domyślne konfiguracje algorytmów i instrukcje biblioteki tworzy:
+
+```text
+uv run trackmaniarl init my-agent --template trackmania
+```
+
+Pojedynczą konfigurację modelu i mapy z tego porównania możesz wygenerować przez:
+
+```text
+uv run python -m experiments.tmrl_test_comparison.generate --algorithm ppo --seed 17 --stage pilot --output artifacts/configs/my-ppo.yaml
+```
+
+Generator nie uruchamia treningu ani nie nadpisuje pliku. Dostosuj budżet, `run_id`
+i W&B; przygotuj lokalną kalibrację skrętu zgodnie z instrukcjami poniżej.
+W kampanii używaj `prepare`: konfiguracje per seed powstają lokalnie poza Gitem.
+
 ## Podział i budżet
 
 | Osoba / identyfikator | Algorytmy, kolejno na swoim PC | Seedy |
