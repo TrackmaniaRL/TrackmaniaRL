@@ -416,4 +416,3 @@ trackmaniarl track record-recovery OUTPUT --config RUN.yaml --checkpoint CHECKPO
 Use `trackmaniarl COMMAND --help` as the syntax authority. The
 [Trackmania guide](trackmania.md), [imitation guide](imitation-learning.md)
 and [algorithm matrix](algorithms.md) list specialized commands.
-
