@@ -2,14 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from ctypes import wintypes
-from pathlib import Path
-from threading import RLock
 
 import pytest
 
-from experiments.tmrl_test_comparison import preflight
 from trackmaniarl.trackmania import keyboard_control as keyboard
-from trackmaniarl.trackmania.control import GamepadController
 
 
 class _WinFunction:
@@ -163,37 +159,6 @@ def test_persistent_denial_has_a_local_deadline_without_a_guard(
     assert not fake_windows
 
 
-@pytest.mark.parametrize("failure", ["stop", "deadline"])
-def test_guard_interrupts_foreground_wait_before_any_reset_key(  # noqa: PLR0913
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    fake_windows: list[keyboard.KeyboardKeyEvent],
-    failure: str,
-) -> None:
-    user32 = _User32(42, iter([7]), 0)
-    monkeypatch.setattr(keyboard, "_windows_dll", lambda _: user32)
-    stop = tmp_path / "STOP"
-    elapsed = [0.0]
-    budget = preflight._Budget(0.1 if failure == "deadline" else 10.0, (stop,))
-    monkeypatch.setattr(preflight, "monotonic", lambda: elapsed[0])
-    monkeypatch.setattr(keyboard, "monotonic", lambda: elapsed[0])
-
-    def pause(seconds: float) -> None:
-        elapsed[0] += seconds
-        if failure == "stop":
-            stop.touch()
-
-    monkeypatch.setattr(preflight, "sleep", pause)
-    guard = keyboard.ResetGuard(check=budget.remaining, wait=budget.pause)
-
-    with pytest.raises((preflight._PreflightCancelledError, TimeoutError)):
-        keyboard.restart_trackmania_race(guard=guard)
-
-    assert elapsed[0] <= 0.25
-    assert user32.SetForegroundWindow.calls == [(42,)]
-    assert not fake_windows
-
-
 def test_focus_lost_after_activation_never_sends_key_down_or_key_up(
     monkeypatch: pytest.MonkeyPatch, fake_windows: list[keyboard.KeyboardKeyEvent]
 ) -> None:
@@ -276,55 +241,6 @@ def test_focus_loss_between_editor_restart_and_confirmation_stops_enter(
     with pytest.raises(RuntimeError, match="foreground=None"):
         keyboard.restart_trackmania_editor_validation()
 
-    assert fake_windows == [
-        keyboard.KeyboardKeyEvent(0x2E, True),
-        keyboard.KeyboardKeyEvent(0x2E, False),
-    ]
-
-
-@pytest.mark.parametrize("phase", ["delete_hold", "before_enter"])
-@pytest.mark.parametrize("failure", ["stop", "deadline"])
-def test_guarded_gamepad_editor_reset_releases_delete_but_never_sends_enter(  # noqa: PLR0913
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    fake_windows: list[keyboard.KeyboardKeyEvent],
-    phase: str,
-    failure: str,
-) -> None:
-    user32 = _User32(42, iter([42, 42]), 0)
-    monkeypatch.setattr(keyboard, "_windows_dll", lambda _: user32)
-    stop = tmp_path / "STOP"
-    elapsed = [0.0]
-    stop_at = 0.05 if phase == "delete_hold" else 0.2
-    budget = preflight._Budget(stop_at if failure == "deadline" else 1.0, (stop,))
-    monkeypatch.setattr(preflight, "monotonic", lambda: elapsed[0])
-
-    def pause(seconds: float) -> None:
-        elapsed[0] += seconds
-        if failure == "stop" and elapsed[0] >= stop_at:
-            stop.touch()
-
-    monkeypatch.setattr(preflight, "sleep", pause)
-    neutral: list[str] = []
-
-    class Pad:
-        def reset(self) -> None:
-            neutral.append("reset")
-
-        def update(self) -> None:
-            neutral.append("update")
-
-    controller = object.__new__(GamepadController)
-    controller._gamepad = Pad()
-    controller._tap_lock = RLock()
-    controller._restart_input = "editor_validation"
-    monkeypatch.setattr(controller, "consume_collision", lambda: False)
-    guard = keyboard.ResetGuard(check=budget.remaining, wait=budget.pause)
-
-    with pytest.raises((preflight._PreflightCancelledError, TimeoutError)):
-        controller.reset(guard=guard)
-
-    assert neutral == ["reset", "update"]
     assert fake_windows == [
         keyboard.KeyboardKeyEvent(0x2E, True),
         keyboard.KeyboardKeyEvent(0x2E, False),

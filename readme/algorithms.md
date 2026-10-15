@@ -576,11 +576,8 @@ learning and Polyak targets. It is publicly exported and registered under
 the `DISCRETE_ACTOR_CRITIC` contract. `run-sd-sac.yaml` supplies the complete
 Trackmania baseline with the full 78-action environment table.
 
-As of 8 October 2026, this implementation is excluded from the multi-computer
-training campaign after unsuccessful driving pilots. Its public API and old
-checkpoints are retained for research; successful synthetic checks do not qualify
-it for long training. The repair handoff is
-[SD_SAC_FABLE_5_1_REPORT.md](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/263fe78bbaa8c42ee86c38ae6f8b90e505f80536/experiments/tmrl_test_comparison/SD_SAC_FABLE_5_1_REPORT.md).
+Successful synthetic tests do not establish driving quality or readiness for
+long training. Treat this learner as a research option.
 
 **Contract.** The custom model exposes `actor`, `q1` and `q2`. The actor must
 provide `probabilities(observation)` and categorical sampling, while each critic

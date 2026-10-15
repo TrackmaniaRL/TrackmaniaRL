@@ -1,4 +1,4 @@
-"""CPU regression checks on synthetic tensors; no game, replay run, or pilot."""
+from __future__ import annotations
 
 import math
 from copy import deepcopy
@@ -7,11 +7,11 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+import yaml
 from torch import nn
 
-from experiments.tmrl_test_comparison.generate import configuration
 from tests.unit.learning._algorithm_fixtures import BatchKind, DiscreteSacModel, _batch
-from tests.unit.learning.test_sd_sac_actor_objective import FixedValues
+from tests.unit.learning.test_sd_sac_objectives import FixedValues
 from trackmaniarl.algorithms import StableDiscreteSoftActorCritic
 from trackmaniarl.algorithms.sac_support import discrete_batch
 from trackmaniarl.algorithms.sd_sac_objectives import (
@@ -22,6 +22,8 @@ from trackmaniarl.algorithms.stable_discrete_soft_actor_critic import _DiscreteA
 from trackmaniarl.core.runtime import _TrainingComponents, _validate_training_contract
 from trackmaniarl.core.spec import RunSpec
 from trackmaniarl.models.actors import CategoricalActor
+from trackmaniarl.models.backbones import HypersphericalLinear, SimbaV2Backbone
+from trackmaniarl.project.scaffold_run_templates import _trackmania_actor_critic_config
 
 
 def test_optimizer_rates_and_evaluated_checkpoint_round_trip() -> None:
@@ -184,7 +186,7 @@ def test_checkpoint_rejects_temperature_outside_configured_bounds() -> None:
 
 def test_generic_n_step_rejected_by_runtime_and_direct_update() -> None:
     learner = StableDiscreteSoftActorCritic(DiscreteSacModel())
-    spec = RunSpec.model_validate(configuration("sd-sac", 17, "pilot"))
+    spec = RunSpec.model_validate(yaml.safe_load(_trackmania_actor_critic_config("sd-sac")))
     spec = spec.model_copy(update={"training": spec.training.model_copy(update={"n_step": 3})})
     with pytest.raises(ValueError, match="n_step=1"):
         _validate_training_contract(
@@ -257,3 +259,85 @@ def test_checkpoint_rejects_nonrepresentable_temperature(log_alpha: float) -> No
     state["log_alpha"] = torch.tensor(log_alpha)
     with pytest.raises(ValueError, match=r"alpha must|log_alpha must"):
         learner.load_state_dict(state)
+
+
+def spherical_model() -> nn.Module:
+    model = nn.Module()
+    model.actor = CategoricalActor(SimbaV2Backbone(4, 8, block_count=1), 8, 3)
+    model.q1 = nn.Sequential(SimbaV2Backbone(4, 8, block_count=1), nn.Linear(8, 3))
+    model.q2 = nn.Sequential(SimbaV2Backbone(4, 8, block_count=1), nn.Linear(8, 3))
+    return model
+
+
+@pytest.mark.parametrize("objective", ["sac", "soft_q_forward_kl"])
+def test_all_online_branches_project_after_adam_and_before_target_averaging(objective: str) -> None:
+    torch.manual_seed(17)
+    model = spherical_model()
+    learner = StableDiscreteSoftActorCritic(
+        model, entropy_penalty_coefficient=0, actor_objective=objective
+    )
+    learner.setup({"seed": 17})
+    initial_target = deepcopy(learner.target_model.state_dict())
+    with torch.no_grad():
+        for layer in model.modules():
+            if isinstance(layer, HypersphericalLinear):
+                layer.weight.mul_(4)
+    learner.update(_batch(BatchKind.DISCRETE))
+    for name, layer in model.named_modules():
+        if isinstance(layer, HypersphericalLinear):
+            assert torch.allclose(
+                layer.weight.norm(dim=1), torch.ones(len(layer.weight)), atol=2e-6
+            )
+            key = f"{name}.weight"
+            expected = initial_target[key].lerp(layer.weight, learner.target_tau)
+            assert torch.allclose(learner.target_model.state_dict()[key], expected, atol=2e-6)
+    assert learner.actor_optimizer.state
+    assert learner.critic_optimizer.state
+    state = deepcopy(learner.state_dict())
+    restored = StableDiscreteSoftActorCritic(
+        spherical_model(), entropy_penalty_coefficient=0, actor_objective=objective
+    )
+    restored.setup({"seed": 17})
+    restored.load_state_dict(state)
+    assert restored.state_dict()["sd_sac_options"] == state["sd_sac_options"]
+    for key, value in model.state_dict().items():
+        assert torch.equal(value, restored.model.state_dict()[key])
+
+
+def test_unprojected_saved_adam_contract_is_rejected_before_restore() -> None:
+    learner = StableDiscreteSoftActorCritic(spherical_model())
+    learner.setup({"seed": 17})
+    state = deepcopy(learner.state_dict())
+    assert state["sd_sac_options"]["hyperspherical_projection"] is True
+    del state["sd_sac_options"]["hyperspherical_projection"]
+    with pytest.raises(ValueError, match="options do not match"):
+        learner.load_state_dict(state)
+    del state["sd_sac_options"]
+    with pytest.raises(ValueError, match="legacy checkpoint"):
+        learner.load_state_dict(state)
+
+
+def test_plain_mlp_optimizer_contract_is_unchanged() -> None:
+    learner = StableDiscreteSoftActorCritic(DiscreteSacModel())
+    learner.setup({"seed": 17})
+    assert "hyperspherical_projection" not in learner.state_dict()["sd_sac_options"]
+
+
+@pytest.mark.parametrize("actor_rate", [None, 9e-4])
+def test_actor_rate_does_not_change_critic_or_temperature_rate(actor_rate: float | None) -> None:
+    learner = StableDiscreteSoftActorCritic(
+        DiscreteSacModel(), learning_rate=3e-4, actor_learning_rate=actor_rate
+    )
+    learner.setup({"seed": 17})
+    assert learner.actor_optimizer.param_groups[0]["lr"] == (
+        3e-4 if actor_rate is None else actor_rate
+    )
+    assert learner.critic_optimizer.param_groups[0]["lr"] == 3e-4
+    assert learner.alpha_optimizer is not None
+    assert learner.alpha_optimizer.param_groups[0]["lr"] == 3e-4
+
+
+@pytest.mark.parametrize("actor_rate", [0, -1, float("nan"), float("inf")])
+def test_invalid_actor_learning_rate_is_rejected(actor_rate: float) -> None:
+    with pytest.raises(ValueError, match="actor_learning_rate"):
+        StableDiscreteSoftActorCritic(DiscreteSacModel(), actor_learning_rate=actor_rate)
