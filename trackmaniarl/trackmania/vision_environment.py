@@ -117,6 +117,10 @@ class VisionEnvironment:
         finally:
             self.frames.close()
 
+    def release_controls(self) -> None:
+        """Forward rollout pauses to the controller behind the image wrapper."""
+        self.environment.release_controls()
+
 
 class VisionEnvironmentFactory:
     def __init__(  # noqa: PLR0913 - capture and observation mode are independent keyword options

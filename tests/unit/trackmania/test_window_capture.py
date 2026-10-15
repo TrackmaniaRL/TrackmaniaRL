@@ -205,6 +205,14 @@ def test_window_validation_precedes_action_and_prepare_runs_each_reset() -> None
     assert order == ["prepare", "reset", "prepare", "reset"]
 
 
+def test_vision_rollout_pause_releases_underlying_controls() -> None:
+    released: list[bool] = []
+    environment = SimpleNamespace(release_controls=lambda: released.append(True))
+    frames = SimpleNamespace(capture=lambda: pytest.fail("pause must not capture a frame"))
+    VisionEnvironment(environment, frames).release_controls()
+    assert released == [True]
+
+
 def test_window_mode_is_explicit_and_rejects_legacy_demonstrations() -> None:
     with pytest.raises(ValueError, match="Choose capture"):
         VisionEnvironmentFactory({}, capture={}, window_capture={})

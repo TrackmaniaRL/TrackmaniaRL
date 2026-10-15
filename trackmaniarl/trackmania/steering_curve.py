@@ -40,8 +40,10 @@ class SteeringCurve:
 
     def __post_init__(self) -> None:
         stick, steer = np.asarray(self.stick), np.asarray(self.steer)
-        if stick.shape != steer.shape or stick.size < 2:
+        if stick.ndim != 1 or steer.ndim != 1 or stick.shape != steer.shape or stick.size < 2:
             raise ValueError("a steering curve needs matching stick and steer samples")
+        if not np.isfinite(stick).all() or not np.isfinite(steer).all():
+            raise ValueError("steering curve samples must be finite")
         if stick[0] != 0.0 or np.any(np.diff(stick) <= 0.0) or stick[-1] > 1.0:
             raise ValueError("stick samples must rise strictly from 0 to at most 1")
         if np.any(steer < 0.0) or np.any(steer > 1.0) or np.any(np.diff(steer) < 0.0):

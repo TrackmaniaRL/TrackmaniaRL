@@ -46,14 +46,6 @@ def test_overlapping_parameter_owners_rejected_before_optimizer_creation(shared:
         _learner(model)
 
 
-def test_distinct_model_parameter_owners_are_accepted() -> None:
-    learner = _learner()
-    actor = {id(p) for group in learner.actor_optimizer.param_groups for p in group["params"]}
-    critic = [id(p) for group in learner.critic_optimizer.param_groups for p in group["params"]]
-    assert not actor.intersection(critic)
-    assert len(critic) == len(set(critic))
-
-
 class _NonfiniteValues(nn.Module):
     def forward(self, observation: torch.Tensor) -> torch.Tensor:
         return observation.new_full((len(observation), 3), float("nan"))

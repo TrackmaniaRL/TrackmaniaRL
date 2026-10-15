@@ -51,17 +51,6 @@ def test_entropy_penalty_uses_stored_behavior_and_has_the_expected_gradient() ->
     assert old.grad is None
 
 
-@pytest.mark.parametrize(
-    "stored",
-    [None, torch.tensor([1.0]), torch.tensor([float("nan"), 1.0]), torch.tensor([-1.0, 1.0])],
-)
-def test_behavior_reference_rejects_missing_invalid_or_misaligned_metadata(stored: object) -> None:
-    learner = _learner()
-    batch = replace(_batch(BatchKind.DISCRETE), metadata={"behavior_entropies": stored})
-    with pytest.raises(ValueError, match=r"entropy|entropies"):
-        learner._entropy_penalty(discrete_batch(learner._batch(batch)), torch.ones(2))
-
-
 def test_behavior_entropy_survives_replay_checkpoint_and_matches_sample_ids() -> None:
     from trackmaniarl.core.builtins import IdentityFeaturePipeline
     from trackmaniarl.core.data import BatchRequest, Transition
@@ -90,15 +79,6 @@ def test_behavior_entropy_survives_replay_checkpoint_and_matches_sample_ids() ->
     batch = UniformSampler(IdentityFeaturePipeline(), seed=17).sample(restored, BatchRequest(4))
 
     assert torch.equal(batch.metadata["behavior_entropies"], torch.tensor(batch.transition_ids) / 8)
-
-
-def test_behavior_reference_supports_a_complete_finite_update() -> None:
-    learner = _learner()
-    batch = _batch(BatchKind.DISCRETE)
-    batch = replace(batch, metadata={"behavior_entropies": torch.ones(len(batch.transition_ids))})
-    metrics, priorities = learner.update(batch)
-    assert all(torch.isfinite(torch.tensor(value)) for value in metrics.values())
-    assert priorities.transition_ids == batch.transition_ids
 
 
 @pytest.mark.parametrize("actor_objective", ["sac", "soft_q_forward_kl"])

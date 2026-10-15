@@ -239,3 +239,20 @@ def test_corner_cutting_lap_reaches_the_kinematically_limited_finish() -> None:
     assert arc[-1] < 0.95 * reward._cumulative_distance[-1]
     assert result is not None
     assert result.reason == "finished"
+
+
+def test_small_steps_accumulate_progress_without_banking_distant_jumps() -> None:
+    reward = TrajectoryReward(_trajectory(201), RewardConfig(limit_progress_by_kinematics=True))
+    reward.reset(_ORIGIN, race_time_ms=0.0)
+    for step in range(1, 101):
+        reward.step(_stationary_transition(np.array([step / 10, 0, 0]), step * 50.0))
+    assert reward.progress_m == pytest.approx(10.0)
+
+    # Lateral movement must not accumulate an unlimited progress allowance.
+    for step in range(101, 201):
+        reward.step(_stationary_transition(np.array([10.0, step % 2, 0]), step * 50.0))
+    reward.step(_stationary_transition(np.array([100.0, 0, 0]), 10_050.0))
+    assert reward.progress_m <= 21.0  # 2 * (100 m/s * 0.05 s) + one 1 m segment.
+    reward.reset(_ORIGIN, race_time_ms=0.0)
+    reward.step(_stationary_transition(np.array([0.1, 0, 0]), 50.0))
+    assert reward.progress_m == 0.0
