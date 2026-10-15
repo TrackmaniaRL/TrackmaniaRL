@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (1.2.12)
+## 1.2.12 - 2026-10-15
 
 - Correct QR quantile-loss reduction, mixed-precision value targets and PPO initialization.
 - Preserve PPO rollout budgets and warmup accounting; release controllers between training and evaluation.

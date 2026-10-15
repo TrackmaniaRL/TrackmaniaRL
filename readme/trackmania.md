@@ -1,9 +1,5 @@
 # Trackmania training and release workflow for 1.2.12
 
-This guide targets the upcoming 1.2.12 release. The pinned installation command
-below requires that release to be published; before publication use a locally
-built wheel.
-
 The default configuration below trains IQN from lidar and telemetry. The generated
 `run-ppo.yaml` trains PPO from telemetry, and `run-ppo-vision.yaml` trains PPO from
 camera frames. See [vision and PPO](vision.md) for those complete alternatives.
