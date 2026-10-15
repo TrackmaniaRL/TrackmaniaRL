@@ -21,7 +21,12 @@ from trackmaniarl.models.temporal import IdentityTemporalCore
 def _bfloat16_autocast() -> Iterator[None]:
     # CPU only allows float32 through the execution policy; this forces what a
     # GPU's "auto" precision picks, to check where reduced precision reaches.
-    with torch.autocast(device_type="cpu", dtype=torch.bfloat16):
+    # Use portable kernels: this tests dtype boundaries, not oneDNN's BF16
+    # instruction dispatch, which can fault on Windows CI processors.
+    with (
+        torch.backends.mkldnn.flags(enabled=False),
+        torch.autocast(device_type="cpu", dtype=torch.bfloat16),
+    ):
         yield
 
 
