@@ -6,7 +6,8 @@
 - Preserve PPO rollout budgets and warmup accounting; release controllers between training and evaluation.
 - Record issued controls, checkpoint identity, timing and cancellation in evaluation artifacts.
 - Add calibrated analog steering and guarded editor reset support for Linux X11.
-- Add a portable, bounded team campaign with persistent PPO recovery and explicit experimental SD-SAC exclusion.
+- Build geometry, pace references and demonstrations from exported ghost laps, preserving paired boundaries at track crossings.
+- Raise the default projected-speed and pace-projection limit to 278 m/s.
 - Keep historical campaign plans and experiment evidence on the original training branch.
 
 ## 1.2.11 - 2026-09-28

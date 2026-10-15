@@ -50,12 +50,28 @@ def _validate_build_request(request: GeometryBuildRequest) -> None:
 
 
 def _recorded_geometry(request: GeometryBuildRequest) -> _GeometryLines:
+    if request.already_paired:
+        return _paired_geometry(request)
     left = _clean_boundary(np.load(request.left_recording))
     right = _clean_boundary(np.load(request.right_recording))
     left_length = float(_segment_lengths(left).sum())
     count = max(2, round(left_length / request.spacing_m) + 1)
     left = _resample(left, count)
     right = _pair_opposite_boundary(left, right)
+    lines = _GeometryLines(left, right, (left + right) / 2.0, 0)
+    lines = _resample_center(lines, request.spacing_m)
+    lines = _smooth_geometry(lines, request.smooth_window)
+    _validate_paired_geometry(lines)
+    return _GeometryLines(lines.left, lines.right, lines.center, len(lines.center))
+
+
+def _paired_geometry(request: GeometryBuildRequest) -> _GeometryLines:
+    left = np.asarray(np.load(request.left_recording), dtype=np.float32)
+    right = np.asarray(np.load(request.right_recording), dtype=np.float32)
+    if left.shape != right.shape or left.ndim != 2 or left.shape[1] != 3 or len(left) < 2:
+        raise ValueError("paired boundaries must have the same (points, 3) shape")
+    if not (np.isfinite(left).all() and np.isfinite(right).all()):
+        raise ValueError("paired boundaries contain non-finite positions")
     lines = _GeometryLines(left, right, (left + right) / 2.0, 0)
     lines = _resample_center(lines, request.spacing_m)
     lines = _smooth_geometry(lines, request.smooth_window)

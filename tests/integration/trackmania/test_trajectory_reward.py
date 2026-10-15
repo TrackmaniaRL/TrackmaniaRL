@@ -223,7 +223,9 @@ def test_corner_cutting_lap_reaches_the_kinematically_limited_finish() -> None:
     centerline = _hairpin(30.0)
     racing_line = _hairpin(24.0)
     arc = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(racing_line, axis=0), axis=1))]
-    reward = TrajectoryReward(centerline, RewardConfig(limit_progress_by_kinematics=True))
+    reward = TrajectoryReward(
+        centerline, RewardConfig(limit_progress_by_kinematics=True, max_projected_speed_mps=100.0)
+    )
     reward.reset(racing_line[0], velocity=_ORIGIN, race_time_ms=0.0)
 
     result: RewardResult | None = None
@@ -242,7 +244,10 @@ def test_corner_cutting_lap_reaches_the_kinematically_limited_finish() -> None:
 
 
 def test_small_steps_accumulate_progress_without_banking_distant_jumps() -> None:
-    reward = TrajectoryReward(_trajectory(201), RewardConfig(limit_progress_by_kinematics=True))
+    reward = TrajectoryReward(
+        _trajectory(201),
+        RewardConfig(limit_progress_by_kinematics=True, max_projected_speed_mps=100.0),
+    )
     reward.reset(_ORIGIN, race_time_ms=0.0)
     for step in range(1, 101):
         reward.step(_stationary_transition(np.array([step / 10, 0, 0]), step * 50.0))

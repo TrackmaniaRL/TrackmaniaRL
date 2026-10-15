@@ -29,7 +29,7 @@ class RewardConfig:
     progress_reward_full_lap: float = 10.0
     finish_reward: float = 30.0
     potential_progress_weight: float = 2.0
-    max_projected_speed_mps: float = 100.0
+    max_projected_speed_mps: float = 278.0
     velocity_to_mps_scale: float = 1.0
     projected_velocity_scale: float = 0.0
     projected_speed_bonus_scale: float = 0.0

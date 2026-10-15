@@ -98,7 +98,7 @@ All fields below are stable built-in environment fields under
 | `progress_reward_full_lap` | float `10.0`, `>=0` | Total direct reward for one accepted metric lap. |
 | `finish_reward` | float `30.0`, `>=0` | Base valid-finish terminal reward and magnitude floor for a negative time-attack adjustment. |
 | `potential_progress_weight` | float `2.0`, `>=0` | Maximum progress potential. Zero disables progress PBRS. |
-| `max_projected_speed_mps` | float `100.0` m/s, `>0` | Symmetric projected-velocity clip, positive-speed normalization and movement-speed cap. It must exceed plausible speed without legitimizing teleports. |
+| `max_projected_speed_mps` | float `278.0` m/s, `>0` | Symmetric projected-velocity clip, positive-speed normalization and movement-speed cap. It must exceed plausible speed without legitimizing teleports. |
 | `velocity_to_mps_scale` | float `1.0`, `>0` | Multiplier from native OpenPlanet velocity units to m/s. A unit error rescales velocity rewards by the same factor. |
 | `projected_velocity_scale` | float `0.0`, `>=0` | Linear signed velocity reward per metre travelled along the local tangent. |
 | `projected_speed_bonus_scale` | float `0.0`, `>=0` | Quadratic positive velocity-ratio bonus per second. |
@@ -231,7 +231,7 @@ potential_progress_weight: 2.0
 finish_reward: 30.0
 terminal_failure_penalty: 1.0
 
-max_projected_speed_mps: 100.0
+max_projected_speed_mps: 278.0
 velocity_to_mps_scale: 1.0
 projected_velocity_scale: 0.0
 projected_speed_bonus_scale: 0.0
