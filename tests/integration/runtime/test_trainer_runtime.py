@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -12,10 +12,12 @@ import pytest
 
 from tests.integration.runtime.core_runtime_support import FakeEnvironment, runtime_spec
 from trackmaniarl.core.builtins import SmokeLearner
+from trackmaniarl.core.contracts import Policy
 from trackmaniarl.core.runtime import ResolvedRun, resolve_run
 from trackmaniarl.core.spec import RunSpec
 from trackmaniarl.core.training import Trainer
 from trackmaniarl.core.training_support import TrainingResult
+from trackmaniarl.trackmania.evaluation import EvaluationCancelledError
 
 _FAKE_ENVIRONMENT = "tests.integration.runtime.core_runtime_support:FakeEnvironmentFactory"
 _FAILING_ENVIRONMENT = "tests.integration.runtime.core_runtime_support:FailingEnvironmentFactory"
@@ -122,6 +124,87 @@ def test_local_trainer_updates_ppo_once_per_fresh_episode(tmp_path: Path) -> Non
     result = _train_and_close(resolve_run(_ppo_spec(tmp_path)))
     assert result.episodes == 2
     assert result.updates == 2
+
+
+def test_ppo_logs_segments_without_presenting_them_as_single_races(tmp_path: Path) -> None:
+    run = resolve_run(_ppo_spec(tmp_path))
+    result = _train_and_close(run)
+    events = _event_payloads(run.run_dir)
+    rollouts = [event["payload"] for event in events if event["event"] == "train/rollout"]
+    assert len(rollouts) == result.updates == 2
+    assert all(item["completed_episodes"] == 1 for item in rollouts)
+    assert all(item["rollout_boundaries"] == 0 for item in rollouts)
+    assert "train/episode" not in [event["event"] for event in events]
+
+
+def test_ppo_stop_file_finishes_rollout_and_saves_checkpoint(tmp_path: Path) -> None:
+    run = resolve_run(_ppo_spec(tmp_path))
+    stop = tmp_path / "STOP"
+    original_update = run.learner.update
+
+    def update(batch: Any) -> Any:
+        result = original_update(batch)
+        stop.touch()
+        return result
+
+    run.learner.update = update
+    try:
+        result = Trainer(run, stop_file=stop).train()
+        assert result.transitions == 2
+        assert result.updates == 1
+        assert result.checkpoints[-1].is_file()
+        state = run.checkpoint_codec.load(result.checkpoints[-1])
+        assert state["counters"]["transitions"] == 2
+        assert "train/stopped" in _event_names(run.run_dir)
+    finally:
+        run.logger.close()
+
+
+class _StopDuringEvaluation:
+    def __init__(self, stop_file: Path) -> None:
+        self.stop_file = stop_file
+        self.stop_requested: Callable[[], bool] = lambda: False
+        self.checkpoint: Path | None = None
+        self.checkpoint_bytes: bytes | None = None
+
+    def set_stop_requested(self, stop_requested: Callable[[], bool]) -> None:
+        self.stop_requested = stop_requested
+
+    def set_checkpoint(self, checkpoint: Path) -> None:
+        self.checkpoint = checkpoint
+
+    def evaluate(self, policy: Policy) -> Mapping[str, float]:
+        del policy
+        assert self.checkpoint is not None
+        self.checkpoint_bytes = self.checkpoint.read_bytes()
+        assert not self.stop_requested()
+        self.stop_file.touch()
+        if self.stop_requested():
+            raise EvaluationCancelledError("Evaluation stopped; the suite is incomplete")
+        return {"eval/finish_rate": 1.0}
+
+
+@pytest.mark.parametrize("evaluation_interval", [None, 1], ids=["final", "periodic"])
+def test_ppo_stop_during_evaluation_preserves_checkpoint(
+    tmp_path: Path, evaluation_interval: int | None
+) -> None:
+    spec = _ppo_spec(tmp_path)
+    training = spec.training.model_copy(update={"evaluate_every_episodes": evaluation_interval})
+    stop = tmp_path / "STOP"
+    evaluator = _StopDuringEvaluation(stop)
+    run = replace(resolve_run(spec.model_copy(update={"training": training})), evaluator=evaluator)
+    try:
+        with pytest.raises(EvaluationCancelledError, match="suite is incomplete"):
+            Trainer(run, stop_file=stop).train()
+        assert evaluator.checkpoint is not None
+        assert evaluator.checkpoint.read_bytes() == evaluator.checkpoint_bytes
+        state = run.checkpoint_codec.load(evaluator.checkpoint)
+        expected_updates = 2 if evaluation_interval is None else 1
+        assert state["counters"]["updates"] == expected_updates
+        assert state["counters"]["transitions"] == expected_updates * 2
+        assert "eval/suite" not in _event_names(run.run_dir)
+    finally:
+        run.logger.close()
 
 
 def test_trainer_collects_updates_and_checkpoints(tmp_path: Path) -> None:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 import torch
 from torch import nn
@@ -31,6 +33,19 @@ from trackmaniarl.models.encoders import ConvolutionalSensorEncoder
 
 def test_discrete_sac_updates_without_shape_or_target_errors() -> None:
     _assert_update(StableDiscreteSoftActorCritic(DiscreteSacModel()), _batch(BatchKind.DISCRETE))
+
+
+def test_discrete_sac_disabled_anchor_does_not_call_target_actor() -> None:
+    learner = StableDiscreteSoftActorCritic(
+        DiscreteSacModel(), entropy_penalty_coefficient=0.0, target_entropy=0.8
+    )
+
+    with patch.object(
+        learner,
+        "_entropy_penalty",
+        side_effect=AssertionError("Disabled entropy anchor must not evaluate the target actor"),
+    ):
+        _assert_update(learner, _batch(BatchKind.DISCRETE))
 
 
 def test_convolutional_encoder_rejects_a_zero_width_first_convolution() -> None:

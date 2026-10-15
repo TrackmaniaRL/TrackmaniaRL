@@ -13,7 +13,9 @@ from typing import Any
 
 from trackmaniarl.core.spec import RunSpec
 
-_FINGERPRINTED_ASSET_PATHS = frozenset({"geometry_path", "pace_reference_path"})
+_FINGERPRINTED_ASSET_PATHS = frozenset(
+    {"geometry_path", "pace_reference_path", "reward_points_path", "steering_curve_path"}
+)
 
 
 def run_fingerprint(spec: RunSpec, base_dir: Path) -> str:
@@ -183,7 +185,9 @@ def _package_source_digest(package_name: str) -> str | None:
 
 def _package_python_sources(package_name: str) -> list[tuple[str, bytes]]:
     module = importlib.import_module(package_name)
-    roots = [Path(path) for path in getattr(module, "__path__", ())]
+    # Namespace packages may repeat a root through cwd and PYTHONPATH. Identity
+    # describes the source files, not the number of import search-path entries.
+    roots = sorted({Path(path).resolve() for path in getattr(module, "__path__", ())})
     sources = [
         (source.relative_to(root).as_posix(), _normalized_source(source))
         for root in roots

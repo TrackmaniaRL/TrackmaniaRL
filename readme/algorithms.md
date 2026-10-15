@@ -45,7 +45,7 @@ The default IQN project continues to use lidar features.
 | REDQ / randomized-ensemble SAC | Supported `RandomizedEnsembleSAC`, built-in key `randomized_ensemble_sac`, first-party telemetry factory | Continuous off-policy ensemble actor-critic | Uniform or PER, `sequence_length: 1` only | Local and distributed | Exact resume including target RNG/update count, no built-in partial warm start |
 | TQC | Public learner `TruncatedQuantileCritic`, built-in key `truncated_quantile_critic`, first-party telemetry factory | Continuous off-policy distributional actor-critic | Uniform or PER, `sequence_length: 1` only | Local and distributed | Exact resume including alpha, no built-in partial warm start |
 | PPO | Supported learner `ProximalPolicyOptimization`, built-in key `proximal_policy_optimization`, first-party telemetry and vision factories | Continuous on-policy GAE/PPO | Latest contiguous rollout through `OnPolicySequenceSampler` | Local `trackmaniarl train` only, distributed learner/actor rejects it | Exact local resume at restart-safe episode boundaries, no partial warm start |
-| Stable discrete SAC | Supported SD-SAC-inspired `StableDiscreteSoftActorCritic`, first-party telemetry factory | Discrete off-policy categorical actor with twin all-action critics | Uniform or PER, `sequence_length: 1` only | Local and distributed | Exact resume including alpha, no built-in partial warm start |
+| Stable discrete SAC — **experimental** | SD-SAC-inspired `StableDiscreteSoftActorCritic`, retained for isolated research; excluded from the standard campaign | Discrete off-policy categorical actor with twin all-action critics | Uniform or PER, `sequence_length: 1` only | Local and distributed | Exact resume including alpha, no built-in partial warm start |
 | Behavior cloning (BC) | Public Trackmania offline-supervised lifecycle, `BehaviorCloningLearner` | Compact discrete categorical policy, offline demonstrations/recovery data | No RL replay or WAL, deterministic lap/episode split and contiguous feature histories | Local `bc-train`, closed-loop `bc-benchmark` | `bc-latest.pt` exact resume, `bc-best-validation.pt` promotion candidate, compatible encoder/temporal tensors can warm-start unified RL |
 | DAgger | Public `dagger-collect` data-collection workflow, not a learner | Student compact discrete BC policy plus trajectory-tracking teacher | Writes weighted recovery `.npz`, feed it back to BC with `--recovery` | Local live Trackmania only | Starts from a BC checkpoint, output is a dataset, not a resumable optimizer checkpoint |
 | DQfD-style objectives | Opt-in `DemonstrationMarginObjective` and `DemonstrationCrossEntropyObjective` inside `DiscreteValueLearner`, **not full DQfD** | Discrete off-policy TD plus demo-only auxiliary losses, offline pretraining is available | Demo-aware replay flags, PER supports sequences, `DemoMixSampler` is single-step | Offline pretrain, then local or distributed off-policy RL | Unified v2 exact resume, objectives are part of the checkpoint contract |
@@ -229,6 +229,13 @@ components:
 `uv run trackmaniarl train run.yaml`.
 
 **Primary paper:** [Distributional Reinforcement Learning with Quantile Regression](https://arxiv.org/abs/1710.10044).
+
+The QR-DQN regression objective sums over learned prediction quantiles and averages
+over target samples, as in Algorithm 1. It preserves batch/sequence positions for
+the learner's mask and importance weighting. Increasing the fixed quantile count
+therefore changes the loss and gradient scale; older checkpoints using the former
+pairwise mean must retain their original frozen runtime. This correction does not
+change the regression reductions used by IQN, FQF or the SAC family.
 
 ### IQN
 
@@ -560,7 +567,7 @@ training:
 
 ### StableDiscreteSoftActorCritic
 
-**Status and intuition.** This is a supported **SD-SAC-inspired**
+**Status and intuition.** This is an **experimental SD-SAC-inspired**
 learner, not a claim of full SD-SAC paper compliance. It uses a categorical
 actor, two all-action critics, double-average target Q, Q-clipped critic losses,
 an entropy-change penalty against the target actor, optional temperature
@@ -568,6 +575,12 @@ learning and Polyak targets. It is publicly exported and registered under
 `stable_discrete_soft_actor_critic`. `TelemetryDiscreteSacModelFactory` provides
 the `DISCRETE_ACTOR_CRITIC` contract. `run-discrete-sac.yaml` supplies the complete
 Trackmania baseline with the full 78-action environment table.
+
+As of 8 October 2026, this implementation is excluded from the multi-computer
+training campaign after unsuccessful driving pilots. Its public API and old
+checkpoints are retained for research; successful synthetic checks do not qualify
+it for long training. The repair handoff is
+[SD_SAC_FABLE_5_1_REPORT.md](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/263fe78bbaa8c42ee86c38ae6f8b90e505f80536/experiments/tmrl_test_comparison/SD_SAC_FABLE_5_1_REPORT.md).
 
 **Contract.** The custom model exposes `actor`, `q1` and `q2`. The actor must
 provide `probabilities(observation)` and categorical sampling, while each critic
@@ -585,6 +598,57 @@ partial warm start. Key knobs are `q_clip_epsilon`,
 bad action mapping, sequence replay, or incompatible state fails. Paper-level
 claims require a separate baseline-controlled experiment. The current tree
 provides unit/runtime support, not the paper's Atari/MOBA evidence.
+
+Actor and both critics must own disjoint parameters; sharing an encoder across
+their Adam optimizers is rejected. Batch vectors must match transition IDs,
+actions must be integer indices, and importance weights must be finite,
+non-negative and have positive total weight. The learner validates these contracts
+before an optimizer update. Positive importance weights are normalized without
+an arbitrary denominator floor. A true terminal with zero bootstrap discount
+ignores its continuation value, including an undefined terminal successor;
+a truncation still bootstraps.
+The regression suite also checks learning a delayed goal against an independently
+solved soft-Bellman value function, beyond single-step reward fitting.
+
+SD-SAC additionally separates `actor_learning_rate` and `entropy_learning_rate`
+from the critic rate; both inherit `learning_rate` when omitted. Optional
+`entropy_coefficient_min`/`entropy_coefficient_max` project learned log-alpha
+after an update. Defaults retain the unbounded canonical objective. Categorical
+log probabilities use float32 log-softmax, avoiding clipped probability logs
+for saturated logits. Custom canonical actors may still expose probabilities
+only.
+
+`actor_objective: soft_q_forward_kl` is an **explicit experimental variant**:
+it fits the actor to a detached `softmax((Q - max(Q))/alpha)` target via
+cross-entropy. Its gradient can reach actions with underflowed probability,
+but fitting incorrect Q cannot establish useful driving. The entropy anchor
+still applies when configured. The canonical `sac` objective remains the default.
+Centered soft-Q target logs use float64 for the small all-action tensor, so valid
+extreme float32 values and small positive temperatures cannot overflow intermediate
+division or produce undefined zero-times-infinity entropy diagnostics.
+New checkpoints pin optimizer rates, entropy controls and objective; restoring
+with mismatched options fails before loading weights. Legacy checkpoints cannot
+silently opt into the new controls.
+
+Episode reports distinguish unavailable Q margins from measured zero using null
+and sample counts. Native categorical SD-SAC does not use the distributed epsilon
+schedule, so its reported epsilon is null. Conditional behavior-policy entropy is
+reported in nats; normalized entropy of the visited action histogram is a separate
+quantity and cannot be compared with `target_entropy`.
+
+Metrics distinguish alpha used for the update (`state/alpha_used`) from alpha
+after temperature optimization (`state/alpha`). They report entropy target error,
+both distances to the soft-Q target, selected-action regret, twin-critic ranking
+agreement, TD bias/RMSE, Q-clip gradient blocking and terminal TD error/sample count.
+These are diagnostics, not driving gates. An empty terminal sample has error zero
+and count zero; it is not evidence of correct terminal values.
+
+Only `training.n_step: 1` is supported: generic reward-only multi-step replay
+omits intermediate entropy terms in a soft return and is rejected by runtime
+validation. `experiments.tmrl_test_comparison.sd_sac_calibration` compares selected
+action values with complete recorded episode returns without optimizer steps.
+Its behavior soft returns are an off-policy proxy, not a ranking of unchosen actions;
+incomplete/truncated episodes are excluded rather than given invented bootstrap.
 
 **YAML fragment — first-party telemetry stable discrete SAC:**
 
@@ -606,7 +670,7 @@ components:
     class_path: trackmaniarl.core.replay:PrioritizedSampler
 training:
   sequence_length: 1
-  n_step: 3
+  n_step: 1
   beta: 0.4
 ```
 
@@ -812,8 +876,8 @@ continue from the checkpoint path printed by that command with
   telemetry baselines. No project-owned model bundle is required.
 - Use PPO only when synchronous local on-policy collection and its lower data
   reuse are acceptable. Do not route it to distributed actor/learner commands.
-- Use `run-discrete-sac.yaml` for a categorical actor-critic baseline. Compare
-  its stability and finish rate with IQN under the same evaluation conditions.
+- Treat `run-discrete-sac.yaml` as an experimental research configuration;
+  it is excluded from the standard multi-computer campaign.
 - Use BC as an initialization/data-quality tool, then require closed-loop
   benchmarking. Add DAgger recovery or DQfD-style objectives only for a measured
   distribution-shift problem.

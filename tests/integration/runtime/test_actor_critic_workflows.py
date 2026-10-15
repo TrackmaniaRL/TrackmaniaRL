@@ -76,7 +76,7 @@ def _spec(algorithm: str, directory: Path) -> RunSpec:
     return RunSpec.model_validate(config)
 
 
-@pytest.mark.parametrize("algorithm", ["sac", "redq", "tqc", "discrete-sac"])
+@pytest.mark.parametrize("algorithm", ["sac", "redq", "tqc", "sd-sac"])
 def test_bundled_actor_critic_collects_updates_resumes_and_evaluates(
     algorithm: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -114,7 +114,7 @@ def test_bundled_actor_critic_collects_updates_resumes_and_evaluates(
         restored.logger.close()
 
 
-@pytest.mark.parametrize("algorithm", ["sac", "redq", "tqc", "discrete-sac"])
+@pytest.mark.parametrize("algorithm", ["sac", "redq", "tqc", "sd-sac"])
 def test_generated_actor_critic_configuration_validates(algorithm: str, tmp_path: Path) -> None:
     target = create_project(tmp_path / "agent", "agent", template="trackmania")
     spec = RunSpec.from_yaml(target / f"run-{algorithm}.yaml")

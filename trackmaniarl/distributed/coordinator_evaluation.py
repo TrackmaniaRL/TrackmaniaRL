@@ -116,7 +116,7 @@ def _record_evaluation_stop(coordinator: Coordinator, stats: Mapping[str, float]
 
 def _evaluation_batch_stats(
     summaries: list[dict[str, Any]], time_buckets_s: tuple[float, ...]
-) -> dict[str, float]:
+) -> dict[str, Any]:
     batch = _evaluation_batch(summaries, time_buckets_s)
     stats = {
         **_finish_stats(batch),
@@ -184,7 +184,7 @@ def _failure_stats(batch: _EvaluationBatch) -> dict[str, float]:
     }
 
 
-def _control_stats(batch: _EvaluationBatch) -> dict[str, float]:
+def _control_stats(batch: _EvaluationBatch) -> dict[str, Any]:
     return {**_driving_stats(batch), **_value_stats(batch)}
 
 
@@ -208,15 +208,34 @@ def _summary_mean(summaries: list[dict[str, Any]], metric: str) -> float:
     return fmean(float(item.get(metric, 0.0)) for item in summaries)
 
 
-def _value_stats(batch: _EvaluationBatch) -> dict[str, float]:
+def _value_stats(batch: _EvaluationBatch) -> dict[str, float | None]:
+    margin, count = _measured_summary_mean(
+        batch.summaries, "q_margin/start_mean", "q_margin/start_sample_count"
+    )
+    entropy, entropy_count = _measured_summary_mean(
+        batch.summaries, "policy/behavior_entropy_nats_mean", "policy/behavior_entropy_sample_count"
+    )
     return {
         "projected_velocity_ratio_mean": fmean(
             float(item.get("velocity/ratio_mean", 0.0)) for item in batch.summaries
         ),
-        "q_margin_start_mean": fmean(
-            float(item.get("q_margin/start_mean", 0.0)) for item in batch.summaries
-        ),
+        "q_margin_start_mean": margin,
+        "q_margin_start_sample_count": count,
+        "policy/behavior_entropy_nats_mean": entropy,
+        "policy/behavior_entropy_sample_count": entropy_count,
     }
+
+
+def _measured_summary_mean(
+    summaries: list[dict[str, Any]], metric: str, count_metric: str
+) -> tuple[float | None, float]:
+    observed = [
+        (float(value), float(item.get(count_metric, 1.0)))
+        for item in summaries
+        if (value := item.get(metric)) is not None
+    ]
+    count = sum(samples for _, samples in observed)
+    return (sum(value * samples for value, samples in observed) / count if count else None), count
 
 
 def _termination_stats(batch: _EvaluationBatch) -> dict[str, float]:
@@ -338,8 +357,8 @@ def _weighted_mean(batch: _TimingBatch, key: str) -> float:
     return weighted / batch.total_steps
 
 
-def _progress_bin_summary(summary: Mapping[str, Any]) -> dict[str, dict[str, float]]:
-    bins: dict[str, dict[str, float]] = {}
+def _progress_bin_summary(summary: Mapping[str, Any]) -> dict[str, dict[str, float | None]]:
+    bins: dict[str, dict[str, float | None]] = {}
     for key, value in summary.items():
         prefix, separator, suffix = key.partition("progress_bin/")
         if prefix or not separator:
@@ -347,13 +366,13 @@ def _progress_bin_summary(summary: Mapping[str, Any]) -> dict[str, dict[str, flo
         name, metric_separator, metric = suffix.partition("/")
         if not metric_separator:
             continue
-        bins.setdefault(name, {})[metric] = float(value)
+        bins.setdefault(name, {})[metric] = None if value is None else float(value)
     return bins
 
 
-def _progress_bin_metrics(summary: Mapping[str, Any]) -> dict[str, float]:
+def _progress_bin_metrics(summary: Mapping[str, Any]) -> dict[str, float | None]:
     return {
-        key.removeprefix("progress_bin/"): float(value)
+        key.removeprefix("progress_bin/"): None if value is None else float(value)
         for key, value in summary.items()
         if key.startswith("progress_bin/")
     }

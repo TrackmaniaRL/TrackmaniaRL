@@ -205,8 +205,10 @@ def _timing_info(environment: OpenPlanetEnvironment, report: _StepReport) -> dic
     }
 
 
-def _control_info(control: np.ndarray, outcome: _RewardedStep) -> dict[str, float]:
+def _control_info(control: np.ndarray, outcome: _RewardedStep) -> dict[str, Any]:
     return {
+        # The successfully issued command, not delayed telemetry or tap-averaged brake.
+        "control/issued_command": control.tolist(),
         "control_gas": float(control[0]),
         "control_brake": outcome.applied_brake,
         "control_brake_tap": float(outcome.brake_tap),

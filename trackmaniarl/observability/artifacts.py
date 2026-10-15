@@ -10,11 +10,13 @@ import sys
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import asdict
 from datetime import UTC, datetime
+from importlib.metadata import distributions
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from trackmaniarl._version import __version__
 from trackmaniarl.core.data import EpisodeArtifact
+from trackmaniarl.observability.provenance import capture_source_snapshot
 
 if TYPE_CHECKING:
     from trackmaniarl.core.runtime import ResolvedRun
@@ -75,14 +77,18 @@ def _evaluation_assets(run: ResolvedRun) -> list[dict[str, str]]:
 
 
 def _evaluation_asset(map_spec: EvaluationMapSpec) -> dict[str, str]:
-    from trackmaniarl.trackmania.geometry import BoundaryGeometry
+    from trackmaniarl.trackmania.reward_points import load_reward_asset
     from trackmaniarl.trackmania.session import PLUGIN_PROTOCOL_VERSION
 
-    geometry = BoundaryGeometry(map_spec.geometry_path, expected_map_uid=map_spec.expected_map_uid)
+    geometry = load_reward_asset(
+        map_spec.geometry_path, map_spec.reward_points_path, map_spec.expected_map_uid
+    )
     return {
         "map_id": map_spec.id,
         "map_uid": map_spec.expected_map_uid,
-        "geometry_sha256": geometry.sha256,
+        "reward_points_sha256"
+        if map_spec.reward_points_path
+        else "geometry_sha256": geometry.sha256,
         "plugin_protocol_version": PLUGIN_PROTOCOL_VERSION,
     }
 
@@ -115,6 +121,11 @@ def _environment_snapshot(run: ResolvedRun) -> dict[str, Any]:
             "trackmaniarl": _trackmaniarl_version(),
             "git_revision": _git_revision(),
             "torch": _torch_environment(),
+            "installed_distributions": {
+                item.metadata["Name"]: item.version
+                for item in distributions()
+                if item.metadata["Name"] is not None
+            },
         },
         "torch_execution": dict(execution()) if callable(execution) else None,
     }
@@ -122,6 +133,26 @@ def _environment_snapshot(run: ResolvedRun) -> dict[str, Any]:
 
 def _append_environment_snapshot(run: ResolvedRun) -> None:
     snapshot = _environment_snapshot(run)
+    try:
+        source = capture_source_snapshot(run.run_dir / "source-provenance")
+        # The full file manifest is saved beside the archive, not repeated per attempt.
+        snapshot["source_provenance"] = {
+            key: value for key, value in source.items() if key not in {"files", "omitted"}
+        }
+        snapshot["environment"]["git_revision"] = source["git_revision"]
+        if not run.base_dir.resolve().is_relative_to(Path(source["source_root"])):
+            try:
+                project = capture_source_snapshot(
+                    run.run_dir / "project-provenance", root=run.base_dir
+                )
+                snapshot["project_provenance"] = {
+                    key: value for key, value in project.items() if key not in {"files", "omitted"}
+                }
+            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+                snapshot["project_provenance"] = {"status": "unavailable", "reason": str(error)}
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
+        snapshot["source_provenance"] = {"status": "unavailable", "reason": str(error)}
+        snapshot["environment"]["git_revision"] = None
     attempts = run.run_dir / "manifest-attempts.jsonl"
     with attempts.open("a", encoding="utf-8") as file:
         file.write(json.dumps(snapshot, sort_keys=True, default=str) + "\n")

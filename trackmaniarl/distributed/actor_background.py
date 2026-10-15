@@ -34,6 +34,7 @@ class BackgroundRuntime(SpoolRuntime, Protocol):
     stop_reason: str
     force_refresh: threading.Event
     evaluate: threading.Event
+    collect_allowed: threading.Event
     external_stop: Any | None
     client: Client
     _policy_ref: PolicyReference | None
@@ -221,6 +222,11 @@ def refresh_policy(runtime: BackgroundRuntime) -> None:
     response = runtime.client.call(
         "Policy", {**runtime._request_base(), "current_version": current}
     )
+    if runtime.spec.distributed.strict_update_budget:
+        if response.get("collect_allowed", True):
+            runtime.collect_allowed.set()
+        else:
+            runtime.collect_allowed.clear()
     if response["stop"]:
         runtime.stop_reason = "learner requested stop"
         runtime.stop.set()

@@ -27,7 +27,7 @@ class PaceDemonstrationRequest:
     path: str | Path
     geometry: GeometryAsset
     trajectory: np.ndarray
-    velocity_to_mps_scale: float = 0.001
+    velocity_to_mps_scale: float = 1.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,7 +35,7 @@ class PaceFrameRequest:
     frames: np.ndarray
     trajectory: np.ndarray
     finish_time_s: float
-    velocity_to_mps_scale: float = 0.001
+    velocity_to_mps_scale: float = 1.0
 
 
 @dataclass(frozen=True, slots=True)

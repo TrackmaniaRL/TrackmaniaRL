@@ -45,11 +45,12 @@ class SensorActorCriticModelFactory:
         encoder: ComponentSpec | Mapping[str, Any],
         config: SensorActorCriticConfig | Mapping[str, Any] | None = None,
     ) -> None:
+        algorithm = {"discrete-sac": "sd-sac", "dsac": "sd-sac"}.get(algorithm, algorithm)
         contracts = {
             "sac": ModelContract.CONTINUOUS_ACTOR_CRITIC,
             "redq": ModelContract.ENSEMBLE_ACTOR_CRITIC,
             "tqc": ModelContract.CONTINUOUS_QUANTILE_ACTOR_CRITIC,
-            "discrete-sac": ModelContract.DISCRETE_ACTOR_CRITIC,
+            "sd-sac": ModelContract.DISCRETE_ACTOR_CRITIC,
             "ppo": ModelContract.CONTINUOUS_ACTOR_VALUE,
         }
         if algorithm not in contracts:
@@ -69,7 +70,7 @@ class SensorActorCriticModelFactory:
         model = nn.Module()
         shape = self.config
         width = shape.feature_dim
-        if self.algorithm == "discrete-sac":
+        if self.algorithm == "sd-sac":
             model.actor = CategoricalActor(self._encoder(), width, shape.action_count)
             model.q1 = nn.Sequential(self._encoder(), nn.Linear(width, shape.action_count))
             model.q2 = nn.Sequential(self._encoder(), nn.Linear(width, shape.action_count))

@@ -50,7 +50,7 @@ def test_reference_pace_interpolates_monotonic_demo_progress() -> None:
     frames[:, 3] = [0.0, 1_000.0, 2_000.0]
     frames[:, 4] = [0.0, 1.0, 2.0]
     frames[-1, 2] = 1.0
-    frames[:, 16] = [10_000.0, 20_000.0, 30_000.0]
+    frames[:, 16] = [10.0, 20.0, 30.0]
 
     profile = ReferencePaceProfile.from_frames(PaceFrameRequest(frames, trajectory, 2.0))
 

@@ -10,6 +10,32 @@ def _result() -> EvaluationResult:
     return EvaluationResult(False, None, False, 0.0, 0.0, 0.0)
 
 
+def test_issued_commands_distinguish_no_gas_from_full_brake_and_missing_evidence() -> None:
+    observability = EvaluationObservability()
+    observability.record({"control/issued_command": [0, 0, -1 / 3]}, 1)
+    observability.record({"control/issued_command": [0, 1, 0]}, 1)
+    result = observability.annotated_result(_result(), 2)
+    assert result.issued_gas_mean == 0
+    assert result.issued_control_measurements_valid
+    assert len(result.issued_control_counts) == 2
+    observability.record({"control/issued_command": [1, -1, 0]}, 1)
+    assert sum(result.issued_control_counts.values()) == 2
+    missing = EvaluationObservability()
+    missing.record({"control_gas": 0, "input_gas": 0}, 1)
+    unknown = missing.annotated_result(_result(), 1)
+    assert unknown.issued_gas_mean is None
+    assert not unknown.issued_control_measurements_valid
+
+
+@pytest.mark.parametrize("control", [[True, 0, 0], [2, 0, 0], [0, 0, float("nan")], [0, 0]])
+def test_invalid_issued_controls_are_not_counted(control: list) -> None:
+    observability = EvaluationObservability()
+    observability.record({"control/issued_command": control}, 1)
+    result = observability.annotated_result(_result(), 1)
+    assert result.issued_control_measurement_count == 0
+    assert result.issued_gas_mean is None
+
+
 def test_step_race_time_measurements_are_counted_when_every_step_is_valid() -> None:
     observability = EvaluationObservability()
     observability.record({"step_race_time_ms": 40.0}, 1.0)

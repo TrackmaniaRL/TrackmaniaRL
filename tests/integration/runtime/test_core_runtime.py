@@ -207,6 +207,24 @@ def test_ppo_stack_validates_with_trackmania_control_bounds(tmp_path: Path) -> N
     assert "loss/policy" in metrics
 
 
+@pytest.mark.parametrize("rollout", [8, 2048])
+def test_ppo_validation_fits_exactly_one_live_rollout_capacity(
+    tmp_path: Path, rollout: int
+) -> None:
+    config = _algorithm_spec(tmp_path, "ppo-exact-replay", _PPO_COMPONENTS).model_dump(mode="json")
+    config["components"]["replay_store"]["kwargs"] = {"capacity": rollout}
+    config["training"].update(batch_size=1, sequence_length=rollout, total_transitions=rollout * 2)
+    run = resolve_run(RunSpec.model_validate(config))
+    try:
+        metrics = validate_resolved_run(run)
+        assert len(run.replay_store) == rollout
+        assert run.learner.state_dict()["processed_transitions"] == rollout
+        assert "loss/policy" in metrics
+        assert (run.run_dir / "checkpoints" / "validation.json").is_file()
+    finally:
+        run.logger.close()
+
+
 def test_runtime_rejects_sequence_training_for_nonrecurrent_tqc(tmp_path: Path) -> None:
     spec = _algorithm_spec(tmp_path, "tqc-sequence", _TQC_COMPONENTS)
     with pytest.raises(ValueError, match=r"TruncatedQuantileCritic.*sequence_length=1"):

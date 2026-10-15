@@ -30,7 +30,7 @@ class RewardConfig:
     finish_reward: float = 30.0
     potential_progress_weight: float = 2.0
     max_projected_speed_mps: float = 100.0
-    velocity_to_mps_scale: float = 0.001
+    velocity_to_mps_scale: float = 1.0
     projected_velocity_scale: float = 0.0
     projected_speed_bonus_scale: float = 0.0
     steering_delta_penalty: float = 0.0

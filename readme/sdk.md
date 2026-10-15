@@ -6,6 +6,10 @@ Start with the runnable [Python quickstart](python-quickstart.md).
 The [public API guide](public-api.md) distinguishes supported imports and
 extension contracts from internal implementation and research tooling.
 
+Start with the runnable [Python quickstart](python-quickstart.md).
+The [public API guide](public-api.md) distinguishes supported imports and
+extension contracts from internal implementation and research tooling.
+
 For image observations, use `trackmaniarl.trackmania.vision:VisionFeaturePipeline`
 and `trackmaniarl.trackmania.vision_models:VisionSensorEncoder`. The encoder fits
 `CompositeValueModelFactory`, and `VisionPpoModelFactory` supplies the bounded

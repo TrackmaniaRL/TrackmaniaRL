@@ -9,6 +9,7 @@ import torch
 from trackmaniarl.core.data import Transition
 
 _BEHAVIOR_KEYS = {
+    "behavior_entropies": "_trackmaniarl_behavior_entropy",
     "behavior_log_probabilities": "_trackmaniarl_behavior_log_probability",
     "behavior_values": "_trackmaniarl_behavior_value",
     "behavior_latent_actions": "_trackmaniarl_behavior_latent_action",

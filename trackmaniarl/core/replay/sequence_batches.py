@@ -50,6 +50,7 @@ def _reshaped_metadata(shape: _SequenceBatchShape) -> dict[str, Any]:
 
 
 _RECURRENT_METADATA = {
+    "behavior_entropies",
     "behavior_log_probabilities",
     "behavior_values",
     "behavior_latent_actions",

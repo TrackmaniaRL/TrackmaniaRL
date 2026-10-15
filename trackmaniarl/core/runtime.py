@@ -99,6 +99,8 @@ def _validate_training_contract(spec: RunSpec, components: _TrainingComponents) 
     _validate_sequence_contract(spec, components)
     _validate_burn_in(spec, components.learner)
     _validate_history_contract(spec, components.pipeline)
+    if spec.training.n_step != 1 and not getattr(components.learner, "supports_n_step", True):
+        raise ValueError("This learner requires training.n_step=1")
     if getattr(components.learner, "on_policy", False) and spec.training.n_step != 1:
         raise ValueError("on-policy training requires training.n_step=1")
     if getattr(components.learner, "on_policy", False):
@@ -219,8 +221,13 @@ def _resolve_evaluation_paths(spec: RunSpec, project_dir: Path) -> RunSpec:
 def _resolve_evaluation_map(item: EvaluationMapSpec, project_dir: Path) -> EvaluationMapSpec:
     return item.model_copy(
         update={
-            "map_path": _project_path(item.map_path, project_dir),
-            "geometry_path": _project_path(item.geometry_path, project_dir),
+            "map_path": _project_path(item.map_path, project_dir) if item.map_path else None,
+            "geometry_path": _project_path(item.geometry_path, project_dir)
+            if item.geometry_path
+            else None,
+            "reward_points_path": _project_path(item.reward_points_path, project_dir)
+            if item.reward_points_path
+            else None,
         }
     )
 

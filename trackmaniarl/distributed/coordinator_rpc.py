@@ -245,10 +245,15 @@ def policy(
 
 def _policy_response(coordinator: Coordinator, profile: int, current: int) -> dict[str, Any]:
     version = coordinator.counters.policy_version
+    spec = coordinator.run.spec.distributed
     return {
         "policy_version": version,
         "snapshot": coordinator._policy_payload if current != version else b"",
         "epsilon": coordinator._epsilon(profile),
+        "collect_allowed": (
+            not spec.strict_update_budget
+            or coordinator.counters.update_credit < spec.max_update_credit
+        ),
         "stop": coordinator._should_stop(),
     }
 

@@ -52,7 +52,11 @@ class FixedQuantileStrategy(nn.Module):
         targets: torch.Tensor,
         support: ValueSupport,
     ) -> torch.Tensor:
-        return quantile_huber_loss(predictions.float(), targets.float(), support.points)
+        # QR-DQN sums the losses of its learned quantiles and averages only
+        # over target samples (Algorithm 1, https://arxiv.org/abs/1710.10044).
+        # The shared helper averages both axes for the other strategies.
+        pairwise_mean = quantile_huber_loss(predictions.float(), targets.float(), support.points)
+        return pairwise_mean * self.quantile_count
 
     def auxiliary_parameters(self) -> tuple[nn.Parameter, ...]:
         return ()

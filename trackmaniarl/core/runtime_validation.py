@@ -50,7 +50,11 @@ class _ValidationReplay:
 
 def _populate_validation_replay(run: ResolvedRun, request: BatchRequest) -> None:
     # Both halves need complete sequences when the sampler reserves expert slots.
-    count = max(8, 2 * (request.batch_size + request.sequence_length + request.n_step - 2))
+    count = (
+        request.sequence_length
+        if getattr(run.learner, "on_policy", False)
+        else max(8, 2 * (request.batch_size + request.sequence_length + request.n_step - 2))
+    )
     context = _ValidationReplay(run, run.learner.policy(), count)
     for step in range(count):
         run.replay_store.append(_validation_transition(context, step))
@@ -85,7 +89,10 @@ def _validation_action(policy: Any, observation: Any) -> tuple[Any, dict[str, An
 def _validation_info(
     context: _ValidationReplay, step: int, policy_info: dict[str, Any]
 ) -> dict[str, Any]:
-    is_demo = step < context.transition_count // 2
+    is_demo = (
+        not getattr(context.run.learner, "on_policy", False)
+        and step < context.transition_count // 2
+    )
     return {
         "is_demo": is_demo,
         "sampling/projected_lap_time_s": 1.0 if is_demo else float("inf"),

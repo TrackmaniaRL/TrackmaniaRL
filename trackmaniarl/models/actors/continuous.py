@@ -102,7 +102,14 @@ class PpoGaussianActor(GaussianActor):
     def _initialize_weights(self) -> None:
         for module in self.encoder.modules():
             if isinstance(module, nn.Linear):
+                inert_projection = not torch.count_nonzero(module.weight) and (
+                    module.bias is None or not torch.count_nonzero(module.bias)
+                )
                 nn.init.orthogonal_(module.weight, math.sqrt(2.0))
+                # Preserve zero-initialized residual projections without changing
+                # the RNG consumed by the remaining PPO initialization.
+                if inert_projection:
+                    nn.init.zeros_(module.weight)
                 if module.bias is not None:
                     nn.init.zeros_(module.bias)
         nn.init.orthogonal_(self.mean.weight, 0.01)

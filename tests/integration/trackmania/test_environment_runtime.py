@@ -214,6 +214,109 @@ def test_environment_recovers_reset_timeout_with_finish_confirmation(
     assert calls == ["close", "enter", "delete"]
 
 
+@pytest.mark.parametrize("failures", [0, 1, 2])
+def test_first_reset_recovers_a_missing_finish_screen_frame(
+    monkeypatch: pytest.MonkeyPatch,
+    failures: int,
+) -> None:
+    calls: list[str] = []
+    remaining_failures = failures
+    race_times = iter((1000.0, 0.0, 50.0))
+
+    def read() -> TelemetryFrame:
+        nonlocal remaining_failures
+        calls.append("read")
+        if remaining_failures:
+            remaining_failures -= 1
+            raise TimeoutError("finish screen")
+        values = np.zeros(33, dtype=np.float32)
+        values[3] = next(race_times)
+        return TelemetryFrame(values)
+
+    environment = object.__new__(OpenPlanetEnvironment)
+    environment.client = SimpleNamespace(read=read, close=lambda: calls.append("close"))
+    environment.controller = _RecoveryController(calls)
+    environment._session = SimpleNamespace(confirm_ready=lambda _: calls.append("ready"))
+    environment.config = SimpleNamespace(
+        confirm_finish_before_reset=True,
+        start_timeout_s=1.0,
+        start_poll_s=0.0,
+        start_race_time_ms=0.0,
+    )
+    environment._expected_map_uid = "map"
+    environment._last_race_time_ms = None
+    environment._finish_confirmation_pending = True
+    monkeypatch.setattr("trackmaniarl.trackmania.environment.sleep", lambda _: None)
+
+    if failures == 2:
+        with pytest.raises(TimeoutError, match="finish screen"):
+            environment._restart_race()
+        assert "ready" not in calls
+    else:
+        assert float(environment._restart_race().values[3]) == 50.0
+        assert calls[-1] == "ready"
+    if failures:
+        assert calls[:6] == ["enter", "close", "delete", "read", "close", "enter"]
+        assert "delete" in calls
+    else:
+        assert calls[:4] == ["enter", "close", "delete", "read"]
+
+
+def test_first_reset_starts_telemetry_before_waiting_for_a_frame() -> None:
+    calls: list[str] = []
+
+    def read() -> TelemetryFrame:
+        assert "delete" in calls, "Finish screen produces no telemetry until reset"
+        calls.append("read")
+        values = np.zeros(33, dtype=np.float32)
+        values[3] = 50.0
+        return TelemetryFrame(values)
+
+    environment = object.__new__(OpenPlanetEnvironment)
+    environment.client = SimpleNamespace(read=read, close=lambda: calls.append("close"))
+    environment.controller = _RecoveryController(calls)
+    environment._session = SimpleNamespace(confirm_ready=lambda _: calls.append("ready"))
+    environment.config = SimpleNamespace(
+        confirm_finish_before_reset=True,
+        start_timeout_s=1.0,
+        start_poll_s=0.0,
+        start_race_time_ms=0.0,
+    )
+    environment._expected_map_uid = "map"
+    environment._last_race_time_ms = None
+    environment._finish_confirmation_pending = True
+    assert float(environment._restart_race().values[3]) == 50.0
+    assert calls == ["enter", "close", "delete", "read", "ready"]
+
+
+def test_first_reset_ignores_a_finished_frame() -> None:
+    environment = object.__new__(OpenPlanetEnvironment)
+    values = np.zeros(33, dtype=np.float32)
+    values[2:4] = (1.0, 20.0)
+    active = values.copy()
+    active[2:4] = (0.0, 50.0)
+    frames = iter((TelemetryFrame(values), TelemetryFrame(active)))
+    environment.client = SimpleNamespace(read=lambda: next(frames))
+    environment.config = SimpleNamespace(
+        start_timeout_s=1.0, start_poll_s=0.0, start_race_time_ms=0.0
+    )
+    assert float(environment._wait_for_active_run(None).values[3]) == 50.0
+
+
+def test_environment_closes_telemetry_when_controller_close_fails() -> None:
+    calls: list[str] = []
+
+    def close_controller() -> None:
+        raise RuntimeError("controller close")
+
+    environment = object.__new__(OpenPlanetEnvironment)
+    environment.controller = SimpleNamespace(close=close_controller)
+    environment.client = SimpleNamespace(close=lambda: calls.append("telemetry closed"))
+    with pytest.raises(RuntimeError, match="controller close"):
+        environment.close()
+    assert calls == ["telemetry closed"]
+
+
 def test_environment_recovery_skips_finish_confirmation_for_editor_validation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

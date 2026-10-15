@@ -1,4 +1,9 @@
-"""Progress-binned policy diagnostics for TrackMania runs."""
+"""Progress-binned policy diagnostics for TrackMania runs.
+
+``action_entropy`` is a compatibility alias for ``action_histogram_entropy_normalized``:
+entropy of the visited action histogram divided by log(action_count), not the
+policy's conditional entropy in nats. Missing Q measurements remain null.
+"""
 
 from __future__ import annotations
 
@@ -126,10 +131,10 @@ class ProgressBinDiagnostics:
             self._steer_switches[index] += 1
         self._previous_steer = steer
 
-    def summary(self) -> dict[str, dict[str, float]]:
+    def summary(self) -> dict[str, dict[str, float | None]]:
         return {self._name(index): self._bin_summary(index) for index in range(self.bin_count)}
 
-    def flat_summary(self) -> dict[str, float]:
+    def flat_summary(self) -> dict[str, float | None]:
         return {
             f"progress_bin/{name}/{metric}": value
             for name, metrics in self.summary().items()
@@ -145,7 +150,7 @@ class ProgressBinDiagnostics:
         end = (index + 1) * 100 // self.bin_count
         return f"{start:02d}_{end:03d}"
 
-    def _bin_summary(self, index: int) -> dict[str, float]:
+    def _bin_summary(self, index: int) -> dict[str, float | None]:
         counts = self._actions[index]
         samples = sum(counts)
         nonzero = [count for count in counts if count]
@@ -153,18 +158,23 @@ class ProgressBinDiagnostics:
         summary.update(self._timing_summary(index))
         return summary
 
-    def _action_summary(self, index: int, samples: int, nonzero: list[int]) -> dict[str, float]:
+    def _action_summary(
+        self, index: int, samples: int, nonzero: list[int]
+    ) -> dict[str, float | None]:
         margin_samples = self._q_margin_samples[index]
         maximum_samples = self._q_max_samples[index]
         return {
             "action_count": float(samples),
             "action_entropy": self._entropy(samples, nonzero),
+            "action_histogram_entropy_normalized": self._entropy(samples, nonzero),
             "action_coverage": len(nonzero) / self.action_count,
             "q_margin_mean": self._q_margin_totals[index] / margin_samples
             if margin_samples
-            else 0.0,
-            "q_margin_min": self._q_margin_minimums[index] if margin_samples else 0.0,
-            "q_max_mean": self._q_max_totals[index] / maximum_samples if maximum_samples else 0.0,
+            else None,
+            "q_margin_min": self._q_margin_minimums[index] if margin_samples else None,
+            "q_max_mean": self._q_max_totals[index] / maximum_samples if maximum_samples else None,
+            "q_margin_sample_count": float(margin_samples),
+            "q_max_sample_count": float(maximum_samples),
         }
 
     def _entropy(self, samples: int, nonzero: list[int]) -> float:
@@ -221,55 +231,73 @@ def _diagnostic_action_index(action: Any, action_count: int) -> int | None:
 
 
 def aggregate_progress_bins(
-    summaries: Iterable[Mapping[str, Mapping[str, float]]],
-) -> dict[str, float]:
+    summaries: Iterable[Mapping[str, Mapping[str, float | None]]],
+) -> dict[str, Any]:
     grouped = _group_progress_summaries(summaries)
-    result: dict[str, float] = {}
+    result: dict[str, Any] = {}
     for name, values in grouped.items():
         result.update(_aggregate_progress_bin(name, values))
     return result
 
 
 def _group_progress_summaries(
-    summaries: Iterable[Mapping[str, Mapping[str, float]]],
-) -> dict[str, list[Mapping[str, float]]]:
-    grouped: dict[str, list[Mapping[str, float]]] = {}
+    summaries: Iterable[Mapping[str, Mapping[str, float | None]]],
+) -> dict[str, list[Mapping[str, float | None]]]:
+    grouped: dict[str, list[Mapping[str, float | None]]] = {}
     for summary in summaries:
         for name, metrics in summary.items():
             grouped.setdefault(name, []).append(metrics)
     return grouped
 
 
-def _aggregate_progress_bin(name: str, values: list[Mapping[str, float]]) -> dict[str, float]:
-    result: dict[str, float] = {}
-    counts = [item["action_count"] for item in values]
-    total = sum(counts)
-    weights = [count / total for count in counts] if total else [0.0] * len(counts)
+def _aggregate_progress_bin(
+    name: str, values: list[Mapping[str, float | None]]
+) -> dict[str, float | None]:
+    result: dict[str, float | None] = {}
+    total = sum(float(item["action_count"] or 0.0) for item in values)
     prefix = f"progress_bin/{name}"
     result[f"{prefix}/action_count"] = total
-    result.update(_weighted_progress_metrics(prefix, values, weights))
-    minima = [item["q_margin_min"] for item in values if item["action_count"]]
-    result[f"{prefix}/q_margin_min"] = min(minima) if minima else 0.0
+    result.update(_weighted_progress_metrics(prefix, values))
+    minima = [
+        value
+        for item in values
+        if (value := item.get("q_margin_min")) is not None
+        and float(item.get("q_margin_sample_count", item["action_count"]) or 0.0) > 0.0
+    ]
+    result[f"{prefix}/q_margin_min"] = min(minima) if minima else None
     result.update(_observed_progress_metrics(prefix, values))
     return result
 
 
 def _weighted_progress_metrics(
-    prefix: str, values: list[Mapping[str, float]], weights: list[float]
-) -> dict[str, float]:
-    metrics = ("action_entropy", "action_coverage", "q_margin_mean", "q_max_mean")
-    return {
-        f"{prefix}/{metric}": sum(
-            weight * item[metric] for weight, item in zip(weights, values, strict=True)
+    prefix: str, values: list[Mapping[str, float | None]]
+) -> dict[str, float | None]:
+    result: dict[str, float | None] = {}
+    for metric in ("action_entropy", "action_coverage", "q_margin_mean", "q_max_mean"):
+        count_metric = metric.removesuffix("_mean") + "_sample_count"
+        observed = [
+            (measurement, float(item.get(count_metric, item["action_count"]) or 0.0))
+            for item in values
+            if (measurement := item.get(metric)) is not None
+        ]
+        count = sum(samples for _, samples in observed)
+        result[f"{prefix}/{metric}"] = (
+            sum(value * samples for value, samples in observed) / count
+            if count
+            else (None if metric.startswith("q_") else 0.0)
         )
-        for metric in metrics
-    }
+        if metric.startswith("q_"):
+            result[f"{prefix}/{count_metric}"] = count
+    result[f"{prefix}/action_histogram_entropy_normalized"] = result[f"{prefix}/action_entropy"]
+    return result
 
 
-def _observed_progress_metrics(prefix: str, values: list[Mapping[str, float]]) -> dict[str, float]:
+def _observed_progress_metrics(
+    prefix: str, values: list[Mapping[str, float | None]]
+) -> dict[str, float]:
     result: dict[str, float] = {}
     for metric in _TIMING_METRICS:
-        observed = [item[metric] for item in values if metric in item]
+        observed = [value for item in values if (value := item.get(metric)) is not None]
         if observed:
             result[f"{prefix}/{metric}"] = float(np.mean(observed))
     return result

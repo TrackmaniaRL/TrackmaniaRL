@@ -225,9 +225,13 @@ output/
 /experiments/*
 !/experiments/sub37/
 !/experiments/activation_film/
+!/experiments/tmrl_test_comparison/
 
 # Local training projects and validation outputs
 /campaign1*.yaml
 /assets/
 /demonstrations/
 .release-check-*/
+# Generated plans pin the agreed source checkout.
+/experiments/tmrl_test_comparison/team_campaign/campaign.json
+/experiments/tmrl_test_comparison/team_campaign/configs/

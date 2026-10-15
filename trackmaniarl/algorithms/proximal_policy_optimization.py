@@ -31,6 +31,13 @@ class _PpoPolicy:
         self.value = deepcopy(cast(Any, model).value).to(device).eval()
         self.device = device
         self.observation_normalizer = deepcopy(normalizer)
+        self._inference_warmed = False
+
+    def warm_up(self, observation: Any) -> None:
+        """Initialize inference kernels without sampling or changing training state."""
+        if not self._inference_warmed:
+            self._sample(observation, PolicyMode.EVALUATION)
+            self._inference_warmed = True
 
     def act(self, observation: Any, mode: PolicyMode = PolicyMode.ONLINE) -> np.ndarray[Any, Any]:
         action, _ = self._sample(observation, mode)

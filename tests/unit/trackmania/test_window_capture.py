@@ -211,7 +211,7 @@ def test_window_mode_is_explicit_and_rejects_legacy_demonstrations() -> None:
     factory = VisionEnvironmentFactory(
         {"geometry_path": "unused.npz"}, window_capture={}, include_telemetry=True
     )
-    with pytest.raises(ValueError, match="no RGB frames"):
+    with pytest.raises(ValueError, match="fixed-crop demonstrations are incompatible"):
         factory.load_demonstration("unused.npz", None)  # type: ignore[arg-type]
 
 

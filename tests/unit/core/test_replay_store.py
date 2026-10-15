@@ -8,10 +8,42 @@ from typing import Any, cast
 
 import numpy as np
 import pytest
+import torch
 
 from trackmaniarl.core.data import BatchRequest, PriorityUpdate, Transition
 from trackmaniarl.core.replay import InMemoryReplayStore, _n_step_transition
 from trackmaniarl.core.replay.n_step import _NStepInput
+
+
+@pytest.mark.parametrize("dtype", [torch.float32, torch.int64])
+def test_scalar_tensor_columns_survive_read_and_checkpoint_restore(dtype: torch.dtype) -> None:
+    store = InMemoryReplayStore(capacity=4)
+    store.append(
+        Transition(
+            observation=torch.tensor(3, dtype=dtype),
+            action=torch.tensor(1),
+            reward=-2.0,
+            next_observation=torch.tensor(4, dtype=dtype),
+            terminated=True,
+            truncated=False,
+            episode_id="scalar",
+            step=0,
+        )
+    )
+    restored = InMemoryReplayStore(capacity=4)
+    restored.load_state_dict(store.state_dict())
+    for item in (store, restored):
+        transition = item.get([0])[0]
+        assert transition.observation.shape == ()
+        assert transition.observation.dtype == dtype
+        assert transition.observation.item() == 3
+        assert transition.action.shape == ()
+        assert transition.action.item() == 1
+        transition.observation.fill_(99)
+        assert item.get([0])[0].observation.item() == 3
+        materialized, discounts = item.materialize_n_step([0], BatchRequest(1, gamma=0.995))
+        assert materialized[0].next_observation.item() == 4
+        assert discounts == [0.0]
 
 
 class _Boundary(Enum):

@@ -204,3 +204,38 @@ def test_slowest_finish_is_better_than_a_near_complete_failure() -> None:
     assert slowest_finish == pytest.approx(86.25)
     assert near_complete_failure < 40.0
     assert slowest_finish > near_complete_failure
+
+
+def _hairpin(radius: float) -> np.ndarray:
+    """50 m straight, a 180-degree turn around (0, 0, 30) and 50 m back, one point per metre."""
+
+    straight = np.arange(-50.0, 0.0)
+    arc = np.linspace(-np.pi / 2, np.pi / 2, max(2, int(np.pi * radius)))
+    points = [
+        *((x, 0.0, 30.0 - radius) for x in straight),
+        *((radius * np.cos(a), 0.0, 30.0 + radius * np.sin(a)) for a in arc),
+        *((x, 0.0, 30.0 + radius) for x in straight[::-1]),
+    ]
+    return np.asarray(points, dtype=np.float32)
+
+
+def test_corner_cutting_lap_reaches_the_kinematically_limited_finish() -> None:
+    centerline = _hairpin(30.0)
+    racing_line = _hairpin(24.0)
+    arc = np.r_[0.0, np.cumsum(np.linalg.norm(np.diff(racing_line, axis=0), axis=1))]
+    reward = TrajectoryReward(centerline, RewardConfig(limit_progress_by_kinematics=True))
+    reward.reset(racing_line[0], velocity=_ORIGIN, race_time_ms=0.0)
+
+    result: RewardResult | None = None
+    for step, distance in enumerate(np.arange(2.0, arc[-1] + 2.0, 2.0), start=1):
+        position = np.array(
+            [np.interp(min(distance, arc[-1]), arc, racing_line[:, axis]) for axis in range(3)]
+        )
+        state = _FinishState.FINISHED if distance >= arc[-1] else _FinishState.RUNNING
+        result = reward.step(_stationary_transition(position, step * 50.0, state))
+        if result.terminated:
+            break
+
+    assert arc[-1] < 0.95 * reward._cumulative_distance[-1]
+    assert result is not None
+    assert result.reason == "finished"

@@ -54,7 +54,7 @@ class SensorEnvironmentFactory:
 
 
 @pytest.mark.parametrize(
-    "algorithm", ["q", "qr", "iqn", "fqf", "sac", "redq", "tqc", "discrete-sac", "ppo"]
+    "algorithm", ["q", "qr", "iqn", "fqf", "sac", "redq", "tqc", "sd-sac", "ppo"]
 )
 @pytest.mark.parametrize("fusion", [False, True])
 def test_sensor_update_train_and_resume(tmp_path: Path, algorithm: str, *, fusion: bool) -> None:

@@ -64,6 +64,52 @@ def test_metric_accumulator_averages_each_metric_over_its_own_observations() -> 
     assert metrics.flush() == {}
 
 
+def test_terminal_mae_weights_samples_and_excludes_empty_batches() -> None:
+    metrics = _MetricAccumulator()
+    for count, error in ((0, 0), (1, 8), (3, 6), (0, 0)):
+        metrics.add(
+            {
+                "critic/terminal_samples": count,
+                "critic/terminal_td_abs_error_sum": error,
+                "critic/terminal_td_mae": error / max(count, 1),
+            }
+        )
+    output = metrics.flush()
+    assert output["critic/terminal_td_mae"] == 3.5
+    assert output["critic/terminal_samples_total"] == 4
+    # Existing per-batch statistics retain their original units.
+    assert output["critic/terminal_samples"] == 1
+    assert output["critic/terminal_td_abs_error_sum"] == 3.5
+    assert metrics.flush() == {}
+
+    metrics.add(
+        {
+            "critic/terminal_samples": 0,
+            "critic/terminal_td_abs_error_sum": 0,
+            "critic/terminal_td_mae": 0,
+        }
+    )
+    output = metrics.flush()
+    assert output["critic/terminal_td_mae"] == 0
+    assert output["critic/terminal_samples_total"] == 0
+
+
+def test_terminal_mae_does_not_combine_unpaired_statistics() -> None:
+    metrics = _MetricAccumulator()
+    metrics.add({"critic/terminal_td_mae": 8, "critic/terminal_samples": 1})
+    metrics.add({"critic/terminal_td_abs_error_sum": 8})
+    assert "critic/terminal_td_mae" not in metrics.flush()
+
+    metrics.add(
+        {
+            "critic/terminal_samples": 2,
+            "critic/terminal_td_abs_error_sum": 6,
+            "critic/terminal_td_mae": 3,
+        }
+    )
+    assert metrics.flush()["critic/terminal_td_mae"] == 3
+
+
 def test_online_partial_progress_is_not_mislabeled_as_an_elite_lap() -> None:
     partial = replay_info_for_transition({"progress_pct": 75.0, "race_time_ms": 27_000.0})
     expert = replay_info_for_transition(

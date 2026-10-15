@@ -63,8 +63,20 @@ class _MetricAccumulator:
         self.values: dict[str, float] = {}
         self.counts: dict[str, int] = {}
         self.maximums: dict[str, float] = {}
+        self.terminal_error_sum = 0.0
+        self.terminal_samples = 0.0
+        self.terminal_observations = 0
 
     def add(self, metrics: Mapping[str, float]) -> None:
+        terminal_fields = (
+            "critic/terminal_td_mae",
+            "critic/terminal_td_abs_error_sum",
+            "critic/terminal_samples",
+        )
+        if all(key in metrics for key in terminal_fields):
+            self.terminal_error_sum += float(metrics["critic/terminal_td_abs_error_sum"])
+            self.terminal_samples += float(metrics["critic/terminal_samples"])
+            self.terminal_observations += 1
         for key, value in metrics.items():
             numeric = float(value)
             if key.endswith("_max"):
@@ -78,9 +90,25 @@ class _MetricAccumulator:
             return {}
         output = {key: value / self.counts[key] for key, value in self.values.items()}
         output.update(self.maximums)
+        terminal_mae = "critic/terminal_td_mae"
+        if terminal_mae in output:
+            # Empty batches must not dilute the error on actual terminal samples.
+            if self.terminal_observations == self.counts[terminal_mae]:
+                output[terminal_mae] = (
+                    self.terminal_error_sum / self.terminal_samples
+                    if self.terminal_samples > 0
+                    else 0.0
+                )
+                output["critic/terminal_samples_total"] = self.terminal_samples
+            else:
+                # Unpaired statistics cannot support a sample-weighted mean.
+                del output[terminal_mae]
         self.values.clear()
         self.counts.clear()
         self.maximums.clear()
+        self.terminal_error_sum = 0.0
+        self.terminal_samples = 0.0
+        self.terminal_observations = 0
         return output
 
 

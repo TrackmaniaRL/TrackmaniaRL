@@ -39,7 +39,7 @@ def _raw_observation() -> np.ndarray:
     observation = np.zeros(33, dtype=np.float32)
     observation[4:7] = [0, 0, 0]
     observation[10:13] = [1, 0, 0]
-    observation[7], observation[16], observation[17] = 20_000.0, 40_000.0, 5_000.0
+    observation[7], observation[16], observation[17] = 20.0, 40.0, 5_000.0
     observation[30] = -0.5
     return observation
 
@@ -48,7 +48,7 @@ def _pace_reference(tmp_path: Path, geometry: BoundaryGeometry) -> tuple[np.ndar
     frames = np.zeros((geometry.recorded_count, 33), dtype=np.float32)
     frames[:, 3] = np.linspace(0.0, 5_000.0, geometry.recorded_count)
     frames[:, 4:7] = geometry.racing_line
-    frames[:, 16] = np.linspace(20_000.0, 40_000.0, geometry.recorded_count)
+    frames[:, 16] = np.linspace(20.0, 40.0, geometry.recorded_count)
     frames[-1, 2] = 1.0
     path = tmp_path / "pace.npz"
     np.savez_compressed(

@@ -265,6 +265,11 @@ def _register_bc_benchmark(commands: CommandParsers) -> None:
     parser.add_argument("checkpoint", type=Path)
     parser.add_argument("--trials", type=int, default=30)
     parser.add_argument(
+        "--device",
+        choices=("cpu", "cuda", "auto"),
+        help="override inference device without changing the BC training configuration",
+    )
+    parser.add_argument(
         "--report-only",
         action="store_true",
         help="report a failed rollout gate without returning a failing process exit code",

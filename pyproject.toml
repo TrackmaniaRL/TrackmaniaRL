@@ -120,6 +120,7 @@ dev = [
     "wandb>=0.15.8",
     "matplotlib>=3.10.8",
     "plotly>=7.0.0",
+    "psutil>=7.2.2",
 ]
 
 [project.scripts]

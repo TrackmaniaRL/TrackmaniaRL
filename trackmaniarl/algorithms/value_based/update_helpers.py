@@ -203,6 +203,15 @@ def demonstration_diagnostics(
         "debug/demo_sample_fraction": _mask_fraction(valid_demo, inputs.valid),
         "debug/demo_accuracy": _masked_fraction(correct, valid_demo),
     }
+    if valid_demo.any():
+        values = learner._masked(inputs.expected.detach())
+        expert = values.gather(-1, inputs.actions.unsqueeze(-1)).squeeze(-1)
+        others = values.scatter(-1, inputs.actions.unsqueeze(-1), -torch.inf).amax(dim=-1)
+        gaps = (expert - others)[valid_demo]
+        finite = gaps[torch.isfinite(gaps)]
+        if finite.numel():
+            metrics["debug/demo_q_gap_mean"] = float(finite.mean())
+            metrics["debug/demo_q_gap_negative_fraction"] = float((finite < 0).float().mean())
     switches = inputs.metadata.get("demonstration_steering_switches")
     if switches is None:
         return metrics

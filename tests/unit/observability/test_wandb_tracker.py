@@ -30,6 +30,24 @@ def _assert_update_axes(run: _FakeRun) -> None:
     assert update["health/wal_pending_payload_bytes"] == 1_024
 
 
+def test_rollout_uses_cumulative_transition_axis(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    run = _FakeRun()
+    tracker, _ = _tracker(monkeypatch, tmp_path, run)
+    tracker.log(
+        "train/rollout",
+        {"finished_episodes": 2, "transitions": 2048, "counters": {"transitions": 4096}},
+        step=1,
+    )
+    tracker.close()
+    event = _metric_event(run, "rollout/finished_episodes")
+    assert event["rollout/finished_episodes"] == 2
+    assert event["rollout/transitions"] == 2048
+    assert event["env/transitions"] == 4096
+
+
 def _assert_bounded_metric_catalog(run: _FakeRun) -> None:
     update = _metric_event(run, "learner/loss_total")
     assert update["learner/action_batch_entropy"] == 0.8
@@ -169,6 +187,7 @@ def _assert_configuration(scenario: _Scenario) -> None:
     assert definitions["expert/*"] == {"step_metric": "expert/transitions"}
     assert definitions["learner/*"] == {"step_metric": "trainer/update"}
     assert definitions["episode/*"] == {"step_metric": "env/episode"}
+    assert definitions["rollout/*"] == {"step_metric": "env/transitions"}
     assert definitions["evaluation/*"] == {"step_metric": "eval/batch"}
     assert definitions["health/*"] == {"step_metric": "runtime/elapsed_s"}
     assert scenario.wandb.init_kwargs["name"] == "run-17"

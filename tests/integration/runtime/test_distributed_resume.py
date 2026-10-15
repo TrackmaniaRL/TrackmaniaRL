@@ -76,6 +76,7 @@ def _restore_run(parts: _RestoreParts) -> SimpleNamespace:
             distributed=SimpleNamespace(
                 max_message_bytes=1024 * 1024,
                 max_update_credit=512,
+                strict_update_budget=False,
             ),
             evaluation=None,
         ),

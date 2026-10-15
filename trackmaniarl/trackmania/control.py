@@ -14,9 +14,11 @@ from trackmaniarl.trackmania.keyboard_control import (
     KeyboardController as KeyboardController,
 )
 from trackmaniarl.trackmania.keyboard_control import (
+    ResetGuard,
     restart_trackmania_editor_validation,
     restart_trackmania_race,
 )
+from trackmaniarl.trackmania.steering_curve import SteeringCurve
 
 
 @runtime_checkable
@@ -74,7 +76,12 @@ def _vgamepad_module() -> Any:
 
 
 class GamepadController:
-    """Virtual XInput controller with an explicit TrackMania restart action."""
+    """Virtual XInput controller with an explicit TrackMania restart action.
+
+    With a measured ``steering_curve`` the requested steer is what the game applies:
+    the controller sends the stick position that the game's own analog curve turns
+    into that steer. Without one, steer is sent as a raw stick position.
+    """
 
     _CONFIRM_BUTTON = 0x1000  # Xbox A; menu Select binding.
     _RESTART_BUTTON = 0x2000  # Xbox B; TrackMania's default Give Up binding.
@@ -83,13 +90,15 @@ class GamepadController:
         self,
         *,
         restart_input: Literal["gamepad", "keyboard", "editor_validation"] = "gamepad",
+        steering_curve: SteeringCurve | None = None,
     ) -> None:
         self._gamepad = _vgamepad_module().VX360Gamepad()
+        self._steering_curve = steering_curve
         self._tap_lock = RLock()
         self._collision_lock = RLock()
         self._collision_detected = False
         self._restart_input = restart_input
-        self._vibration_callback = _VibrationCallback(self)
+        self._vibration_callback: _VibrationCallback | None = _VibrationCallback(self)
         self._gamepad.register_notification(callback_function=self._vibration_callback)
 
     def _record_vibration(self, large_motor: int) -> None:
@@ -105,14 +114,23 @@ class GamepadController:
             self._collision_detected = False
         return collision_detected
 
+    def _open_gamepad(self) -> Any:
+        if self._gamepad is None:
+            raise RuntimeError("GamepadController is closed")
+        return self._gamepad
+
     def _apply(self, action: np.ndarray) -> None:
+        gamepad = self._open_gamepad()
         gas, brake, steer = np.clip(
             np.nan_to_num(action, nan=0.0), [-0.0, 0.0, -1.0], [1.0, 1.0, 1.0]
         )
-        self._gamepad.right_trigger_float(float(gas))
-        self._gamepad.left_trigger_float(float(brake))
-        self._gamepad.left_joystick_float(float(steer), 0.0)
-        self._gamepad.update()
+        stick = float(steer)
+        if self._steering_curve is not None:
+            stick = self._steering_curve.stick_for(stick)
+        gamepad.right_trigger_float(float(gas))
+        gamepad.left_trigger_float(float(brake))
+        gamepad.left_joystick_float(stick, 0.0)
+        gamepad.update()
 
     def apply(self, action: np.ndarray) -> None:
         with self._tap_lock:
@@ -132,17 +150,30 @@ class GamepadController:
             return
         self.apply(control)
 
-    def reset(self) -> None:
-        """Release controls and request a TrackMania restart before an episode."""
+    def reset(self, *, guard: ResetGuard | None = None) -> None:
+        """Release controls and request a TrackMania restart before an episode.
+
+        The optional guard supervises keyboard/editor reset keys and waits.
+        Native gamepad restart only checks the guard at entry.
+        """
 
         with self._tap_lock:
-            self._gamepad.reset()
-            self._gamepad.update()
+            if guard is not None:
+                guard.check()
+            gamepad = self._open_gamepad()
+            gamepad.reset()
+            gamepad.update()
             match self._restart_input:
                 case "keyboard":
-                    restart_trackmania_race()
+                    if guard is None:
+                        restart_trackmania_race()
+                    else:
+                        restart_trackmania_race(guard=guard)
                 case "editor_validation":
-                    restart_trackmania_editor_validation()
+                    if guard is None:
+                        restart_trackmania_editor_validation()
+                    else:
+                        restart_trackmania_editor_validation(guard=guard)
                 case "gamepad":
                     self._restart_with_gamepad()
         self.consume_collision()
@@ -151,11 +182,12 @@ class GamepadController:
         self._tap_button(self._RESTART_BUTTON)
 
     def _tap_button(self, button: int) -> None:
-        self._gamepad.press_button(button=button)
-        self._gamepad.update()
+        gamepad = self._open_gamepad()
+        gamepad.press_button(button=button)
+        gamepad.update()
         sleep(0.1)
-        self._gamepad.release_button(button=button)
-        self._gamepad.update()
+        gamepad.release_button(button=button)
+        gamepad.update()
 
     def confirm_finish(self) -> None:
         """Confirm TrackMania menus through the active virtual controller."""
@@ -165,8 +197,20 @@ class GamepadController:
 
     def close(self) -> None:
         with self._tap_lock:
-            self._gamepad.reset()
-            self._gamepad.update()
+            gamepad = self._gamepad
+            if gamepad is None:
+                return
+            try:
+                gamepad.reset()
+                gamepad.update()
+            finally:
+                try:
+                    gamepad.unregister_notification()
+                finally:
+                    # Break the pad/callback/controller cycle so the driver's
+                    # destructor detaches the device as soon as close returns.
+                    self._gamepad = None
+                    self._vibration_callback = None
 
 
 class RecordingController:

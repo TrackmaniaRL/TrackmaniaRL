@@ -70,6 +70,15 @@ process and virtual controller run natively. WSL is not a supported game host.
    uv run trackmaniarl track check --config run.yaml
    ```
 
+The multi-computer comparison campaign uses editor-validation resets rather than
+native gamepad Give Up. On Linux that reset path additionally requires a local
+X11 session and `xdotool`, with Trackmania already focused. It rejects Wayland,
+SSH and headless sessions and does not activate background windows. See the
+[current Windows/Linux campaign guide](../experiments/tmrl_test_comparison/team_campaign/START_HERE.md)
+for native Python launch commands and mandatory host/game checks. The Linux
+reset implementation has software tests; a successful local game preflight is
+still required before a long run.
+
 Install **TrackmaniaRL Connect** from Openplanet's in-game Plugin Manager just as
 on Windows. The native Python process and the Proton game share localhost, so no
 port forwarding is required. If Openplanet stops loading after a Trackmania
@@ -109,6 +118,28 @@ analog model output to digital gas/brake and left/right input, with a steering
 dead zone and cannot provide rumble collision signals. The choice belongs to
 the environment, not the model, so the same policy can drive either backend.
 expect different driving dynamics after analog-to-digital conversion.
+
+### Check the gamepad's steering curve
+
+Trackmania bends the virtual stick through its own **Analog Sensitivity** and
+**Analog Dead Zone** (Settings > Controls, per car) before the car steers. At a
+low sensitivity the smaller steering levels all drive straight: on one measured
+install at sensitivity 0.1 and dead zone 0.05, 7 of the 13 default levels steered
+identically, so the policy could not tell them apart. With the car sitting on a
+loaded map and no gas, measure it:
+
+```powershell
+uv run trackmaniarl track check-steering --output assets/steering-curve.json
+```
+
+The command reports how many steering levels steer differently. Either set the
+sensitivity to 1.0 and the dead zone to its minimum and measure again, or keep the
+measured curve and point the environment at it. The gamepad backend then sends
+the stick position that produces each requested steer:
+
+```yaml
+        steering_curve_path: assets/steering-curve.json
+```
 
 Before starting separate `learner` or `actor` commands, generate one random
 distributed token and store the same value as
@@ -156,6 +187,14 @@ episode, then confirms a ready local player after controller reset. A timeout,
 disconnect, UID mismatch or readiness rejection terminates the actor with a
 failing process status. The protocol does not expose the plugin package's
 signature or version. Verify those properties in Plugin Manager.
+
+Comparison launchers use a separate bounded preflight that verifies the map and
+player before issuing one reset, then polls for an active unfinished race near
+the start. It honors stop files during socket reads, records the last clock,
+finish flag and failure phase, and closes its temporary controller and telemetry
+connection. It does not press a finish-confirmation button blindly. Keyboard
+restart/confirmation also verifies that Trackmania is the foreground window;
+failed activation raises before any key is sent.
 
 The reference baseline is a 78-action dueling IQN (`13` steering levels × `2`
 gas levels × no brake, full brake, or timed brake tap), not TQC. With default

@@ -28,3 +28,9 @@ class CategoricalActor(nn.Module):
 
     def probabilities(self, observation: Any) -> torch.Tensor:
         return cast(torch.Tensor, self.logits(self.encoder(observation)).softmax(dim=-1))
+
+    def log_probabilities(self, observation: Any) -> torch.Tensor:
+        """Keep gradients for unlikely actions even when their probabilities underflow."""
+        return cast(
+            torch.Tensor, self.logits(self.encoder(observation)).float().log_softmax(dim=-1)
+        )

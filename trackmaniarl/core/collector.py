@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from time import perf_counter
 from typing import Any, Protocol
 
+from trackmaniarl.core.collection_timing import defer_rollout_gc
 from trackmaniarl.core.contracts import FeaturePipeline, Policy, ReplayStore
 from trackmaniarl.core.data import EpisodeArtifact, Transition
 
@@ -79,6 +80,7 @@ class RolloutCollectionConfig:
     max_episode_steps: int
     seed: int = 0
     start_episode_index: int = 0
+    reset_at_rollout_end: bool = False
 
 
 @dataclass(slots=True)
@@ -236,15 +238,41 @@ class FixedStepRolloutCollector:
         self.episode_step = 0
         self.prepared: Any = None
         self.reset_info: Mapping[str, Any] = {}
+        self.reset_at_rollout_end = config.reset_at_rollout_end
+        self._ending_rollout = False
 
     def set_policy(self, policy: Policy) -> None:
         self.policy = policy
 
     def collect(self, transition_count: int, rollout_id: str) -> CollectionResult:
+        self._warm_up_policy()
+        with defer_rollout_gc(reset_at_rollout_end=self.reset_at_rollout_end):
+            return self._collect_rollout(transition_count, rollout_id)
+
+    def _warm_up_policy(self) -> None:
+        if self.prepared is not None:
+            return
+        warm_up = getattr(self.policy, "warm_up", None)
+        synthetic = getattr(self.pipeline, "synthetic_observation", None)
+        if not callable(warm_up) or not callable(synthetic):
+            return
+        # No environment reset has occurred yet. The cold forward pass and its
+        # device transfers must finish before the race clock starts.
+        warm_up(self.pipeline.transform_observation(synthetic()))
+        self._reset_episode_state()
+
+    def _collect_rollout(self, transition_count: int, rollout_id: str) -> CollectionResult:
         trace = _RolloutTrace()
         for rollout_step in range(transition_count):
+            self._ending_rollout = (
+                self.reset_at_rollout_end and rollout_step == transition_count - 1
+            )
             self._ensure_episode()
             trace.record(rollout_step, self._collect_rollout_step())
+        if self.reset_at_rollout_end:
+            release = getattr(self.environment, "release_controls", None)
+            if callable(release):
+                release()
         return self._rollout_result(transition_count, rollout_id, trace)
 
     def _collect_rollout_step(self) -> tuple[Mapping[str, Any], float, bool, Any]:
@@ -298,6 +326,10 @@ class FixedStepRolloutCollector:
         next_observation, reward, terminated, truncated, info = self.environment.step(action)
         self.episode_step += 1
         end_state = self._apply_episode_limit(_EpisodeEndState(terminated, truncated, info))
+        if self._ending_rollout and not end_state.terminated and not end_state.truncated:
+            end_state = _EpisodeEndState(
+                False, True, {**end_state.info, "termination_reason": "rollout_boundary"}
+            )
         truncated, info = end_state.truncated, end_state.info
         next_prepared = self.pipeline.transform_observation(next_observation)
         transition = self._rollout_transition(

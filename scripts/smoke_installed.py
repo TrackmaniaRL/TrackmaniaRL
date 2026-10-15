@@ -98,7 +98,7 @@ def _validate_game_configurations(directory: Path) -> None:
         "run-sac",
         "run-redq",
         "run-tqc",
-        "run-discrete-sac",
+        "run-sd-sac",
         "run-ppo",
         "run-ppo-vision",
     ):

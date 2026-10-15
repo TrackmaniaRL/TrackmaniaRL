@@ -36,7 +36,7 @@ _METRIC_PATTERNS = {
         "performance/*",
         "replay/*",
     ),
-    "env/transitions": ("pipeline/*",),
+    "env/transitions": ("pipeline/*", "rollout/*"),
     "env/episode": ("episode/*",),
     "eval/batch": ("evaluation/*",),
     "expert/transitions": ("expert/*",),
@@ -260,6 +260,9 @@ class WandbTracker:
         values["runtime/elapsed_s"] = monotonic() - self._started_at
         values.update(self._event_axis(context))
         transitions = context.payload.get("transitions", self._latest_ingest.get("transitions"))
+        counters = context.payload.get("counters")
+        if isinstance(counters, Mapping):
+            transitions = counters.get("transitions", transitions)
         if transitions is not None:
             values["env/transitions"] = int(transitions)
 

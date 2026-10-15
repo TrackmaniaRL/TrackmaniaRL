@@ -246,7 +246,9 @@ def build_geometry_asset(request: GeometryBuildRequest) -> Path:
 class BoundaryGeometry:
     """Validated read-only boundary asset used by collection and evaluation."""
 
-    def __init__(self, path: str | Path, *, expected_map_uid: str | None = None) -> None:
+    def __init__(self, path: str | Path | None, *, expected_map_uid: str | None = None) -> None:
+        if path is None:
+            raise ValueError("this operation requires boundary geometry, not reward points alone")
         self.path = Path(path)
         self._load_asset()
         self._validate_asset(expected_map_uid)
@@ -321,9 +323,11 @@ class BoundaryGeometry:
 
         return self._racing_line
 
-    def validate_map(self, map_path: str | Path) -> None:
+    def validate_map(self, map_path: str | Path | None) -> None:
         """Reject missing map files and assets built from a different local map binary."""
 
+        if map_path is None:
+            raise ValueError("boundary geometry requires a map file for checksum validation")
         path = Path(map_path)
         if not path.is_file():
             raise ValueError(f"evaluation map file does not exist: {path}")

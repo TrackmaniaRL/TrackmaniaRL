@@ -157,7 +157,9 @@ class _TreeColumns:
             return [self._read_node(child, slot) for child in spec[1]]
         value = self.arrays[spec[1]][slot]
         if spec[2] == "tensor":
-            return torch.from_numpy(value)
+            # Indexing a scalar tensor column returns a NumPy scalar. Restore
+            # its zero-dimensional shape before converting it back to a tensor.
+            return torch.from_numpy(np.asarray(value))
         if spec[2] == "ndarray":
             return value
         return value.item()

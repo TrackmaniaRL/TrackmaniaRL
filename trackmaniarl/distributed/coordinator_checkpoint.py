@@ -348,10 +348,11 @@ def _restore_distributed(
         distributed.pop("fastest_evaluation_rank", None)
     )
     coordinator.counters = _Counters(**distributed)
-    coordinator.counters.update_credit = min(
-        coordinator.counters.update_credit,
-        float(coordinator.run.spec.distributed.max_update_credit),
-    )
+    if not coordinator.run.spec.distributed.strict_update_budget:
+        coordinator.counters.update_credit = min(
+            coordinator.counters.update_credit,
+            float(coordinator.run.spec.distributed.max_update_credit),
+        )
     load_state_dict(coordinator.run.replay_store, state["replay_store"])
     load_state_dict(coordinator.run.sampler, state["sampler"])
     coordinator._recover_journal(coordinator.counters.journal_applied_frontier)

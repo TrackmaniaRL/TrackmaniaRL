@@ -1,5 +1,16 @@
 # Configuration reference
 
+Torch learners accept `components.learner.kwargs.execution.torch_threads`
+(optional positive integer). It limits process-wide CPU intra-op parallelism,
+including CPU work in a CUDA learner, before model setup. Omission preserves
+the Torch default. Actor threads remain controlled separately by
+`distributed.actor_execution.torch_threads`.
+
+Local `train` and `resume` accept `--stop-file PATH`. Creating that file requests
+normal shutdown and a final checkpoint without sending a console interrupt.
+An existing stop file is rejected before starting child processes; remove it
+before resuming. Check final checkpoint completion before closing the launcher.
+
 A RunSpec YAML file is the public runtime configuration boundary in 1.2.11.
 The generated choices are `run.yaml`, `run-sac.yaml`, `run-redq.yaml`,
 `run-tqc.yaml`, `run-discrete-sac.yaml`, `run-ppo.yaml` and `run-ppo-vision.yaml`.
@@ -75,6 +86,7 @@ Relative asset paths are resolved against the directory containing
 | `n_step` | positive int, `1` | Bellman horizon. It must be smaller than `sequence_length` for recurrent replay, terminal stops bootstrap, truncation does not. |
 | `gamma` | float, `0.99` | Discount in `[0,1]`. For first-party Trackmania rewards it must equal `components.environment.kwargs.config.reward_gamma`. |
 | `beta` | float or null, null | Request-time PER importance exponent. When set, it overrides the sampler's constructor `beta`. |
+| `reset_after_on_policy_rollout` | `false` | Reset the environment between completed on-policy rollouts when explicitly enabled; never carry stale collection state across an update. |
 | `warmup_transitions` | int, `1000` | Replay items collected before the first off-policy update, no deferred update debt is accumulated. |
 | `offline_pretrain_updates` | int, `0` | Updates performed from loaded demonstration replay before actors start. |
 | `updates_per_transition` | finite float `>0`, `1.0` | Off-policy update-to-data ratio. High values improve reuse but amplify stale-policy and overfitting risk. |
@@ -118,6 +130,7 @@ not encrypt. Bind to loopback and use an encrypted tunnel.
 | `max_message_bytes` | `16777216` | Compressed and decompressed wire bound. |
 | `soft_policy_lag_updates` / `hard_policy_lag_updates` | `1000` / `5000` | Refresh warning and rejection thresholds measured in learner updates. |
 | `max_update_credit` | `512` | Caps accumulated learner update debt after bursts. |
+| `strict_update_budget` | `false` | Pause actors between episodes until learner update credit is available. |
 | `epsilon_profiles` | `[1,.4,.1,.02]` | Multipliers assigned by stable actor ID. Each value is in `[0,1]`. |
 | `epsilon_start` / `epsilon_final` | `.5` / `.05` | Base epsilon schedule in `[0,1]`. |
 | `epsilon_decay_transitions`, `epsilon_decay_updates` | `1500000`, null | Transition decay is the default, a positive update count switches the epsilon schedule axis to learner updates. |
@@ -135,7 +148,7 @@ not encrypt. Bind to loopback and use an encrypted tunnel.
 ## `evaluation`
 
 `evaluation` is a versioned local asset suite, not a random-seed benchmark.
-`maps[]` contains `id`, `map_path`, `geometry_path` and `expected_map_uid`.
+`maps[]` contains `id`, `expected_map_uid` and a geometry or reward-points asset.
 Map IDs are unique and every path is bound into evaluation provenance.
 
 | Field | Default | Effect |
@@ -155,14 +168,17 @@ Each `maps[]` item has an immutable local asset identity:
 | Field | Default | Effect |
 | --- | --- | --- |
 | `id` | required | Unique safe identifier used in evaluation results and artifact names. |
-| `map_path` | required | Local `.Map.Gbx` loaded for this evaluation case. |
-| `geometry_path` | required | Matching versioned geometry used for feature/reward contracts. |
+| `map_path` | null | Local `.Map.Gbx`; required with boundary geometry or checksum-bound reward points. Official campaign reward points may use live UID identity only. |
+| `geometry_path` | null | Matching versioned boundary geometry. Configure exactly one of this and `reward_points_path`. |
+| `reward_points_path` | null | Recorded 3D reward path without road boundaries. Its UID must match the live session; a local map checksum is optional when recording official campaign maps. |
 | `expected_map_uid` | required | UID that the live session must report, a mismatch fails before driving. |
 
 ## Trackmania environment
 
 The paths below are under `components.environment.kwargs.config`.
-`geometry_path` is required because it binds map UID/hash and track boundaries.
+Configure exactly one of `geometry_path` and `reward_points_path`. The latter
+supports camera agents without recording track boundaries; it cannot supply
+LiDAR observations, racing-line optimization or a reference pace profile.
 
 ### Connection, controls and termination
 
@@ -176,6 +192,7 @@ The paths below are under `components.environment.kwargs.config`.
 | `action_repeat_frames` | `4` | Native telemetry frames per decision, `1..20`. Must be `1` when `decision_interval_ms` is set. |
 | `decision_interval_ms` | null | Physical decision grid `(0,250]` ms. The generated Trackmania template uses 50 ms and repeat 1. |
 | `control_backend` | `gamepad` | `gamepad` preserves analog controls, `keyboard` digitizes them. |
+| `steering_curve_path` | null | Measured stick-to-steer curve from `track check-steering`; the gamepad sends the stick that produces each requested steer. |
 | `compact_action_ids` | null | Explicit subset of the 78-action brake-tap table, model and BC IDs must match exactly. |
 | `position_indices`, `velocity_indices` | protocol defaults | Three unique telemetry indices each. |
 | `expected_map_uid` | null | Optional active-map UID assertion for training/smoke. Configure it for every release run. |
@@ -218,7 +235,7 @@ These paths are under `components.feature_pipeline.kwargs.config` for
 | `mask_current_control_inputs` | `false` | Zeros current controls and requires them to be present. |
 | `local_velocity_features` | `false` | Rotates velocity into car coordinates, required by horizontal BC reflection. |
 | `use_racing_line` | `false` | Uses the asset racing line instead of reward center where supported. |
-| `max_speed_mps`, `velocity_to_mps_scale` | `80`, `.001` | Physical speed normalization and native velocity-unit conversion. |
+| `max_speed_mps`, `velocity_to_mps_scale` | `80`, `1` | Physical speed normalization and native velocity-unit conversion. |
 | `max_time_delta_s` | `1` s | Rejects stale finite-difference dynamics. |
 | `limit_progress_by_kinematics` | `false` | Opt-in physical bound for feature progress projection. Reward projection has the independent environment setting above. |
 | `nearest_forward_points`, `nearest_backward_points` | `128`, `10` | Feature projection search window. |
@@ -286,8 +303,14 @@ custom batch producer for `policy_anchor_q_values`.
 | REDQ: `target_subset_size` | `2` | Positive number of target critics sampled, cannot exceed ensemble size. |
 | REDQ: `policy_update_interval` | `20` | Positive critic updates between actor updates. |
 | TQC: `top_quantiles_to_drop_per_critic` | `2` | Non-negative global upper-quantile truncation per critic, cannot remove every target quantile. |
-| SD-SAC: `q_clip_epsilon` | `0.5` | Non-negative critic-target clipping width. |
+| SD-SAC: `q_clip_epsilon` | `0.5` | Finite positive critic-target clipping width. Zero freezes the clipped target branch; it does not disable clipping and is rejected. |
 | SD-SAC: `entropy_penalty_coefficient` | `0.5` | Non-negative entropy-change penalty weight. |
+| SD-SAC: `actor_learning_rate` | null | Actor optimizer rate; null inherits `learning_rate`. Preserved in evaluated-policy checkpoints. |
+| SD-SAC: `entropy_learning_rate` | null | Independent log-alpha optimizer rate; null inherits `learning_rate`. |
+| SD-SAC: `entropy_coefficient_min`, `entropy_coefficient_max` | null | Optional positive alpha bounds; initial alpha must be inside them. Temperatures must remain finite and positive in float32, including learned log/exp round trips. Learned log-alpha is projected after each update. No bounds are imposed by default. |
+| SD-SAC: `actor_objective` | `sac` | Canonical objective, or explicit experimental `soft_q_forward_kl` (detached soft-Q cross-entropy). The variant requires `actor.log_probabilities`. It does not establish critic accuracy or useful driving. |
+| SD-SAC: `entropy_penalty_reference` | `target_policy` | Entropy anchor uses target actor, or `behavior` for stored replay entropies. Historical behavior entropy may differ greatly from the current target. |
+| SD-SAC: `terminal_value_loss_coefficient` | `0` | Explicit experimental regression to known true-terminal rewards, normalized over terminal samples. This reweights sparse terminals; coefficient 1 adds about 256 times the ordinary per-row gradient when one terminal occurs in a batch of 256. It is not a proven driving correction. Truncations are excluded. |
 | all: `execution` | null | Torch device, precision and determinism policy described below. |
 
 SAC-family feature pipelines may collate observations and next observations as
@@ -393,3 +416,4 @@ trackmaniarl track record-recovery OUTPUT --config RUN.yaml --checkpoint CHECKPO
 Use `trackmaniarl COMMAND --help` as the syntax authority. The
 [Trackmania guide](trackmania.md), [imitation guide](imitation-learning.md)
 and [algorithm matrix](algorithms.md) list specialized commands.
+

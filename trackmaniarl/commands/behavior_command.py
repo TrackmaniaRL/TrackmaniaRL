@@ -311,6 +311,14 @@ def _bc_benchmark_spec(args: argparse.Namespace) -> tuple[RunSpec, EvaluationSui
     if hold_steps is not None and hold_steps < 1:
         raise ValueError("bc-benchmark --minimum-action-hold-steps must be positive")
     spec = RunSpec.from_yaml(args.config)
+    device = getattr(args, "device", None)
+    if device is not None:
+        learner = spec.components.learner
+        execution = {**learner.kwargs.get("execution", {}), "device": device}
+        learner = learner.model_copy(update={"kwargs": {**learner.kwargs, "execution": execution}})
+        spec = spec.model_copy(
+            update={"components": spec.components.model_copy(update={"learner": learner})}
+        )
     if hold_steps is not None:
         spec = _with_action_hold(spec, hold_steps)
     suite = spec.evaluation

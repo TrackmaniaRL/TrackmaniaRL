@@ -20,7 +20,9 @@ from trackmaniarl.trackmania.environment_config import (
 from trackmaniarl.trackmania.geometry import BoundaryGeometry
 from trackmaniarl.trackmania.pace import PaceDemonstrationRequest, ReferencePaceProfile
 from trackmaniarl.trackmania.reward import TrajectoryReward
+from trackmaniarl.trackmania.reward_points import RewardPoints
 from trackmaniarl.trackmania.session import OpenPlanetSessionClient
+from trackmaniarl.trackmania.steering_curve import SteeringCurve
 from trackmaniarl.trackmania.telemetry import (
     OpenPlanetClient,
     OpenPlanetClientConfig,
@@ -28,7 +30,9 @@ from trackmaniarl.trackmania.telemetry import (
 )
 
 
-def _validated_live_map_uid(expected_map_uid: str | None, geometry: BoundaryGeometry) -> str:
+def _validated_live_map_uid(
+    expected_map_uid: str | None, geometry: BoundaryGeometry | RewardPoints
+) -> str:
     map_uid = (expected_map_uid or "").strip()
     if not map_uid or _is_placeholder_uid(map_uid):
         raise ValueError(
@@ -43,12 +47,12 @@ def _is_placeholder_uid(map_uid: str) -> bool:
     return map_uid.startswith("REPLACE_") or (map_uid.startswith("<") and map_uid.endswith(">"))
 
 
-def _validate_geometry_identity(map_uid: str, geometry: BoundaryGeometry) -> None:
+def _validate_geometry_identity(map_uid: str, geometry: BoundaryGeometry | RewardPoints) -> None:
     if not geometry.map_uid.strip():
         raise ValueError("geometry asset is missing its source map UID")
     if geometry.map_uid != map_uid:
         raise ValueError("geometry asset map UID does not match the configured expected_map_uid")
-    if not geometry.map_sha256.strip():
+    if not geometry.map_sha256.strip() and not isinstance(geometry, RewardPoints):
         raise ValueError(
             "geometry asset is missing its source map checksum; rebuild it with "
             "`trackmaniarl track build-geometry --map-path ...`"
@@ -57,11 +61,15 @@ def _validate_geometry_identity(map_uid: str, geometry: BoundaryGeometry) -> Non
 
 @dataclass(frozen=True, slots=True)
 class _MapContext:
-    geometry: BoundaryGeometry
+    geometry: BoundaryGeometry | RewardPoints
     expected_map_uid: str
 
 
 class OpenPlanetEnvironment:
+    def release_controls(self) -> None:
+        """Release input while the actor waits between completed episodes."""
+        self.controller.apply(np.zeros(3, dtype=np.float32))
+
     def __init__(
         self,
         config: TrackmaniaEnvironmentConfig,
@@ -102,13 +110,24 @@ class OpenPlanetEnvironment:
         expected_uid = (
             evaluation_map.expected_map_uid if evaluation_map else config.expected_map_uid
         )
-        geometry = BoundaryGeometry(geometry_path)
+        points_path = (
+            getattr(evaluation_map, "reward_points_path", None)
+            if evaluation_map
+            else config.reward_points_path
+        )
+        geometry = (
+            RewardPoints(points_path, expected_map_uid=expected_uid)
+            if points_path is not None
+            else BoundaryGeometry(geometry_path)
+        )
         return _MapContext(geometry, _validated_live_map_uid(expected_uid, geometry))
 
     @staticmethod
     def _create_reward(
-        config: TrackmaniaEnvironmentConfig, geometry: BoundaryGeometry
+        config: TrackmaniaEnvironmentConfig, geometry: BoundaryGeometry | RewardPoints
     ) -> TrajectoryReward:
+        if isinstance(geometry, RewardPoints):
+            return TrajectoryReward(geometry.reward_center, config.reward_config(None))
         reference = geometry.racing_line if config.use_racing_line else geometry.reward_center
         pace_profile = OpenPlanetEnvironment._pace_profile(config, geometry, reference)
         return TrajectoryReward(reference, config.reward_config(pace_profile))
@@ -151,10 +170,12 @@ class OpenPlanetEnvironment:
         previous_race_time_ms = self._last_race_time_ms
         for attempt in range(2):
             self._confirm_finish_if_needed()
-            if previous_race_time_ms is None:
-                previous_race_time_ms = float(self.client.read().values[3])
-            self.controller.reset()
             try:
+                if previous_race_time_ms is None:
+                    # A finish screen may stop telemetry entirely. Restart before
+                    # reading, and discard packets from the previous controller.
+                    self.client.close()
+                self.controller.reset()
                 frame = self._wait_for_active_run(previous_race_time_ms)
             except TimeoutError:
                 self._finish_confirmation_pending = True
@@ -179,16 +200,23 @@ class OpenPlanetEnvironment:
             return
         self.controller.confirm_finish()
 
-    def _wait_for_active_run(self, previous_race_time_ms: float) -> TelemetryFrame:
+    def _wait_for_active_run(self, previous_race_time_ms: float | None) -> TelemetryFrame:
         deadline = monotonic() + self.config.start_timeout_s
-        restart_observed = previous_race_time_ms <= 0.0
+        restart_observed = previous_race_time_ms is not None and previous_race_time_ms <= 0.0
         while True:
             frame = self.client.read()
             race_time_ms = float(frame.values[3])
-            restart_observed = restart_observed or race_time_ms < previous_race_time_ms
+            if previous_race_time_ms is None:
+                # With no prior clock, require a frame from the first second of
+                # the requested race rather than accepting an old running lap.
+                restart_observed = restart_observed or race_time_ms < 1_000.0
+                previous_race_time_ms = race_time_ms
+            else:
+                restart_observed = restart_observed or race_time_ms < previous_race_time_ms
             if (
                 restart_observed
                 and race_time_ms > 0.0
+                and not bool(frame.values[2])
                 and race_time_ms >= self.config.start_race_time_ms
             ):
                 return frame
@@ -209,8 +237,10 @@ class OpenPlanetEnvironment:
         return environment_step.step(self, action, perf_counter)
 
     def close(self) -> None:
-        self.controller.close()
-        self.client.close()
+        try:
+            self.controller.close()
+        finally:
+            self.client.close()
 
 
 class OpenPlanetEnvironmentFactory:
@@ -232,7 +262,10 @@ class OpenPlanetEnvironmentFactory:
             controller = (
                 KeyboardController()
                 if self.config.control_backend == "keyboard"
-                else GamepadController(restart_input=self.config.restart_input)
+                else GamepadController(
+                    restart_input=self.config.restart_input,
+                    steering_curve=_steering_curve(self.config),
+                )
             )
         return OpenPlanetEnvironment(self.config, controller, evaluation_map=evaluation_map)
 
@@ -242,6 +275,10 @@ class OpenPlanetEnvironmentFactory:
             demonstration_transitions,
         )
 
+        if self.config.geometry_path is None:
+            raise ValueError(
+                "telemetry demonstrations require boundary geometry; camera training needs RGB data"
+            )
         geometry = BoundaryGeometry(
             self.config.geometry_path, expected_map_uid=self.config.expected_map_uid
         )
@@ -253,8 +290,18 @@ def _resolve_environment_paths(
     config: TrackmaniaEnvironmentConfig, base_dir: Path
 ) -> TrackmaniaEnvironmentConfig:
     resolved = config
-    for name in ("geometry_path", "pace_reference_path"):
+    for name in (
+        "geometry_path",
+        "reward_points_path",
+        "pace_reference_path",
+        "steering_curve_path",
+    ):
         path = getattr(resolved, name)
         if path is not None and not path.is_absolute():
             resolved = resolved.model_copy(update={name: (base_dir / path).resolve()})
     return resolved
+
+
+def _steering_curve(config: TrackmaniaEnvironmentConfig) -> SteeringCurve | None:
+    path = config.steering_curve_path
+    return None if path is None else SteeringCurve.load(path)

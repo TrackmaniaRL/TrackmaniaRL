@@ -121,10 +121,14 @@ def _append_transitions(batch: _IngestBatch) -> None:
 def _credit_updates(coordinator: Coordinator, before: int) -> None:
     ready = coordinator.run.spec.training.warmup_transitions
     newly_trainable = max(0, coordinator.counters.transitions - ready) - max(0, before - ready)
-    coordinator.counters.update_credit = min(
-        coordinator.run.spec.distributed.max_update_credit,
-        coordinator.counters.update_credit
-        + newly_trainable * coordinator.run.spec.training.updates_per_transition,
+    credit = coordinator.counters.update_credit + (
+        newly_trainable * coordinator.run.spec.training.updates_per_transition
+    )
+    config = coordinator.run.spec.distributed
+    # Strict runs preserve every update; max_update_credit becomes the threshold
+    # for actor backpressure at episode boundaries, not a lossy accumulator cap.
+    coordinator.counters.update_credit = (
+        credit if config.strict_update_budget else min(config.max_update_credit, credit)
     )
 
 
@@ -235,6 +239,11 @@ def _ingest_payload(batch: _IngestBatch) -> dict[str, Any]:
 
 def replay_info_for_transition(info: Mapping[str, Any]) -> dict[str, Any]:
     replay_info: dict[str, Any] = {}
+    # SD-SAC's behavior entropy is part of its learning target, rather than
+    # episode diagnostics that can be discarded to keep replay compact.
+    entropy_key = "_trackmaniarl_behavior_entropy"
+    if entropy_key in info:
+        replay_info[entropy_key] = float(info[entropy_key])
     if "is_demo" in info:
         replay_info["is_demo"] = bool(info["is_demo"])
     if "sampling/projected_lap_time_s" in info:
@@ -277,9 +286,17 @@ def _episode_log_fields(
         "actor_id": value["actor_id"],
         "episode_index": coordinator.counters.episodes,
         "policy_version": summary["policy_version"],
-        "q_margin/start_mean": summary.get("q_margin/start_mean", 0.0),
-        "q_margin/min": summary.get("q_margin/min", 0.0),
+        "exploration_epsilon": _measurement_label(
+            summary.get("exploration_epsilon"),
+            "unused" if summary.get("exploration_epsilon_used") is False else "unknown",
+        ),
+        "q_margin/start_mean": _measurement_label(summary.get("q_margin/start_mean")),
+        "q_margin/min": _measurement_label(summary.get("q_margin/min")),
     }
+
+
+def _measurement_label(value: Any, missing: str = "unknown") -> str:
+    return missing if value is None else f"{float(value):.3f}"
 
 
 def drain_rollouts(coordinator: Coordinator, limit: int) -> None:
@@ -368,7 +385,7 @@ _EPISODE_LOG_FORMAT = (
     "time_attack_terminal=%(reward/time_attack_terminal).3f), "
     "velocity_ratio(mean=%(velocity/ratio_mean).3f, "
     "max=%(velocity/ratio_max).3f), steps=%(steps)d, race=%(race_time_s).2fs, "
-    "epsilon=%(exploration_epsilon).3f, policy=%(policy_version)d, "
-    "q_margin(start=%(q_margin/start_mean).2f, min=%(q_margin/min).2f), "
+    "epsilon=%(exploration_epsilon)s, policy=%(policy_version)d, "
+    "q_margin(start=%(q_margin/start_mean)s, min=%(q_margin/min)s), "
     "termination=%(termination)s"
 )

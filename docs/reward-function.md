@@ -99,7 +99,7 @@ All fields below are stable built-in environment fields under
 | `finish_reward` | float `30.0`, `>=0` | Base valid-finish terminal reward and magnitude floor for a negative time-attack adjustment. |
 | `potential_progress_weight` | float `2.0`, `>=0` | Maximum progress potential. Zero disables progress PBRS. |
 | `max_projected_speed_mps` | float `100.0` m/s, `>0` | Symmetric projected-velocity clip, positive-speed normalization and movement-speed cap. It must exceed plausible speed without legitimizing teleports. |
-| `velocity_to_mps_scale` | float `0.001`, `>0` | Multiplier from native OpenPlanet velocity units to m/s. A unit error rescales velocity rewards by the same factor. |
+| `velocity_to_mps_scale` | float `1.0`, `>0` | Multiplier from native OpenPlanet velocity units to m/s. A unit error rescales velocity rewards by the same factor. |
 | `projected_velocity_scale` | float `0.0`, `>=0` | Linear signed velocity reward per metre travelled along the local tangent. |
 | `projected_speed_bonus_scale` | float `0.0`, `>=0` | Quadratic positive velocity-ratio bonus per second. |
 | `steering_delta_penalty` | float `0.0`, `>=0` | Per-decision action smoothness cost, not time-normalized. |
@@ -121,11 +121,14 @@ rejected when the geometry or reward is constructed.
 Nearest-point search is local: it includes a bounded number of points behind
 and ahead of the current monotonic index. Progress never decreases. When
 `limit_progress_by_kinematics` is enabled, a candidate advance is also capped by
-physical displacement and elapsed time:
+physical displacement and elapsed time. The bound applies to each step, not to
+the lap total: a racing line cuts corners, so a fast lap drives less distance than
+the centre line measures and a lap-total cap would stop it short of the finish.
 
 ```text
-accepted_motion <= min(position_displacement,
-                       max_projected_speed_mps * time_budget)
+accepted_motion = min(position_displacement,
+                      max_projected_speed_mps * time_budget)
+advance        <= 2 * accepted_motion   (per step, from the current progress)
 ```
 
 This prevents a stationary car near a later crossing or hairpin from catching
@@ -134,7 +137,8 @@ shorter parts of the map. If race time is absent, the conservative time budget
 is `max_time_delta_s`.
 
 `velocity_to_mps_scale` converts the OpenPlanet velocity field to metres per
-second before the tangent dot product. The built-in environment uses `0.001`.
+second before the tangent dot product. The supported plugin already sends m/s, so
+the built-in environment uses `1.0`.
 Changing the telemetry source requires a measured unit conversion, not a reward
 weight adjustment. Uneven geometry sampling affects index density but progress
 percentage and direct progress use cumulative metric distance.
@@ -228,7 +232,7 @@ finish_reward: 30.0
 terminal_failure_penalty: 1.0
 
 max_projected_speed_mps: 100.0
-velocity_to_mps_scale: 0.001
+velocity_to_mps_scale: 1.0
 projected_velocity_scale: 0.0
 projected_speed_bonus_scale: 0.0
 steering_delta_penalty: 0.0

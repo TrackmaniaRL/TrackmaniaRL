@@ -27,6 +27,7 @@ class CollectionRuntime(Protocol):
     stop: Event
     stop_reason: str
     evaluate: Event
+    collect_allowed: Event
     codec: WireCodec
     _evaluation_index: int
     _evaluation_request: tuple[bytes, int] | None

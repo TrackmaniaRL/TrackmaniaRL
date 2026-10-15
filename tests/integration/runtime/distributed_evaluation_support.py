@@ -157,7 +157,7 @@ def _evaluation_run(events: list[tuple[str, dict[str, Any]]]) -> SimpleNamespace
         evaluate_every_episodes=None,
     )
     spec = SimpleNamespace(
-        distributed=SimpleNamespace(max_update_credit=512),
+        distributed=SimpleNamespace(max_update_credit=512, strict_update_budget=False),
         evaluation=SimpleNamespace(min_finish_rate=1.0),
         training=training,
     )

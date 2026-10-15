@@ -134,7 +134,7 @@ managed Plugin Manager installation.
 ## Actor-critic configurations
 
 `run-sac.yaml`, `run-redq.yaml` and `run-tqc.yaml` provide continuous telemetry
-actor-critic models. `run-discrete-sac.yaml` uses a categorical actor with the
+actor-critic models. `run-sd-sac.yaml` uses a categorical actor with the
 78-action table. Configure your map in the selected file and use that filename
 for validation, training, resume and benchmarking. No custom model code is required.
 
@@ -143,7 +143,7 @@ for validation, training, resume and benchmarking. No custom model code is requi
 Camera observations work with every RL family. Complete image configurations are
 `run-q-vision.yaml`, `run-qr-vision.yaml`, `run-iqn-vision.yaml`,
 `run-fqf-vision.yaml`, `run-sac-vision.yaml`, `run-redq-vision.yaml`,
-`run-tqc-vision.yaml`, `run-discrete-sac-vision.yaml` and `run-ppo-vision.yaml`.
+`run-tqc-vision.yaml`, `run-sd-sac-vision.yaml` and `run-ppo-vision.yaml`.
 
 Every RL algorithm also has `run-ALGORITHM-lidar.yaml` and
 `run-ALGORITHM-lidar-vision.yaml`. The latter combines boundary lookahead and

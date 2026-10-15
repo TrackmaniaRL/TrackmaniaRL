@@ -79,15 +79,15 @@ def _write_project_metadata(target: Path, package: str, template: str) -> None:
         (target / "run-ppo-vision.yaml").write_text(
             _trackmania_ppo_config(vision=True), encoding="utf-8"
         )
-        for algorithm in ("sac", "redq", "tqc", "discrete-sac"):
+        for algorithm in ("sac", "redq", "tqc", "sd-sac"):
             (target / f"run-{algorithm}.yaml").write_text(
                 _trackmania_actor_critic_config(algorithm), encoding="utf-8"
             )
-        for algorithm in ("q", "qr", "iqn", "fqf", "sac", "redq", "tqc", "discrete-sac"):
+        for algorithm in ("q", "qr", "iqn", "fqf", "sac", "redq", "tqc", "sd-sac"):
             (target / f"run-{algorithm}-vision.yaml").write_text(
                 _trackmania_vision_config(algorithm), encoding="utf-8"
             )
-        for algorithm in ("q", "qr", "iqn", "fqf", "sac", "redq", "tqc", "discrete-sac", "ppo"):
+        for algorithm in ("q", "qr", "iqn", "fqf", "sac", "redq", "tqc", "sd-sac", "ppo"):
             for fusion in (False, True):
                 suffix = "lidar-vision" if fusion else "lidar"
                 (target / f"run-{algorithm}-{suffix}.yaml").write_text(

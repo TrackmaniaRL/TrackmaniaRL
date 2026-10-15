@@ -77,11 +77,12 @@ class VisionActorCriticModelFactory:
         algorithm: str,
         config: VisionActorCriticConfig | Mapping[str, Any] | None = None,
     ) -> None:
+        algorithm = {"discrete-sac": "sd-sac", "dsac": "sd-sac"}.get(algorithm, algorithm)
         contracts = {
             "sac": ModelContract.CONTINUOUS_ACTOR_CRITIC,
             "redq": ModelContract.ENSEMBLE_ACTOR_CRITIC,
             "tqc": ModelContract.CONTINUOUS_QUANTILE_ACTOR_CRITIC,
-            "discrete-sac": ModelContract.DISCRETE_ACTOR_CRITIC,
+            "sd-sac": ModelContract.DISCRETE_ACTOR_CRITIC,
         }
         if algorithm not in contracts:
             raise ValueError(f"unknown vision actor-critic algorithm: {algorithm}")

@@ -39,14 +39,15 @@ class TelemetryFeaturePipeline:
         return value
 
     def collate(self, transitions: list[Transition]) -> dict[str, Any]:
+        actions = torch.stack([torch.as_tensor(item.action) for item in transitions])
+        if actions.is_floating_point():
+            actions = actions.float()
         return {
             "_trackmaniarl_batch_collated": True,
             "observations": torch.stack(
                 [self.transform_observation(item.observation) for item in transitions]
             ),
-            "actions": torch.stack(
-                [torch.as_tensor(item.action, dtype=torch.float32) for item in transitions]
-            ),
+            "actions": actions,
             "rewards": torch.tensor([item.reward for item in transitions], dtype=torch.float32),
             "next_observations": torch.stack(
                 [self.transform_observation(item.next_observation) for item in transitions]

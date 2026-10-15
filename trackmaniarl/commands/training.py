@@ -76,9 +76,14 @@ def _training_plan(args: argparse.Namespace) -> _TrainingPlan:
 
 
 def _train_on_policy(plan: _TrainingPlan, args: argparse.Namespace) -> None:
+    stop_file = getattr(args, "stop_file", None)
+    if stop_file is not None and stop_file.exists():
+        raise ValueError(f"Stop file already exists; remove it before starting: {stop_file}")
     run = resolve_run(plan.spec, base_dir=plan.config.parent)
     try:
-        result = Trainer(run, resume_checkpoint=getattr(args, "checkpoint", None)).train()
+        result = Trainer(
+            run, resume_checkpoint=getattr(args, "checkpoint", None), stop_file=stop_file
+        ).train()
     finally:
         run.logger.close()
     print(

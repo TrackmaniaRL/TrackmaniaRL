@@ -8,6 +8,7 @@ from math import ceil, isfinite
 from numbers import Real
 from typing import Any, Self
 
+from trackmaniarl.core.contracts import ExploratoryPolicy
 from trackmaniarl.distributed.actor_control_summary import _EMPTY_CONTROL_SUMMARY
 from trackmaniarl.trackmania.diagnostics import ProgressBinDiagnostics, ProgressDiagnosticRecord
 
@@ -53,15 +54,15 @@ class MarginTracker:
             self.start_total += value
             self.start_samples += 1
 
-    def summary(self) -> dict[str, float]:
-        if not self.samples:
-            return {"q_margin_mean": 0.0, "q_margin_min": 0.0, "q_margin_start_mean": 0.0}
+    def summary(self) -> dict[str, float | None]:
         return {
-            "q_margin_mean": self.total / self.samples,
-            "q_margin_min": self.minimum,
+            "q_margin_mean": self.total / self.samples if self.samples else None,
+            "q_margin_min": self.minimum if self.samples else None,
             "q_margin_start_mean": (
-                self.start_total / self.start_samples if self.start_samples else 0.0
+                self.start_total / self.start_samples if self.start_samples else None
             ),
+            "q_margin_sample_count": float(self.samples),
+            "q_margin_start_sample_count": float(self.start_samples),
         }
 
 
@@ -166,6 +167,9 @@ def _positive_finite_measurement(value: object) -> float | None:
 @dataclass(slots=True)
 class EpisodeMetrics:
     diagnostics: ProgressBinDiagnostics
+    epsilon_controlled: bool = False
+    behavior_entropy_total: float = 0.0
+    behavior_entropy_samples: int = 0
     total_reward: float = 0.0
     time_reward: float = 0.0
     pbrs_reward: float = 0.0
@@ -188,7 +192,10 @@ class EpisodeMetrics:
 
     @classmethod
     def from_policy(cls, policy: Any) -> Self:
-        return cls(ProgressBinDiagnostics(policy_action_count(policy), bin_count=20))
+        return cls(
+            ProgressBinDiagnostics(policy_action_count(policy), bin_count=20),
+            epsilon_controlled=isinstance(policy, ExploratoryPolicy),
+        )
 
     def record_policy(self, policy: Any, step: int) -> None:
         self.margins.record(policy, step)
@@ -196,8 +203,20 @@ class EpisodeMetrics:
     def record_inference(self, duration_s: float) -> None:
         self.inference_timing.record(duration_s)
 
-    def record_diagnostics(self, action: Any, policy: Any, info: Mapping[str, Any]) -> None:
+    def record_diagnostics(  # noqa: PLR0913 - policy statistics stay separate from environment info
+        self,
+        action: Any,
+        policy: Any,
+        info: Mapping[str, Any],
+        *,
+        policy_info: Mapping[str, Any] | None = None,
+    ) -> None:
         self.controls.record(info)
+        behavior_info = info if policy_info is None else policy_info
+        entropy = _optional_measurement(behavior_info.get("_trackmaniarl_behavior_entropy"))
+        if entropy is not None and entropy >= 0.0:
+            self.behavior_entropy_total += entropy
+            self.behavior_entropy_samples += 1
         record = ProgressDiagnosticRecord(
             float(info.get("progress_pct", 0.0)), action, policy, info
         )
@@ -227,7 +246,14 @@ class EpisodeMetrics:
             **dict(self.final_info),
             **self._reward_totals(),
             **self._progress_totals(transitions),
-            "actor_epsilon": epsilon,
+            "actor_epsilon": epsilon if self.epsilon_controlled else None,
+            "exploration_epsilon_used": self.epsilon_controlled,
+            "policy/behavior_entropy_nats_mean": (
+                self.behavior_entropy_total / self.behavior_entropy_samples
+                if self.behavior_entropy_samples
+                else None
+            ),
+            "policy/behavior_entropy_sample_count": self.behavior_entropy_samples,
             "policy_version": version,
             **self.margins.summary(),
             **self.controls.summary(),
@@ -272,7 +298,8 @@ def summarize_episode(reward: float, info: Mapping[str, Any], transitions: int) 
         "return": reward,
         "reward_per_transition": reward / max(transitions, 1),
         "steps": transitions,
-        "exploration_epsilon": float(info.get("actor_epsilon", 0.0)),
+        "exploration_epsilon": _optional_measurement(info.get("actor_epsilon")),
+        "exploration_epsilon_used": info.get("exploration_epsilon_used"),
         "policy_version": info["policy_version"],
     }
     summary.update(_reward_summary(info))
@@ -281,7 +308,21 @@ def summarize_episode(reward: float, info: Mapping[str, Any], transitions: int) 
     summary.update(_telemetry_summary(info))
     summary.update(_outcome_summary(info, termination))
     summary.update(
-        {key: float(value) for key, value in info.items() if key.startswith("progress_bin/")}
+        {
+            "policy/behavior_entropy_nats_mean": _optional_measurement(
+                info.get("policy/behavior_entropy_nats_mean")
+            ),
+            "policy/behavior_entropy_sample_count": int(
+                info.get("policy/behavior_entropy_sample_count", 0)
+            ),
+        }
+    )
+    summary.update(
+        {
+            key: _optional_measurement(value)
+            for key, value in info.items()
+            if key.startswith("progress_bin/")
+        }
     )
     return summary
 
@@ -301,7 +342,14 @@ def _reward_summary(info: Mapping[str, Any]) -> dict[str, float]:
     }
 
 
-def _progress_summary(info: Mapping[str, Any]) -> dict[str, float | int]:
+def _optional_measurement(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, Real):
+        return None
+    measurement = float(value)
+    return measurement if isfinite(measurement) else None
+
+
+def _progress_summary(info: Mapping[str, Any]) -> dict[str, float | int | None]:
     return {
         "pace/reference_time_s": float(info.get("reference_time_s", 0.0)),
         "pace/time_debt_s": float(info.get("time_debt_s", 0.0)),
@@ -316,9 +364,11 @@ def _progress_summary(info: Mapping[str, Any]) -> dict[str, float | int]:
         "velocity/ratio_max": float(info.get("projected_velocity_ratio_max", 0.0)),
         "collision/count": int(info.get("collision_count", 0)),
         "collision/detected_count": int(info.get("collision_detected_count", 0)),
-        "q_margin/mean": float(info.get("q_margin_mean", 0.0)),
-        "q_margin/min": float(info.get("q_margin_min", 0.0)),
-        "q_margin/start_mean": float(info.get("q_margin_start_mean", 0.0)),
+        "q_margin/mean": _optional_measurement(info.get("q_margin_mean")),
+        "q_margin/min": _optional_measurement(info.get("q_margin_min")),
+        "q_margin/start_mean": _optional_measurement(info.get("q_margin_start_mean")),
+        "q_margin/sample_count": int(info.get("q_margin_sample_count", 0)),
+        "q_margin/start_sample_count": int(info.get("q_margin_start_sample_count", 0)),
     }
 
 

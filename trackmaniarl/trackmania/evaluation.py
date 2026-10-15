@@ -195,8 +195,14 @@ class TrackmaniaEvaluator:
     def _map_results(
         self, policy: Policy, map_spec: EvaluationMapSpec
     ) -> Iterator[EvaluationResult]:
-        geometry = BoundaryGeometry(
-            map_spec.geometry_path, expected_map_uid=map_spec.expected_map_uid
+        from trackmaniarl.trackmania.reward_points import RewardPoints
+
+        geometry = (
+            RewardPoints(map_spec.reward_points_path, expected_map_uid=map_spec.expected_map_uid)
+            if map_spec.reward_points_path is not None
+            else BoundaryGeometry(
+                map_spec.geometry_path, expected_map_uid=map_spec.expected_map_uid
+            )
         )
         geometry.validate_map(map_spec.map_path)
         self._set_evaluation_map(map_spec)
@@ -219,9 +225,13 @@ class TrackmaniaEvaluator:
         metrics = dict(aggregate_results(results))
         metrics["eval/median_finish_time_s"] = self._median_finished(results)
         metrics.update(
-            aggregate_progress_bins(
-                result.progress_bins for result in results if result.progress_bins is not None
-            )
+            {
+                key: value
+                for key, value in aggregate_progress_bins(
+                    result.progress_bins for result in results if result.progress_bins is not None
+                ).items()
+                if value is not None
+            }
         )
         return metrics
 

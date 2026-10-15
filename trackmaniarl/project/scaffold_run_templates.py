@@ -185,11 +185,12 @@ def _trackmania_ppo_config(*, vision: bool = False) -> str:
 
 
 def _trackmania_actor_critic_config(algorithm: str) -> str:
+    algorithm = {"discrete-sac": "sd-sac", "dsac": "sd-sac"}.get(algorithm, algorithm)
     choices = {
         "sac": ("SoftActorCritic", "actor_critic:TelemetrySacModelFactory"),
         "redq": ("RandomizedEnsembleSAC", "actor_critic:TelemetryRedqModelFactory"),
         "tqc": ("TruncatedQuantileCritic", "baseline:TelemetryTqcModelFactory"),
-        "discrete-sac": (
+        "sd-sac": (
             "StableDiscreteSoftActorCritic",
             "actor_critic:TelemetryDiscreteSacModelFactory",
         ),
@@ -211,11 +212,14 @@ def _trackmania_actor_critic_config(algorithm: str) -> str:
     }
     config["training"]["batch_size"] = 256
     config["training"]["sequence_length"] = 1
+    if algorithm == "sd-sac":
+        config["training"]["n_step"] = 1
     return yaml.safe_dump(config, sort_keys=False)
 
 
 def _trackmania_vision_config(algorithm: str = "iqn") -> str:
     """Complete image-observation RunSpec for each off-policy learner family."""
+    algorithm = {"discrete-sac": "sd-sac", "dsac": "sd-sac"}.get(algorithm, algorithm)
     value_algorithms = {"q", "qr", "iqn", "fqf"}
     config = yaml.safe_load(
         _trackmania_config()

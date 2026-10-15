@@ -179,7 +179,9 @@ def _training_actor(probe: _TrainingProbe) -> ActorRuntime:
     actor = object.__new__(ActorRuntime)
     actor.spec = SimpleNamespace(
         training=SimpleNamespace(max_episode_steps=10),
-        distributed=SimpleNamespace(rollout_chunk_transitions=128, rollout_flush_s=60.0),
+        distributed=SimpleNamespace(
+            rollout_chunk_transitions=128, rollout_flush_s=60.0, strict_update_budget=False
+        ),
     )
     actor.actor_id = "actor"
     actor.session_id = "session"
@@ -371,7 +373,9 @@ def _interruption_actor(probe: _InterruptionProbe) -> ActorRuntime:
     actor = object.__new__(ActorRuntime)
     actor.spec = SimpleNamespace(
         training=SimpleNamespace(max_episode_steps=3),
-        distributed=SimpleNamespace(rollout_chunk_transitions=128, rollout_flush_s=60.0),
+        distributed=SimpleNamespace(
+            rollout_chunk_transitions=128, rollout_flush_s=60.0, strict_update_budget=False
+        ),
     )
     actor.actor_id = "actor"
     actor.session_id = "session"

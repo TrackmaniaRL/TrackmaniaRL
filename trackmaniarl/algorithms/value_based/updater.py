@@ -105,13 +105,20 @@ class ValueUpdater:
         with learner.autocast():
             feature_inputs = value_updates.FeatureInputs(batch.view, batch.positions)
             features, online_next, target_next = value_updates.features(learner, feature_inputs)
-            support = learner.model.support(features, ValuePhase.TRAIN)
-            predictions = learner.model.distribution_for_actions(
-                features, support.detached_points(), batch.actions
-            )
-            target_support, targets, rewards, discounts = self._targets(
-                batch, online_next, target_next
-            )
+        # Value heads and bootstrap targets run in float32. Near typical Q values a
+        # bfloat16 step (~0.016 at 3) is as large as a few steps of reward, so
+        # reduced precision would round the TD signal away and flip greedy actions
+        # whose values differ by less than that.
+        features, online_next, target_next = (
+            features.float(),
+            online_next.float(),
+            target_next.float(),
+        )
+        support = learner.model.support(features, ValuePhase.TRAIN)
+        predictions = learner.model.distribution_for_actions(
+            features, support.detached_points(), batch.actions
+        )
+        target_support, targets, rewards, discounts = self._targets(batch, online_next, target_next)
         return _ForwardStep(
             batch, features, support, predictions, target_support, targets, rewards, discounts
         )

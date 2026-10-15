@@ -15,7 +15,7 @@ from trackmaniarl.core.collector import (
 )
 from trackmaniarl.core.data import BatchRequest
 from trackmaniarl.core.runtime import prepare_run, record_run_attempt
-from trackmaniarl.core.training_support import TrainingCounters, TrainingResult
+from trackmaniarl.core.training_support import TrainingCounters, TrainingResult, rollout_metrics
 from trackmaniarl.observability.artifacts import AsyncEpisodeWriter
 
 if TYPE_CHECKING:
@@ -47,6 +47,7 @@ def run_training(trainer: Trainer) -> TrainingResult:
 def _initialize_run(trainer: Trainer) -> None:
     training = trainer.run.spec.training
     prepare_run(trainer.run)
+    _configure_evaluation_stop(trainer)
     trainer.run.learner.setup(
         {
             "seed": trainer.run.spec.seed,
@@ -62,6 +63,14 @@ def _initialize_run(trainer: Trainer) -> None:
         f"target_transitions={training.total_transitions}, artifacts={trainer.run.run_dir}",
         flush=True,
     )
+
+
+def _configure_evaluation_stop(trainer: Trainer) -> None:
+    if trainer.stop_file is None:
+        return
+    set_stop_requested = getattr(trainer.run.evaluator, "set_stop_requested", None)
+    if callable(set_stop_requested):
+        set_stop_requested(trainer.stop_requested)
 
 
 def _start_session(trainer: Trainer) -> _TrainingSession:
@@ -116,6 +125,7 @@ def _start_on_policy_collection(trainer: Trainer, session: _TrainingSession) -> 
             training.max_episode_steps,
             trainer.run.spec.seed,
             session.counters.next_episode_index,
+            reset_at_rollout_end=training.reset_after_on_policy_rollout,
         ),
     )
 
@@ -135,10 +145,13 @@ def _execute_session(trainer: Trainer, session: _TrainingSession) -> TrainingRes
 
 def _run_to_completion(trainer: Trainer, session: _TrainingSession) -> TrainingResult:
     total = trainer.run.spec.training.total_transitions
-    while session.counters.transitions < total:
+    while session.counters.transitions < total and not trainer.stop_requested():
         _training_cycle(trainer, session)
     _save_final_checkpoint(trainer, session)
-    _run_final_evaluation(trainer, session)
+    if trainer.stop_requested():
+        trainer._log("train/stopped", {"reason": "stop_file"}, session.counters)
+    else:
+        _run_final_evaluation(trainer, session)
     counters = session.counters
     print(
         f"Training finished: transitions={counters.transitions}, "
@@ -167,6 +180,8 @@ def _training_cycle(trainer: Trainer, session: _TrainingSession) -> None:
 
 def _collect(trainer: Trainer, session: _TrainingSession) -> CollectionResult:
     remaining = trainer.run.spec.training.total_transitions - session.counters.transitions
+    if trainer.on_policy and session.rollout_collector is None:
+        _start_on_policy_collection(trainer, session)
     collector = session.rollout_collector
     if collector is None:
         return _collect_episode(trainer, session.counters, remaining)
@@ -200,8 +215,29 @@ def _record_collection(
     session.writer.submit(result.artifact)
     session.counters.transitions += result.transitions
     session.counters.episodes += result.completed_episodes
+    if session.rollout_collector is not None:
+        collector = session.rollout_collector
+        session.counters.next_episode_index = collector.episode_index + int(
+            collector.prepared is not None
+        )
     if result.transitions == 0:
         raise RuntimeError("Environment returned an empty episode; refusing to spin forever")
+    if result.artifact.metadata.get("termination") == "fixed_rollout":
+        metrics = rollout_metrics(result)
+        trainer._log(
+            "train/rollout",
+            {"reward": result.total_reward, "transitions": result.transitions, **metrics},
+            session.counters,
+        )
+        print(
+            f"Rollout {session.counters.updates + 1}: "
+            f"finishes={int(metrics['finished_episodes'])}, "
+            f"completed_races={int(metrics['completed_episodes'])}, "
+            f"boundaries={int(metrics['rollout_boundaries'])}; "
+            f"transitions={session.counters.transitions}",
+            flush=True,
+        )
+        return
     trainer._log("train/episode", _episode_log_payload(trainer, result), session.counters)
     if result.completed_episodes:
         _print_episode(trainer, result, session.counters)
@@ -318,6 +354,7 @@ def _run_periodic_evaluation(
     if not crossed_interval or counters.transitions >= trainer.run.spec.training.total_transitions:
         return
     trainer._checkpoint_for_evaluation(session.checkpoints, counters)
+    _close_rollout_environment(session)
     session.evaluation = evaluator.evaluate(trainer.run.learner.policy())
     trainer._log("eval/suite", session.evaluation, counters)
 
@@ -335,6 +372,7 @@ def _run_final_evaluation(trainer: Trainer, session: _TrainingSession) -> None:
     if evaluator is None:
         return
     trainer._set_evaluation_checkpoint(session.checkpoints)
+    _close_rollout_environment(session)
     session.evaluation = evaluator.evaluate(trainer.run.learner.policy())
     trainer._log("eval/suite", session.evaluation, session.counters)
 
@@ -361,11 +399,17 @@ def _log_exception(trainer: Trainer, session: _TrainingSession, failure: _Failur
     trainer._log(failure.event, payload, session.counters)
 
 
+def _close_rollout_environment(session: _TrainingSession) -> None:
+    environment = session.rollout_environment
+    session.rollout_collector = None
+    session.rollout_environment = None
+    close = getattr(environment, "close", None)
+    if callable(close):
+        close()
+
+
 def _close_session(session: _TrainingSession) -> None:
     try:
-        if session.rollout_environment is not None:
-            close = getattr(session.rollout_environment, "close", None)
-            if callable(close):
-                close()
+        _close_rollout_environment(session)
     finally:
         session.writer.close()

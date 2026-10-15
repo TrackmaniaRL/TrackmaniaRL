@@ -55,9 +55,7 @@ class ImageEnvironmentFactory:
         return ImageEnvironment()
 
 
-@pytest.mark.parametrize(
-    "algorithm", ["q", "qr", "iqn", "fqf", "sac", "redq", "tqc", "discrete-sac"]
-)
+@pytest.mark.parametrize("algorithm", ["q", "qr", "iqn", "fqf", "sac", "redq", "tqc", "sd-sac"])
 def test_off_policy_vision_update_train_and_resume(tmp_path: Path, algorithm: str) -> None:
     config = yaml.safe_load(_trackmania_vision_config(algorithm))
     config["artifacts_dir"] = str(tmp_path)
@@ -68,7 +66,7 @@ def test_off_policy_vision_update_train_and_resume(tmp_path: Path, algorithm: st
     components["feature_pipeline"]["kwargs"] = {"config": {"width": 8, "height": 8}}
     components["replay_store"]["kwargs"] = {"capacity": 16}
     components["learner"]["kwargs"]["execution"] = {"device": "cpu", "precision": "float32"}
-    if algorithm in {"sac", "redq", "tqc", "discrete-sac"}:
+    if algorithm in {"sac", "redq", "tqc", "sd-sac"}:
         components["model_factory"]["kwargs"]["config"] = {"hidden_dim": 8, "critic_count": 2}
     config["training"].update(
         total_transitions=8,

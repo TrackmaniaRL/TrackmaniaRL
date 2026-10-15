@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
+from json import dumps
 from math import ceil, isfinite
 from numbers import Real
 from typing import Any
@@ -17,6 +18,9 @@ class EvaluationObservability:
     controller_apply_ms: float = 0.0
     telemetry_wait_ms: float = 0.0
     control_brake_taps: int = 0
+    issued_control_counts: dict[str, int] = field(default_factory=dict)
+    issued_control_measurement_count: int = 0
+    issued_gas_sum: float = 0.0
     step_race_times_ms: list[float] = field(default_factory=list)
     step_race_time_invalid_measurements: int = 0
     telemetry_skipped_frames_total: int = 0
@@ -33,8 +37,32 @@ class EvaluationObservability:
         self.controller_apply_ms += float(info.get("controller_apply_ms", 0.0))
         self.telemetry_wait_ms += float(info.get("telemetry_wait_ms", 0.0))
         self.control_brake_taps += int(bool(info.get("control_brake_tap", False)))
+        self._record_issued_control(info)
         self._record_step_race_time(info)
         self._record_skipped_frames(info)
+
+    def _record_issued_control(self, info: Mapping[str, Any]) -> None:
+        # Command issued by the backend, not delayed input telemetry. This does
+        # not imply that the game acknowledged or physically executed it.
+        control = info.get("control/issued_command")
+        if not isinstance(control, (list, tuple)) or len(control) != 3:
+            return
+        if any(isinstance(v, bool) or not isinstance(v, Real) for v in control):
+            return
+        gas, brake, steer = (float(v) for v in control)
+        if not (
+            isfinite(gas)
+            and 0 <= gas <= 1
+            and isfinite(brake)
+            and -1 <= brake <= 1
+            and isfinite(steer)
+            and -1 <= steer <= 1
+        ):
+            return
+        key = dumps([gas, brake, steer], separators=(",", ":"))
+        self.issued_control_counts[key] = self.issued_control_counts.get(key, 0) + 1
+        self.issued_control_measurement_count += 1
+        self.issued_gas_sum += gas
 
     def _record_vision_timing(self, info: Mapping[str, Any]) -> None:
         for key, destination in (
@@ -91,6 +119,14 @@ class EvaluationObservability:
             controller_apply_ms=self.controller_apply_ms / steps,
             telemetry_wait_ms=self.telemetry_wait_ms / steps,
             control_brake_tap_fraction=self.control_brake_taps / steps,
+            issued_control_counts=dict(self.issued_control_counts),
+            issued_control_measurement_count=self.issued_control_measurement_count,
+            issued_control_measurements_valid=self.issued_control_measurement_count == steps,
+            issued_gas_mean=(
+                self.issued_gas_sum / self.issued_control_measurement_count
+                if self.issued_control_measurement_count
+                else None
+            ),
             step_race_time_ms_p99=race_p99,
             step_race_time_ms_max=race_max,
             step_race_time_measurement_count=len(self.step_race_times_ms),

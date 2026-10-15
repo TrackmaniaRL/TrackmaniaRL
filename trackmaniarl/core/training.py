@@ -33,12 +33,19 @@ _COUNTER_KEYS = frozenset(
 class Trainer:
     """Collect local episodes, update the learner, and persist training state."""
 
-    def __init__(self, run: ResolvedRun, *, resume_checkpoint: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        run: ResolvedRun,
+        *,
+        resume_checkpoint: str | Path | None = None,
+        stop_file: str | Path | None = None,
+    ) -> None:
         if run.environment_factory is None:
             raise ValueError("trackmaniarl train requires components.environment")
         self.run = run
         self.environment_factory = run.environment_factory
         self.resume_checkpoint = Path(resume_checkpoint) if resume_checkpoint is not None else None
+        self.stop_file = Path(stop_file) if stop_file is not None else None
         self.fingerprint = run_fingerprint(run.spec, run.base_dir)
         self.on_policy = bool(getattr(run.learner, "on_policy", False))
         self._validate_on_policy_run()
@@ -57,6 +64,9 @@ class Trainer:
 
     def train(self) -> TrainingResult:
         return run_training(self)
+
+    def stop_requested(self) -> bool:
+        return self.stop_file is not None and self.stop_file.exists()
 
     def _update_priorities(self, update: PriorityUpdate) -> None:
         self.run.sampler.update_priorities(update)
@@ -101,7 +111,9 @@ class Trainer:
             counters.next_episode_index,
             counters.fractional_updates,
         )
-        stored.next_episode_index = self._next_episode_index(counters.episodes)
+        stored.next_episode_index = max(
+            stored.next_episode_index, self._next_episode_index(counters.episodes)
+        )
         return {
             "schema_version": _CHECKPOINT_SCHEMA_VERSION,
             "run_fingerprint": self.fingerprint,

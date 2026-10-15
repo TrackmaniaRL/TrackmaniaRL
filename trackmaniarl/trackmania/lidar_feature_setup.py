@@ -31,7 +31,7 @@ class LidarFeatureConfig:
     local_velocity_features: bool = False
     use_racing_line: bool = False
     max_speed_mps: float = 80.0
-    velocity_to_mps_scale: float = 0.001
+    velocity_to_mps_scale: float = 1.0
     max_time_delta_s: float = 1.0
     limit_progress_by_kinematics: bool = False
     nearest_forward_points: int = 128

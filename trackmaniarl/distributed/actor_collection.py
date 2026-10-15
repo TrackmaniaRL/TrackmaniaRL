@@ -129,6 +129,8 @@ def _prewarm_initial_policy(context: CollectionContext) -> bool:
 
 def _start_training_episode(context: CollectionContext, episode: int) -> TrainingEpisode | None:
     runtime = context.runtime
+    if not _wait_for_update_budget(context):
+        return None
     observation = runtime._reset_environment(EnvironmentReset(context.environment, episode))
     if observation is None:
         return None
@@ -145,6 +147,22 @@ def _start_training_episode(context: CollectionContext, episode: int) -> Trainin
         episode_id,
         EpisodeMetrics.from_policy(policy),
     )
+
+
+def _wait_for_update_budget(context: CollectionContext) -> bool:
+    runtime = context.runtime
+    if not runtime.spec.distributed.strict_update_budget:
+        return not runtime.stop.is_set()
+    if not runtime.collect_allowed.is_set():
+        logger.info("Actor %s waiting between episodes for learner update budget", runtime.actor_id)
+        release = getattr(context.environment, "release_controls", None)
+        if callable(release):
+            release()
+    while not runtime.collect_allowed.is_set():
+        if runtime.stop.wait(0.2):
+            return False
+        actor_watchdog.touch(runtime)
+    return not runtime.stop.is_set()
 
 
 def _run_training_episode(context: CollectionContext, state: TrainingEpisode) -> None:
@@ -196,7 +214,7 @@ def _record_training_step(
     metrics = state.metrics
     metrics.record_inference(step.inference_s)
     metrics.record_policy(state.policy, step.index)
-    metrics.record_diagnostics(step.action, state.policy, step.info)
+    metrics.record_diagnostics(step.action, state.policy, step.info, policy_info=step.policy_info)
     next_prepared = context.pipeline.transform_observation(step.next_observation)
     context.buffers.transitions.append(_transition(state, step, next_prepared))
     state.prepared = next_prepared

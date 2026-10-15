@@ -93,6 +93,8 @@ class ActorRuntime:
         self.stop_reason = "running"
         self.force_refresh = threading.Event()
         self.evaluate = threading.Event()
+        self.collect_allowed = threading.Event()
+        self.collect_allowed.set()
         self._evaluation_request_lock = threading.Lock()
         self._evaluation_request: tuple[bytes, int] | None = None
         self._evaluation_index = 0

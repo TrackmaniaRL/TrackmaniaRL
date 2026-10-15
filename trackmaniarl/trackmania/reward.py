@@ -96,7 +96,6 @@ class TrajectoryReward:
         self._accepted_progress_delta_m = 0.0
         self._window_progress_m = 0.0
         self._previous_position: np.ndarray | None = None
-        self._reachable_progress_m = 0.0
 
     @classmethod
     def from_file(cls, path: str | Path, config: RewardConfig | None = None) -> TrajectoryReward:
@@ -131,14 +130,12 @@ class TrajectoryReward:
         self._accepted_progress_delta_m = 0.0
         self._window_progress_m = 0.0
         self._previous_position = None
-        self._reachable_progress_m = 0.0
 
     def _initialize_position(self, position: np.ndarray) -> None:
         point = self._vector3("position", position)
         self._index, _ = self._nearest_point(point)
         self._previous_potential = self._potential()
         self._previous_position = point
-        self._reachable_progress_m = self.progress_m
 
     @property
     def progress_m(self) -> float:

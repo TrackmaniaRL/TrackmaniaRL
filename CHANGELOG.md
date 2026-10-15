@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Correct QR quantile-loss reduction, mixed-precision value targets and PPO initialization.
+- Preserve PPO rollout budgets and warmup accounting; release controllers between training and evaluation.
+- Record issued controls, checkpoint identity, timing and cancellation in evaluation artifacts.
+- Add calibrated analog steering and guarded editor reset support for Linux X11.
+- Add a portable, bounded team campaign with persistent PPO recovery and explicit experimental SD-SAC exclusion.
+- Keep historical campaign plans and experiment evidence on the original training branch.
+
 ## 1.2.11 - 2026-09-28
 
 - Link the latest release, PyPI package and all release tags at the top of the README.

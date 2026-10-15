@@ -37,6 +37,22 @@ class TrainingCounters:
         }
 
 
+def rollout_metrics(result: Any) -> dict[str, float]:
+    """Count all race endings in a segment, keeping synthetic boundaries separate."""
+    telemetry = result.artifact.telemetry
+    reasons = [str(item.get("termination_reason") or "") for item in telemetry]
+    boundaries = reasons.count("rollout_boundary")
+    return {
+        "finished_episodes": float(reasons.count("finished")),
+        "completed_episodes": float(result.completed_episodes - boundaries),
+        "rollout_boundaries": float(boundaries),
+        "step_race_time_ms_max": max(
+            (float(item.get("step_race_time_ms", 0.0)) for item in telemetry), default=0.0
+        ),
+        **_episode_telemetry_metrics(telemetry),
+    }
+
+
 def episode_metrics(result: Any) -> dict[str, float]:
     telemetry = result.artifact.telemetry
     if not telemetry:

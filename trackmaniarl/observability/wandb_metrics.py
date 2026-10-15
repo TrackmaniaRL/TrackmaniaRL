@@ -86,6 +86,20 @@ def _event_metrics(event: str, payload: Mapping[str, Any]) -> dict[str, Any]:
         return _update_metrics(payload)
     if event == "train/episode":
         return _selected(payload, _EPISODE_METRICS, "episode")
+    if event == "train/rollout":
+        return _selected(
+            payload,
+            _EPISODE_METRICS
+            | {
+                "finished_episodes",
+                "completed_episodes",
+                "rollout_boundaries",
+                "step_race_time_ms_max",
+                "reward",
+                "transitions",
+            },
+            "rollout",
+        )
     if event in {"eval/summary", "eval/suite"}:
         return _evaluation_metrics(payload)
     if event in {"bc/train", "bc/validation"}:

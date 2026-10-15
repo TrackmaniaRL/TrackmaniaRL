@@ -207,7 +207,7 @@ def _patch_local_training(
     monkeypatch.setattr("trackmaniarl.commands.training.resolve_run", lambda *_, **__: run)
     monkeypatch.setattr(
         "trackmaniarl.commands.training.Trainer",
-        lambda resolved, resume_checkpoint=None: _LocalTrainer(
+        lambda resolved, resume_checkpoint=None, stop_file=None: _LocalTrainer(
             captured, resolved, resume_checkpoint
         ),
     )
@@ -317,6 +317,7 @@ class _SpawnProcess:
 
 def _spawn_context(captured: dict[str, object]) -> SimpleNamespace:
     return SimpleNamespace(
+        Event=lambda: SimpleNamespace(set=lambda: None),
         RawValue=lambda typecode, value: SimpleNamespace(value=value),
         Process=lambda **values: _SpawnProcess(captured, values["args"], values["name"]),
     )

@@ -249,6 +249,8 @@ def _trajectory_evaluation_map(request: _TrajectoryEnvironmentRequest) -> Evalua
     if evaluation is None:
         raise ValueError("trajectory-optimize requires an evaluation suite")
     map_spec = evaluation.maps[0]
+    if map_spec.geometry_path is None or map_spec.map_path is None:
+        raise ValueError("trajectory-optimize requires boundary geometry")
     return map_spec.model_copy(
         update={
             "map_path": _relative_to(request.config_path.parent, map_spec.map_path),
