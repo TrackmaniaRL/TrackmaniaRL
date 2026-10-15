@@ -1,4 +1,8 @@
-# Trackmania training and release workflow for 1.2.11
+# Trackmania training and release workflow for 1.2.12
+
+This guide targets the upcoming 1.2.12 release. The pinned installation command
+below requires that release to be published; before publication use a locally
+built wheel.
 
 The default configuration below trains IQN from lidar and telemetry. The generated
 `run-ppo.yaml` trains PPO from telemetry, and `run-ppo-vision.yaml` trains PPO from
@@ -12,7 +16,7 @@ Install the released CLI, then create the game project only on a machine that
 has Trackmania, Openplanet and a virtual gamepad driver:
 
 ```powershell
-uv tool install --index https://download.pytorch.org/whl/cpu --with "torch==2.11.0+cpu" "trackmaniarl==1.2.11"
+uv tool install --index https://download.pytorch.org/whl/cpu --with "torch==2.11.0+cpu" "trackmaniarl==1.2.12"
 trackmaniarl init my-agent --template trackmania
 cd my-agent
 uv sync
@@ -172,7 +176,10 @@ based exporter, in this shape: a `map_uid`, `checkpoints` with `time_ms` (the la
 one is the finish), `samples` every 50 ms with `time_ms`, `position`, `velocity`,
 `rotation` (`[x, y, z, w]`), `speed` and optional `extras` holding `steer`, `gas`,
 `brake` and `wheel_slip`, and, to use the lap as a demonstration, `inputs`: every
-input change with `time_ms`, `steer`, `throttle` and `brake`. Then run:
+input change with `time_ms`, `steer`, `throttle` and `brake`. Map UIDs used for
+asset filenames may contain ASCII letters, digits, underscores and hyphens;
+reserved Windows filenames and paths escaping the output directory are rejected
+before any files are written. Then run:
 
 ```powershell
 uv run trackmaniarl track from-ghost record.json --map-path maps/my-map.Map.Gbx

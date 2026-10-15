@@ -1,4 +1,4 @@
-# Support status for 1.2.11
+# Support status for 1.2.12
 
 Tests verify contracts and failure handling. They do not prove fast driving on
 unseen maps. The [algorithm matrix](../readme/algorithms.md) is authoritative for
@@ -8,7 +8,7 @@ supported learner/replay/model combinations.
 | --- | --- |
 | RunSpec 2.0, typed contracts, component resolution | Public SDK |
 | `init`, `inspect-config`, `validate` | Supported project setup and offline validation |
-| `track check`, boundary/trajectory recording, geometry building | Supported own-map asset workflow |
+| `track check`, boundary/trajectory recording, geometry building, `track from-ghost` | Own-map asset workflow; ghost corridors approximate the driven line rather than physical track walls |
 | `train`, `resume`, `smoke`, `learner`, `actor` | Supported asynchronous off-policy workflow |
 | PPO `train`, `resume`, `smoke`, `benchmark` | Supported local on-policy workflow with telemetry and CNN vision factories. Use local commands, not distributed actor/learner commands |
 | SAC, REDQ, TQC, stable discrete SAC | Supported telemetry and camera actor-critic workflows with generated configurations and first-party model factories |

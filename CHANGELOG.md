@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## Unreleased (1.2.12)
 
 - Correct QR quantile-loss reduction, mixed-precision value targets and PPO initialization.
 - Preserve PPO rollout budgets and warmup accounting; release controllers between training and evaluation.
@@ -8,7 +8,9 @@
 - Add calibrated analog steering and guarded editor reset support for Linux X11.
 - Build geometry, pace references and demonstrations from exported ghost laps, preserving paired boundaries at track crossings.
 - Raise the default projected-speed and pace-projection limit to 278 m/s.
-- Keep historical campaign plans and experiment evidence on the original training branch.
+- Validate ghost asset filenames and destinations before writing, and avoid duplicate finish timestamps.
+- Preserve sub-point motion in kinematic reward progress and reject non-finite steering calibration samples.
+- Add strict distributed update accounting and experimental SD-SAC numerical and checkpoint validation fixes.
 
 ## 1.2.11 - 2026-09-28
 

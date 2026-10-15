@@ -11,7 +11,7 @@ normal shutdown and a final checkpoint without sending a console interrupt.
 An existing stop file is rejected before starting child processes; remove it
 before resuming. Check final checkpoint completion before closing the launcher.
 
-A RunSpec YAML file is the public runtime configuration boundary in 1.2.11.
+A RunSpec YAML file is the public runtime configuration boundary in 1.2.12.
 The generated choices are `run.yaml`, `run-sac.yaml`, `run-redq.yaml`,
 `run-tqc.yaml`, `run-sd-sac.yaml`, `run-ppo.yaml` and `run-ppo-vision.yaml`.
 Each is parsed by
@@ -179,6 +179,10 @@ The paths below are under `components.environment.kwargs.config`.
 Configure exactly one of `geometry_path` and `reward_points_path`. The latter
 supports camera agents without recording track boundaries; it cannot supply
 LiDAR observations, racing-line optimization or a reference pace profile.
+
+The reward defaults use `max_projected_speed_mps: 278.0` and
+`velocity_to_mps_scale: 1.0`; see the [reward reference](../docs/reward-function.md)
+for their effects. Pace-reference projection also allows up to 278 m/s.
 
 ### Connection, controls and termination
 
