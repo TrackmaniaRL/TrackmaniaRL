@@ -13,7 +13,7 @@ before resuming. Check final checkpoint completion before closing the launcher.
 
 A RunSpec YAML file is the public runtime configuration boundary in 1.2.11.
 The generated choices are `run.yaml`, `run-sac.yaml`, `run-redq.yaml`,
-`run-tqc.yaml`, `run-discrete-sac.yaml`, `run-ppo.yaml` and `run-ppo-vision.yaml`.
+`run-tqc.yaml`, `run-sd-sac.yaml`, `run-ppo.yaml` and `run-ppo-vision.yaml`.
 Each is parsed by
 Pydantic as RunSpec 2.0, rejects unknown fields and NaN/Inf, then resolves each
 `module:attribute` component from the local environment. It is executable

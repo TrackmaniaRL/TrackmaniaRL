@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from experiments.tmrl_test_comparison.campaign import digest
 from experiments.tmrl_test_comparison.generate import ROOT as ROOT
 from experiments.tmrl_test_comparison.generate import SEEDS, configuration
 from experiments.tmrl_test_comparison.policy import CAMPAIGN_ASSIGNMENTS, require_standard_config
@@ -18,6 +18,14 @@ PLAN = HERE / "campaign.json"
 CAMPAIGN_ID = "weeks-pr-20261015"
 BUDGET = 8_192_000
 BASE = ROOT / "artifacts/tmrl-test-comparison"
+
+
+def digest(path: Path) -> str:
+    """Keep text pins identical for Git checkouts using LF or CRLF."""
+    data = path.read_bytes()
+    if path.suffix in {".py", ".toml", ".lock", ".yaml", ".json"}:
+        data = data.replace(b"\r\n", b"\n")
+    return hashlib.sha256(data).hexdigest()
 
 
 def source_pins() -> dict[str, str]:

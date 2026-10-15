@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import os
 from pathlib import Path
 
 import yaml
@@ -184,7 +185,7 @@ def configuration(algorithm: str, seed: int, stage: str) -> dict:
         "initialization": "random; no demos; no reference filter",
         "group": "discrete-78" if algorithm in DISCRETE_ALGORITHMS else "continuous-3",
         "encoder_source": "V107I/V108 incident-gated GNN Simba V6",
-        "protocol": "experiments/tmrl_test_comparison/README.md",
+        "protocol": "experiments/tmrl_test_comparison/team_campaign/START_HERE.md",
     }
     if algorithm in EXPERIMENTAL_ALGORITHMS:
         base["metadata"].update(support_tier="experimental", included_in_campaign=False)
@@ -192,34 +193,44 @@ def configuration(algorithm: str, seed: int, stage: str) -> dict:
 
 
 def main() -> None:
+    """Write one comparison configuration; campaign seed expansion belongs to plan.prepare."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--algorithm", required=True, choices=ALGORITHMS)
+    parser.add_argument("--seed", type=int, default=17)
+    parser.add_argument("--stage", choices=("pilot", "full"), default="pilot")
+    parser.add_argument("--output", type=Path, required=True)
+    args = parser.parse_args()
+    write_configuration(args.algorithm, args.seed, args.stage, args.output)
+    print(f"Created {args.output}; no training started.")
+
+
+def write_configuration(  # noqa: PLR0913 - explicit CLI inputs and destination
+    algorithm: str, seed: int, stage: str, output: Path
+) -> None:
+    """Resolve known asset paths relative to the requested file, without overwriting it."""
+    from experiments.tmrl_test_comparison.policy import require_standard_algorithm
     from trackmaniarl import RunSpec
 
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--include-experimental", action="store_true")
-    args = parser.parse_args()
-    paths = []
-    experimental = []
-    for stage, seeds in (("pilot", SEEDS[:1]), ("full", SEEDS)):
-        directory = HERE / "configs" / stage
-        directory.mkdir(parents=True, exist_ok=True)
-        algorithms = ALGORITHMS + (EXPERIMENTAL_ALGORITHMS if args.include_experimental else ())
-        for algorithm in algorithms:
-            for seed in seeds:
-                config = configuration(algorithm, seed, stage)
-                RunSpec.model_validate(config)
-                path = directory / f"{algorithm}-s{seed}.yaml"
-                path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
-                destination = experimental if algorithm in EXPERIMENTAL_ALGORITHMS else paths
-                destination.append(path.relative_to(ROOT).as_posix())
-    (HERE / "manifest.json").write_text(json.dumps(paths, indent=2) + "\n", encoding="utf-8")
-    if args.include_experimental:
-        (HERE / "experimental-manifest.json").write_text(
-            json.dumps(experimental, indent=2) + "\n", encoding="utf-8"
-        )
-    print(
-        f"Generated {len(paths)} standard and {len(experimental)} experimental configs; "
-        "no training started."
-    )
+    require_standard_algorithm(algorithm)
+    if stage not in {"pilot", "full"}:
+        raise ValueError("stage must be pilot or full")
+    data = configuration(algorithm, seed, stage)
+
+    def relocate(value: object) -> object:
+        if isinstance(value, dict):
+            return {key: relocate(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [relocate(item) for item in value]
+        if isinstance(value, str) and value.startswith("../../../../"):
+            target = ROOT / value.removeprefix("../../../../")
+            return os.path.relpath(target, output.resolve().parent).replace(os.sep, "/")
+        return value
+
+    data = relocate(data)
+    RunSpec.model_validate(data)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with output.open("x", encoding="utf-8") as stream:
+        yaml.safe_dump(data, stream, sort_keys=False)
 
 
 if __name__ == "__main__":

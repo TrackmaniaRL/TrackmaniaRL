@@ -56,21 +56,16 @@ class ScreenFrameSource:
 class VisionEnvironment:
     """Replace policy telemetry with RGB while retaining telemetry-based rewards."""
 
-    def __init__(  # noqa: PLR0913 - capture resources and observation modes are independent
+    def __init__(
         self,
         environment: Any,
         frames: FrameSource,
         *,
         include_telemetry: bool = False,
-        include_command_history: bool = False,
     ) -> None:
-        if include_command_history and not include_telemetry:
-            raise ValueError("issued command history requires include_telemetry")
         self.environment = environment
         self.frames = frames
         self.include_telemetry = include_telemetry
-        self.include_command_history = include_command_history
-        self._previous_command = np.zeros(3, dtype=np.float32)
 
     def _capture(self, info: dict[str, Any]) -> np.ndarray[Any, Any]:
         started = perf_counter()
@@ -90,8 +85,6 @@ class VisionEnvironment:
         if not self.include_telemetry:
             return images
         observation = {"telemetry": telemetry, "images": images}
-        if self.include_command_history:
-            observation["previous_command"] = self._previous_command.copy()
         return observation
 
     def reset(self, *, seed: int | None = None) -> tuple[Any, dict[str, Any]]:
@@ -100,7 +93,6 @@ class VisionEnvironment:
             if callable(prepare):
                 prepare()
             telemetry, info = self.environment.reset(seed=seed)
-            self._previous_command = np.zeros(3, dtype=np.float32)
             return self._observation(telemetry, info), info
 
     def step(self, action: Any) -> tuple[Any, float, bool, bool, dict[str, Any]]:
@@ -109,14 +101,6 @@ class VisionEnvironment:
             if callable(validate):
                 validate()
             telemetry, reward, terminated, truncated, info = self.environment.step(action)
-            if self.include_command_history:
-                if "control/issued_command" not in info:
-                    raise ValueError(
-                        "issued command history requires the controller boundary report"
-                    )
-                self._previous_command = np.asarray(
-                    info["control/issued_command"], dtype=np.float32
-                )
             return self._observation(telemetry, info), reward, terminated, truncated, info
 
     @contextmanager
@@ -142,11 +126,8 @@ class VisionEnvironmentFactory:
         capture: CaptureRegion | Mapping[str, Any] | None = None,
         window_capture: WindowCaptureConfig | Mapping[str, Any] | None = None,
         include_telemetry: bool = False,
-        include_command_history: bool = False,
         base_dir: str | Path = ".",
     ) -> None:
-        if include_command_history and not include_telemetry:
-            raise ValueError("issued command history requires include_telemetry")
         if capture is not None and window_capture is not None:
             raise ValueError("Choose capture or window_capture, not both")
         self._factory = OpenPlanetEnvironmentFactory(config, base_dir=base_dir)
@@ -156,7 +137,6 @@ class VisionEnvironmentFactory:
             None if window_capture is None else WindowCaptureConfig.model_validate(window_capture)
         )
         self.include_telemetry = include_telemetry
-        self.include_command_history = include_command_history
 
     def create(self, *, seed: int, evaluation_map: Any | None = None) -> VisionEnvironment:
         frames = (
@@ -173,22 +153,10 @@ class VisionEnvironmentFactory:
             environment,
             frames,
             include_telemetry=self.include_telemetry,
-            include_command_history=self.include_command_history,
         )
 
     def load_demonstration(self, path: str | Path, pipeline: FeaturePipeline) -> list[Transition]:
-        from trackmaniarl.trackmania.driving_replay import (
-            DrivingReplayContext,
-            driving_demonstration_transitions,
-        )
-
-        if not self.include_telemetry:
-            raise ValueError("camera/control demonstrations require include_telemetry")
-        if self.window_capture is not None:
-            raise ValueError("v1 fixed-crop demonstrations are incompatible with window_capture")
-        return driving_demonstration_transitions(
-            path, DrivingReplayContext(self.config, self.capture.model_dump(), pipeline)
-        )
+        raise ValueError("Telemetry-only demonstrations have no RGB frames for vision training")
 
 
 class WindowFrameSource(ScreenFrameSource):

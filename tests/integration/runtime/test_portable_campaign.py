@@ -1,5 +1,6 @@
 """Portable release contracts and mocked process supervision; no live game calls."""
 
+import json
 import shutil
 import subprocess
 import sys
@@ -166,3 +167,23 @@ def test_real_controller_lock_excludes_another_process() -> None:
         assert result.returncode == 23, result.stderr
     with controller_lease():
         pass
+
+
+@pytest.mark.parametrize("fault", ["config", "duplicate", "budget", "resume", "missing"])
+def test_changed_plan_blocks_launch(prepared: None, fault: str) -> None:
+    protocol = plan.verify()
+    if fault == "config":
+        path = plan.ROOT / protocol["jobs"][0]["config"]
+        path.write_text(path.read_text(encoding="utf-8") + "# changed\n", encoding="utf-8")
+    else:
+        if fault == "duplicate":
+            protocol["jobs"][1] = protocol["jobs"][0]
+        elif fault == "budget":
+            protocol["total_transitions_per_run"] += 1
+        elif fault == "resume":
+            protocol["automatic_resume"] = True
+        else:
+            protocol["jobs"].pop()
+        plan.PLAN.write_text(json.dumps(protocol), encoding="utf-8")
+    with pytest.raises(RuntimeError):
+        plan.verify()
