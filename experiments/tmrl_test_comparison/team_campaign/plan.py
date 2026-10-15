@@ -34,7 +34,6 @@ def source_pins() -> dict[str, str]:
     paths += [
         ROOT / "pyproject.toml",
         ROOT / "uv.lock",
-        ROOT / "pilot_tools/ppo_recovery.py",
         ROOT / "docs/benchmarks/2026-09-08-v108-config.json",
         ROOT / "my-trackmania-agent/maps/trackmaniarl-test.Map.Gbx",
         ROOT / "my-trackmania-agent/assets/trackmaniarl-test.geometry.npz",
@@ -58,7 +57,7 @@ def job_config(algorithm: str, seed: int) -> dict[str, Any]:
     data["evaluation"]["max_step_race_time_ms"] = None
     if algorithm == "ppo":
         data["components"]["feature_pipeline"]["class_path"] = (
-            "pilot_tools.ppo_recovery:PersistentPpoRecoveryPipeline"
+            "experiments.tmrl_test_comparison.ppo_recovery:PersistentPpoRecoveryPipeline"
         )
     data["metadata"].update(
         stage="weeks",

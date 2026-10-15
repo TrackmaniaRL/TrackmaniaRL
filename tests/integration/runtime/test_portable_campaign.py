@@ -21,7 +21,7 @@ def prepared(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     for relative in (
         "pyproject.toml",
         "uv.lock",
-        "pilot_tools/ppo_recovery.py",
+        "experiments/tmrl_test_comparison/ppo_recovery.py",
         "docs/benchmarks/2026-09-08-v108-config.json",
         "my-trackmania-agent/maps/trackmaniarl-test.Map.Gbx",
         "my-trackmania-agent/assets/trackmaniarl-test.geometry.npz",

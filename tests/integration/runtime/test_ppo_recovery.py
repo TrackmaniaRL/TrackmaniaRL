@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from pilot_tools.ppo_recovery import StalledIncidentMemory
+from experiments.tmrl_test_comparison.ppo_recovery import StalledIncidentMemory
 
 
 def test_stationary_edge_without_prior_incident_is_not_a_recovery_trigger() -> None:

@@ -7,7 +7,6 @@ on:
       - "feat/**"
       - "fix/**"
       - "refactor/**"
-      - "codex/training-fixes-pr"
   pull_request:
     branches:
       - main
