@@ -607,6 +607,21 @@ Optional `actor_learning_rate` and `entropy_learning_rate` inherit the critic's
 are research options, not part of the standard campaign. New checkpoints bind
 these options; mismatches are rejected before loading weights.
 
+`actor_temperature: entropy_matched` is a further research option for the
+forward-KL objective. It solves each state's temperature so that the detached
+`softmax((Q - max(Q))/alpha_s)` target has exactly `target_entropy`, which makes
+the target invariant to Q scale and offset and removes the learned alpha from the
+actor target. The learned actor's entropy can still differ from the target's.
+Exact ties at the maximum keep `log(ties)` nats at any temperature; such states
+are reported in `policy/matched_unreachable_fraction` and receive the tie-uniform
+target. `policy/matched_alpha_mean` and `policy/matched_entropy_error_max` report
+the solved temperatures and the solver residual. The mode requires
+`learn_entropy_coefficient: false` and an explicit `backup_entropy_coefficient`,
+the fixed entropy coefficient of the critic backup (`0` backs up the expected Q
+under the policy). The two options are independent interventions and should be
+evaluated separately. Matched temperatures change the actor objective of the
+original [SD-SAC](https://arxiv.org/abs/2209.10081); report results as a variant.
+
 Diagnostics separate missing Q measurements from measured zero through nulls
 and sample counts. Categorical behavior entropy is reported in nats; action
 histogram entropy is a different metric. Numerical and delayed-return tests

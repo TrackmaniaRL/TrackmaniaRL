@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- Add experimental SD-SAC `actor_temperature: entropy_matched`, which solves a per-state
+  temperature so the forward-KL actor target has exactly `target_entropy`, and
+  `backup_entropy_coefficient`, which fixes the entropy term of the critic backup.
+  Defaults and existing checkpoints are unchanged; non-default values are pinned in
+  new checkpoints.
+
 ## 1.2.12 - 2026-10-15
 
 - Correct QR quantile-loss reduction, mixed-precision value targets and PPO initialization.

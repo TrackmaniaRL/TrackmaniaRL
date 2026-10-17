@@ -28,8 +28,11 @@ from trackmaniarl.algorithms.sac_support import (
     restore_entropy_state,
 )
 from trackmaniarl.algorithms.sd_sac_objectives import (
+    EntropyMatchedTarget,
     actor_diagnostics,
     categorical_statistics,
+    entropy_matched_diagnostics,
+    entropy_matched_target,
     soft_q_log_probabilities,
     terminal_value_loss,
 )
@@ -174,6 +177,8 @@ class StableDiscreteSoftActorCritic(TorchLearnerBase):
         self.terminal_value_loss_coefficient = config.terminal_value_loss_coefficient
         self.entropy_penalty_coefficient = config.entropy_penalty_coefficient
         self.entropy_penalty_reference = config.entropy_penalty_reference
+        self.actor_temperature = config.actor_temperature
+        self.backup_entropy_coefficient = config.backup_entropy_coefficient
 
     def _setup_model(self) -> None:
         assert self.model is not None
@@ -348,7 +353,14 @@ class StableDiscreteSoftActorCritic(TorchLearnerBase):
                 self.target_model.q2(batch.next_observations), next_shape, "target q2"
             )
             next_q = 0.5 * q1 + 0.5 * q2
-            next_value = (next_probabilities * (next_q - alpha * next_log_probabilities)).sum(1)
+            # An explicit coefficient decouples the backed-up entropy bonus from the
+            # temperature that shapes the actor target; zero backs up E_pi[Q].
+            weight = (
+                alpha
+                if self.backup_entropy_coefficient is None
+                else alpha.new_tensor(self.backup_entropy_coefficient)
+            )
+            next_value = (next_probabilities * (next_q - weight * next_log_probabilities)).sum(1)
             terminal = batch.source.terminated.bool().reshape(-1) & batch.discounts.eq(0)
             continuation = torch.where(terminal, torch.zeros_like(next_value), next_value)
             targets = batch.rewards + batch.discounts * continuation
@@ -457,7 +469,12 @@ class StableDiscreteSoftActorCritic(TorchLearnerBase):
             q1 = _action_values(self.model.q1(batch.observations), shape, "q1").float()
             q2 = _action_values(self.model.q2(batch.observations), shape, "q2").float()
             q_values = 0.5 * q1 + 0.5 * q2
-            target_log_probabilities = soft_q_log_probabilities(q_values, alpha)
+            matched: EntropyMatchedTarget | None = None
+            if self.actor_temperature == "entropy_matched":
+                matched = entropy_matched_target(q_values, self._desired_entropy(shape[1]))
+                target_log_probabilities = matched.log_probabilities
+            else:
+                target_log_probabilities = soft_q_log_probabilities(q_values, alpha)
         if self.actor_objective == "soft_q_forward_kl":
             # An explicit variant, not canonical SD-SAC. Detached cross-entropy
             # keeps a gradient toward missed actions even for saturated logits.
@@ -468,6 +485,8 @@ class StableDiscreteSoftActorCritic(TorchLearnerBase):
         diagnostics = actor_diagnostics(
             (probabilities.detach(), log_probabilities.detach()), (q1, q2), target_log_probabilities
         )
+        if matched is not None:
+            diagnostics.update(entropy_matched_diagnostics(matched))
         desired = self._desired_entropy(probabilities.shape[-1])
         diagnostics["policy/entropy_target"] = entropy.new_tensor(desired)
         diagnostics["policy/entropy_target_error"] = entropy.detach().mean() - desired
@@ -508,6 +527,10 @@ class StableDiscreteSoftActorCritic(TorchLearnerBase):
             return 0.98 * maximum
         if self.target_entropy > maximum:
             raise ValueError("SD-SAC target_entropy cannot exceed log(action_count)")
+        if self.actor_temperature == "entropy_matched" and self.target_entropy >= maximum:
+            # Critic targets ask for this before any optimizer step, so an
+            # unreachable matched target fails before weights change.
+            raise ValueError("entropy_matched target_entropy must be below log(action_count)")
         return self.target_entropy
 
     def _entropy_loss(self, actor: _DiscreteActorStep) -> torch.Tensor:
@@ -621,6 +644,10 @@ class StableDiscreteSoftActorCritic(TorchLearnerBase):
         # Preserve the canonical checkpoint contract at the default.
         if self.terminal_value_loss_coefficient:
             options["terminal_value_loss_coefficient"] = self.terminal_value_loss_coefficient
+        if self.actor_temperature != "learned":
+            options["actor_temperature"] = self.actor_temperature
+        if self.backup_entropy_coefficient is not None:
+            options["backup_entropy_coefficient"] = self.backup_entropy_coefficient
         if self.model is not None and any(
             isinstance(module, HypersphericalLinear) for module in self.model.modules()
         ):
@@ -643,6 +670,8 @@ class StableDiscreteSoftActorCritic(TorchLearnerBase):
             or self.entropy_learning_rate != self.learning_rate
             or self.entropy_coefficient_min is not None
             or self.entropy_coefficient_max is not None
+            or self.actor_temperature != "learned"
+            or self.backup_entropy_coefficient is not None
             or "hyperspherical_projection" in self._checkpoint_options()
         ):
             raise ValueError("legacy checkpoint cannot resume with new SD-SAC options")

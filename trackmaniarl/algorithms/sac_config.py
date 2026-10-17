@@ -104,6 +104,8 @@ class SDSACOptions(SACOptions, total=False):
     terminal_value_loss_coefficient: float
     entropy_penalty_coefficient: float
     entropy_penalty_reference: Literal["target_policy", "behavior"]
+    actor_temperature: Literal["learned", "entropy_matched"]
+    backup_entropy_coefficient: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,6 +119,8 @@ class SDSACConfig(SACConfig):
     terminal_value_loss_coefficient: float = 0.0
     entropy_penalty_coefficient: float = 0.5
     entropy_penalty_reference: Literal["target_policy", "behavior"] = "target_policy"
+    actor_temperature: Literal["learned", "entropy_matched"] = "learned"
+    backup_entropy_coefficient: float | None = None
 
     def validate(self) -> None:
         SACConfig.validate(self)
@@ -161,6 +165,25 @@ class SDSACConfig(SACConfig):
             )
         if self.entropy_penalty_reference not in {"target_policy", "behavior"}:
             raise ValueError("entropy_penalty_reference must be 'target_policy' or 'behavior'")
+        if self.actor_temperature not in {"learned", "entropy_matched"}:
+            raise ValueError("actor_temperature must be 'learned' or 'entropy_matched'")
+        backup = self.backup_entropy_coefficient
+        if backup is not None and (not math.isfinite(backup) or backup < 0):
+            raise ValueError("SD-SAC backup_entropy_coefficient must be finite and non-negative")
+        if self.actor_temperature == "entropy_matched":
+            self._validate_entropy_matched()
+
+    def _validate_entropy_matched(self) -> None:
+        # Per-state temperatures replace alpha in the actor target. Nothing may keep
+        # learning the scalar alpha or silently use it in the critic backup instead.
+        if self.actor_objective != "soft_q_forward_kl":
+            raise ValueError("entropy_matched requires actor_objective 'soft_q_forward_kl'")
+        if self.target_entropy is None or self.target_entropy <= 0:
+            raise ValueError("entropy_matched requires a positive target_entropy")
+        if self.learn_entropy_coefficient:
+            raise ValueError("entropy_matched requires learn_entropy_coefficient=False")
+        if self.backup_entropy_coefficient is None:
+            raise ValueError("entropy_matched requires an explicit backup_entropy_coefficient")
 
 
 # Existing imports remain readable; new code uses the paper's SD-SAC name.
