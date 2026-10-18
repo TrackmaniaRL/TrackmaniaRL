@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.2.13 - Unreleased
+## 1.2.13 - 2026-10-18
 
 - Include graph encoder residual scales, incident gate thresholds and declared nested component settings in checkpoint architecture fingerprints; reject mismatches before loading weights.
 - Warn when loading a legacy graph checkpoint whose fingerprint cannot verify non-tensor settings. Retain schema 2.0 and require the original configuration for historical checkpoints.
