@@ -79,6 +79,7 @@ _TIMING_METRICS = {
     "update_s",
 }
 _EPISODE_METRICS = {
+    "best_finish_time_s",
     "collision/count",
     "collision/detected_count",
     "control/brake_fraction",

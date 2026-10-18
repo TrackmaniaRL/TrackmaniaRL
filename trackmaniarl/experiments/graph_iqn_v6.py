@@ -45,6 +45,14 @@ def _recovery_metric_values(
 class IncidentGatedTrackGnnSimbaEncoderV6(TrackGnnSimbaEncoderV5):
     """Apply the recovery residual only after a sustained detected incident."""
 
+    fingerprint_parameters: tuple[str, ...] = (
+        *TrackGnnSimbaEncoderV5.fingerprint_parameters,
+        "incident_memory_onset",
+        "incident_memory_full",
+        "retained_deficit_onset",
+        "retained_deficit_full",
+    )
+
     def __init__(
         self,
         recovery_residual_scale: float = 0.01,

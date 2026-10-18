@@ -18,6 +18,7 @@ from tests.unit._composite_value_fixtures import (
 from trackmaniarl.algorithms import AdaptiveGradientClipper
 from trackmaniarl.algorithms.value_based import DiscreteValueLearner
 from trackmaniarl.algorithms.value_based.update_helpers import PriorityInputs
+from trackmaniarl.experiments.graph_iqn_v6 import IncidentGatedTrackGnnSimbaEncoderV6
 from trackmaniarl.models.backbones import HypersphericalLinear, SimbaV2Backbone
 from trackmaniarl.models.composite import CompositeModules, CompositeValueModel
 from trackmaniarl.models.contracts import (
@@ -392,3 +393,71 @@ def test_value_model_architecture_fingerprint_contracts() -> None:
     _assert_quantile_counts_change_architecture_fingerprint()
     _assert_checkpoint_rejects_architecture_change()
     _assert_policy_loading_rejects_outdated_fingerprint()
+
+
+def _graph_learner(**encoder_kwargs: Any) -> DiscreteValueLearner:
+    model = CompositeValueModel(
+        CompositeModules(
+            IncidentGatedTrackGnnSimbaEncoderV6(**encoder_kwargs),
+            IdentityTemporalCore(192),
+            ScalarQHead(192, 3),
+            ScalarValueStrategy(),
+        )
+    )
+    learner = DiscreteValueLearner(model)
+    learner.setup({"seed": 7})
+    return learner
+
+
+@pytest.mark.parametrize("loader", ["load_state_dict", "load_policy_state_dict"])
+@pytest.mark.parametrize(
+    "encoder_kwargs",
+    [
+        {"context_residual_scale": 0.02},
+        {"spatial_residual_scale": 0.02},
+        {"recovery_residual_scale": 0.5},
+        {"incident_gate_thresholds": (0.10, 0.25, 0.08, 0.40)},
+        {"incident_gate_thresholds": (0.12, 0.30, 0.08, 0.40)},
+        {"incident_gate_thresholds": (0.12, 0.25, 0.06, 0.40)},
+        {"incident_gate_thresholds": (0.12, 0.25, 0.08, 0.45)},
+    ],
+)
+def test_checkpoint_rejects_changed_non_tensor_encoder_settings(
+    loader: str, encoder_kwargs: dict[str, Any]
+) -> None:
+    source = _graph_learner()
+    changed = _graph_learner(**encoder_kwargs)
+    checkpoint = deepcopy(source.state_dict())
+    before = _learner_snapshot(changed)
+
+    with pytest.raises(ValueError, match="fingerprint"):
+        getattr(changed, loader)(checkpoint)
+
+    _assert_learner_unchanged(changed, before)
+
+
+@pytest.mark.parametrize("loader", ["load_state_dict", "load_policy_state_dict"])
+def test_legacy_graph_checkpoint_loads_with_explicit_warning(loader: str) -> None:
+    source = _graph_learner()
+    checkpoint = deepcopy(source.state_dict())
+    checkpoint["architecture_fingerprint"] = source.model.legacy_architecture_fingerprint()
+    restored = _graph_learner()
+
+    with pytest.warns(RuntimeWarning, match="cannot verify non-tensor model settings"):
+        getattr(restored, loader)(checkpoint)
+
+    _assert_model_state_equal(restored.model, source.model.state_dict())
+    assert (
+        restored.state_dict()["architecture_fingerprint"] == source.model.architecture_fingerprint()
+    )
+
+
+def test_graph_checkpoint_settings_round_trip_and_include_nested_modules() -> None:
+    source = _graph_learner()
+    restored = _graph_learner()
+    restored.load_policy_state_dict(source.state_dict())
+    _assert_model_state_equal(restored.model, source.model.state_dict())
+
+    expected = restored.model.architecture_fingerprint()
+    restored.model.encoder.spatial_adapter.point_count = 43
+    assert restored.model.architecture_fingerprint() != expected

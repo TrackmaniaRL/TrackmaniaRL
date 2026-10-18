@@ -1,6 +1,6 @@
 # Library architecture and data contracts
 
-This guide describes TrackmaniaRL 1.2.12. RunSpec and checkpoint schemas remain 2.0.
+This guide describes TrackmaniaRL 1.2.13. RunSpec and checkpoint schemas remain 2.0.
 
 The supported entry points are `RunSpec`, `resolve_run`, `Trainer` and
 `__version__` from `trackmaniarl`, the contracts in `trackmaniarl.core` and the

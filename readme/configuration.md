@@ -11,7 +11,7 @@ normal shutdown and a final checkpoint without sending a console interrupt.
 An existing stop file is rejected before starting child processes; remove it
 before resuming. Check final checkpoint completion before closing the launcher.
 
-A RunSpec YAML file is the public runtime configuration boundary in 1.2.12.
+A RunSpec YAML file is the public runtime configuration boundary in 1.2.13.
 The generated choices are `run.yaml`, `run-sac.yaml`, `run-redq.yaml`,
 `run-tqc.yaml`, `run-sd-sac.yaml`, `run-ppo.yaml` and `run-ppo-vision.yaml`.
 Each is parsed by

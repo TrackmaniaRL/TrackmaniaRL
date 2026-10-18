@@ -49,6 +49,7 @@ class OrderedTrackResidualAdapter(nn.Module):
 
     output_dim = 192
     dilations: Sequence[int] = (1, 2, 4, 8)
+    fingerprint_parameters = ("point_count", "dilations")
 
     def __init__(self, *, point_count: int = 44, hidden_dim: int = 64) -> None:
         super().__init__()
@@ -84,6 +85,11 @@ class OrderedTrackResidualAdapter(nn.Module):
 
 class TrackGnnSimbaEncoderV4(TrackGnnSimbaEncoderV3):
     """V3 encoder plus an initially inert ordered-geometry correction."""
+
+    fingerprint_parameters: tuple[str, ...] = (
+        *TrackGnnSimbaEncoderV3.fingerprint_parameters,
+        "spatial_residual_scale",
+    )
 
     def __init__(
         self,

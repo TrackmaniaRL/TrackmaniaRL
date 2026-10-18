@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import warnings
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from pathlib import Path
@@ -91,9 +92,7 @@ def _clear_optimizer_state(value: object) -> Mapping[str, Any] | None:
 def load_state_dict(learner: DiscreteValueLearner, state: Mapping[str, Any]) -> None:
     validate_checkpoint_v2(state)
     assert isinstance(learner.model, CompositeValueModel)
-    expected = learner.model.architecture_fingerprint()
-    if state["architecture_fingerprint"] != expected:
-        raise ValueError("checkpoint architecture fingerprint does not match the model")
+    _validate_architecture(learner.model, state["architecture_fingerprint"])
     learner._load_modules(learner.model, cast(Mapping[str, Any], state["online"]))
     learner._load_modules(learner.target_model, cast(Mapping[str, Any], state["target"]))
     _restore_optimizers(learner, cast(Mapping[str, Any], state["optimizers"]))
@@ -130,10 +129,22 @@ def _restore_training(learner: DiscreteValueLearner, training: Mapping[str, Any]
 def load_policy_state_dict(learner: DiscreteValueLearner, state: Mapping[str, Any]) -> None:
     validate_policy_checkpoint_v2(state)
     assert isinstance(learner.model, CompositeValueModel)
-    if state["architecture_fingerprint"] != learner.model.architecture_fingerprint():
-        raise ValueError("checkpoint architecture fingerprint does not match the model")
+    _validate_architecture(learner.model, state["architecture_fingerprint"])
     learner._load_modules(learner.model, cast(Mapping[str, Any], state["online"]))
     learner.target_model.load_state_dict(learner.model.state_dict(), strict=True)
+
+
+def _validate_architecture(model: CompositeValueModel, fingerprint: str) -> None:
+    if fingerprint == model.architecture_fingerprint():
+        return
+    if fingerprint != model.legacy_architecture_fingerprint():
+        raise ValueError("checkpoint architecture fingerprint does not match the model")
+    warnings.warn(
+        "Legacy checkpoint fingerprint cannot verify non-tensor model settings. "
+        "Use the original model configuration when loading this checkpoint.",
+        RuntimeWarning,
+        stacklevel=3,
+    )
 
 
 def module_state(model: CompositeValueModel) -> dict[str, Mapping[str, Any]]:

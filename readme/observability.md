@@ -96,6 +96,7 @@ payload, including per-progress-bin diagnostics, remains in local JSONL.
 | `episode/return` | reward per episode | Training signal only, compare with evaluation rather than optimizing the chart in isolation. |
 | `episode/progress_pct`, `episode/progress_m` | percent and metres per episode | Shows whether failures move farther along the track. |
 | `episode/duration_s`, `episode/race_time_s`, `episode/finish_time_s` | seconds per episode | Diagnose stalls and pace. `finish_time_s` is meaningful only when `episode/finished=1`. |
+| `episode/best_finish_time_s` | seconds per episode, after the first finish | Cumulative minimum completed training lap, retained across failed episodes. This is a training record, not the final checkpoint's evaluation score. |
 | `episode/finished` | 0/1 per episode | Training finish rate input. Use deterministic evaluation for release decisions. |
 | `episode/termination_no_progress`, `episode/termination_slow_progress`, `episode/termination_off_track`, `episode/termination_max_steps`, `episode/termination_telemetry_error` | 0/1 per episode | Reason-coded failure distribution. Telemetry errors are system incidents, not policy failures. |
 | `episode/collision_count` | count per episode | Safety proxy, inspect together with pace and finish rate. |

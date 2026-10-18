@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.13 - Unreleased
+
+- Include graph encoder residual scales, incident gate thresholds and declared nested component settings in checkpoint architecture fingerprints; reject mismatches before loading weights.
+- Warn when loading a legacy graph checkpoint whose fingerprint cannot verify non-tensor settings. Retain schema 2.0 and require the original configuration for historical checkpoints.
+- Export the cumulative training lap record to W&B as `episode/best_finish_time_s`.
+
 ## 1.2.12 - 2026-10-15
 
 - Correct QR quantile-loss reduction, mixed-precision value targets and PPO initialization.
