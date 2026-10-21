@@ -11,7 +11,7 @@ normal shutdown and a final checkpoint without sending a console interrupt.
 An existing stop file is rejected before starting child processes; remove it
 before resuming. Check final checkpoint completion before closing the launcher.
 
-A RunSpec YAML file is the public runtime configuration boundary in 1.2.13.
+A RunSpec YAML file is the public runtime configuration boundary in 1.2.14.
 The generated choices are `run.yaml`, `run-sac.yaml`, `run-redq.yaml`,
 `run-tqc.yaml`, `run-sd-sac.yaml`, `run-ppo.yaml` and `run-ppo-vision.yaml`.
 Each is parsed by
@@ -92,6 +92,7 @@ Relative asset paths are resolved against the directory containing
 | `updates_per_transition` | finite float `>0`, `1.0` | Off-policy update-to-data ratio. High values improve reuse but amplify stale-policy and overfitting risk. |
 | `checkpoint_interval_updates` | positive int or null, `1000` | Periodic exact-state checkpoint cadence, null disables periodic saves. |
 | `checkpoint_keep_last` | positive int or null, null | Retains only the newest count within each checkpoint family after a successful save. Regular and evaluation-leader checkpoints are pruned independently, null disables pruning. |
+| `checkpoint_milestones` | increasing positive-int list, empty | Request immutable checkpoint copies at transition thresholds, each no larger than `total_transitions`. Saves occur at the first safe learner update after a threshold; filenames and JSON sidecars record the actual counters. Copies survive recovery retention. Resume never fabricates thresholds at or before its restored baseline. |
 | `save_final_checkpoint` | bool, `true` | Atomically writes the latest counters/state even when no new optimizer update followed the last periodic save. |
 | `metrics_interval_updates` | positive int, `50` | Learner diagnostic cadence, it does not change optimization. |
 | `per_beta_final` | `[0,1]` or null, null | Linear final PER beta, requires `training.beta`. |

@@ -77,7 +77,7 @@ class DiagnosticInputs:
 @dataclass(frozen=True, slots=True)
 class _EncodedFeatures:
     online: torch.Tensor
-    target: torch.Tensor
+    target: torch.Tensor | None
     final_online: torch.Tensor
     final_target: torch.Tensor
 
@@ -120,15 +120,22 @@ def _encoded_features(learner: DiscreteValueLearner, view: ValueBatchView) -> _E
     online = learner.model.encode_masked_sequence(
         view.batch.observations, layout, learner.burn_in, masks=view.masks
     )
-    target = learner.target_model.encode_masked_sequence(
-        view.batch.observations, layout, learner.burn_in, masks=view.masks
-    )
-    final_online = learner.model.encode_masked_sequence(
-        view.batch.next_observations, layout, learner.burn_in, masks=next_masks
-    )[:, -1]
-    final_target = learner.target_model.encode_masked_sequence(
-        view.batch.next_observations, layout, learner.burn_in, masks=next_masks
-    )[:, -1]
+    # Only sequences with interior bootstrap positions need target(current).
+    # Bootstrap features never participate in the online loss gradient.
+    with torch.no_grad():
+        target = (
+            learner.target_model.encode_masked_sequence(
+                view.batch.observations, layout, learner.burn_in, masks=view.masks
+            )
+            if view.sequence and view.time_steps > 1
+            else None
+        )
+        final_online = learner.model.encode_masked_sequence(
+            view.batch.next_observations, layout, learner.burn_in, masks=next_masks
+        )[:, -1]
+        final_target = learner.target_model.encode_masked_sequence(
+            view.batch.next_observations, layout, learner.burn_in, masks=next_masks
+        )[:, -1]
     return _EncodedFeatures(online, target, final_online, final_target)
 
 
@@ -145,6 +152,7 @@ def _next_features(
         else:
             index = position + view.n_step - learner.burn_in
             online_next.append(encoded.online[:, index].detach())
+            assert encoded.target is not None
             target_next.append(encoded.target[:, index])
     return online_next, target_next
 

@@ -158,6 +158,24 @@ def test_collection_passes_behavior_info_without_overwriting_control_measurement
     np.testing.assert_array_equal(transition.next_observation, np.ones(4))
 
 
+@pytest.mark.parametrize(
+    ("field", "invalid"),
+    [
+        ("timing/actor_preprocessing_ms_mean", float("nan")),
+        ("timing/step_race_invalid_measurements", 0.5),
+        ("timing/step_race_over_100ms_fraction", 1.1),
+    ],
+)
+def test_wire_validation_rejects_invalid_optional_timing(field: str, invalid: float) -> None:
+    summary = _episode_summary(EpisodeMetrics.from_policy(object()))
+    summary[field] = invalid
+    codec = WireCodec(1024 * 1024)
+    payload = _base_payload(0)
+    payload["episodes"] = [summary]
+    with pytest.raises(ValueError, match=r"timing|actor_"):
+        _validate_submit_payload(payload, codec)
+
+
 def test_nullable_summary_survives_wire_validation_and_ingest_log(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

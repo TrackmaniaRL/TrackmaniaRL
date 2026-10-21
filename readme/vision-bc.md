@@ -1,6 +1,6 @@
 # Behavior cloning from camera images
 
-TrackmaniaRL 1.2.13 supports camera BC through the same `bc-train` and
+TrackmaniaRL 1.2.14 supports camera BC through the same `bc-train` and
 `bc-benchmark` lifecycle as lidar BC. The project template generates
 `run-bc-vision.yaml`, including a CNN model, image preprocessing, desktop capture
 and the standard 78-action table. Set your map UID, geometry and capture rectangle

@@ -10,6 +10,8 @@ _UPDATE_METRICS = {
     "updates_per_s": "performance/updates_per_s",
     "transitions_per_s": "performance/transitions_per_s",
     "cumulative_transitions_per_s": "performance/cumulative_transitions_per_s",
+    "segment_transitions": "performance/segment_transitions",
+    "segment_elapsed_s": "performance/segment_elapsed_s",
     "target_updates_per_s": "performance/target_updates_per_s",
     "update_throughput_ratio": "performance/update_throughput_ratio",
     "update_backlog_s": "pipeline/update_backlog_s",
@@ -129,6 +131,14 @@ _EPISODE_METRICS = {
     "termination/time_limit",
     "timing/policy_inference_ms_max",
     "timing/policy_inference_ms_mean",
+    "timing/policy_inference_over_100ms_fraction",
+    "timing/step_race_invalid_measurements",
+    "timing/step_race_over_100ms_fraction",
+    *{
+        f"timing/actor_{phase}_ms_{statistic}"
+        for phase in ("environment", "preprocessing", "diagnostics", "bookkeeping")
+        for statistic in ("mean", "max")
+    },
     "timing/step_race_ms_max",
     "timing/step_race_ms_mean",
     "timing/step_race_ms_p99",

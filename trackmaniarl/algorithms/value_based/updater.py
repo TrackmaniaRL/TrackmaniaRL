@@ -253,10 +253,14 @@ class ValueUpdater:
             "timing/update_s": elapsed,
         }
 
-    @staticmethod
     def _optional_metrics(
-        metrics: dict[str, float], losses: _LossStep, gradients: _GradientStep
+        self, metrics: dict[str, float], losses: _LossStep, gradients: _GradientStep
     ) -> None:
+        if gradients.adaptive is None:
+            norm = metrics["gradients/norm"]
+            limit = self.learner.gradient_clip_norm
+            metrics["debug/gradient_clip_coefficient"] = min(1.0, limit / (norm + 1e-6))
+            metrics["debug/gradient_clipped_fraction"] = float(norm > limit)
         if gradients.adaptive is not None:
             metrics.update(
                 {

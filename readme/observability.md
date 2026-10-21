@@ -1,5 +1,28 @@
 # Observability and W&B
 
+After resume, global transition/update counters retain their original meaning.
+`segment_transitions` and `segment_elapsed_s` describe only the current process
+segment; `cumulative_transitions_per_s` is their ratio, not global transitions
+divided by the new process uptime. The first metric window uses the actual number
+of updates since resume rather than assuming a full reporting interval.
+
+Discrete value learners report `gradients/norm` before clipping. Without adaptive
+clipping, `debug/gradient_clipped_fraction` is a per-update indicator and
+`debug/gradient_clip_coefficient` is the applied hard-clip scale. Averaging the
+indicators gives a clipping fraction; thresholding an average norm does not.
+Adaptive clipping retains its separate `gradients/adaptive_*` diagnostics.
+
+Distributed actor episode summaries include `timing/actor_{phase}_ms_mean` and
+`timing/actor_{phase}_ms_max` for `environment`, `preprocessing`, `diagnostics` and
+`bookkeeping`. Environment time includes controller/telemetry waits; preprocessing
+times the observation pipeline; diagnostics times policy/control statistics;
+bookkeeping includes transition snapshots, reward accounting and any spool flush.
+These CPU wall times require no GPU synchronization or extra telemetry connection.
+They are separate from policy inference and do not add up to all episode overhead.
+The reported `timing/step_race_over_100ms_fraction` uses valid race-time samples;
+`timing/step_race_invalid_measurements` counts missing, zero, negative or non-finite
+samples separately. These diagnostics do not impose an evaluation threshold.
+
 Every run writes `artifacts/<run-id>/events.jsonl`. This local stream is the
 complete audit record and remains available when W&B is disabled or unavailable.
 W&B is an optional, bounded projection of that stream: it keeps metrics that

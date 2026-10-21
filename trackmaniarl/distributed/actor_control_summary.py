@@ -12,6 +12,8 @@ _EMPTY_CONTROL_SUMMARY: dict[str, float] = {
     "step_race_time_ms_max": 0.0,
     "step_race_time_measurement_count": 0.0,
     "step_race_time_measurements_valid": 0.0,
+    "step_race_time_invalid_measurements": 0.0,
+    "step_race_time_over_100ms_fraction": 0.0,
     "controller_apply_ms_mean": 0.0,
     "controller_apply_ms_max": 0.0,
     "telemetry_wait_ms_mean": 0.0,
