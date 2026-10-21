@@ -147,4 +147,3 @@ whole evaluation. It never removes individual slow attempts.
 
 More detail: [evaluation architecture](../docs/library-architecture.md#checkpoints-and-evaluation),
 [recording](../docs/recording.md) and [troubleshooting](../docs/troubleshooting.md).
-

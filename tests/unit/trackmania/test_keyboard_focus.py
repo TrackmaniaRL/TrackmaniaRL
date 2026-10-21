@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from pathlib import Path
-from threading import RLock
-from experiments.tmrl_test_comparison import preflight
-from trackmaniarl.trackmania.control import GamepadController
-
 from collections.abc import Callable, Iterator
 from ctypes import wintypes
+from pathlib import Path
+from threading import RLock
 
 import pytest
 
+from experiments.tmrl_test_comparison import preflight
 from trackmaniarl.trackmania import keyboard_control as keyboard
+from trackmaniarl.trackmania.control import GamepadController
 
 
 class _WinFunction:

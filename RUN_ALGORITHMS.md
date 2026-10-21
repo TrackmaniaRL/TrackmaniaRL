@@ -1,5 +1,9 @@
 # Treningi na kilku komputerach
 
+Aktualne nowe starty: **weeks-20261021-v4**, biblioteka **1.2.14**, **7 168 000 kroków na seed** (12,5% mniej), 30 prób końcowych. [Instrukcja i podział zespołu](experiments/tmrl_test_comparison/release_20261021_v4/START_HERE.md). Przygotowano 15 nowych konfiguracji; żadnej nie uruchomiono. Uruchomienie wymaga wydanego tagu v1.2.14 w historii checkoutu. Rozpoczęte próby zachowują swoje źródła, konfiguracje i budżety. Wyniki dłuższych prób stanowią osobną kohortę.
+
+## Materiały historyczne
+
 SD-SAC jest **experimental** i nie uczestniczy w tej kampanii. Jego automatyczne
 naprawy są wstrzymane. Przygotowano 15 niezależnych runów; treningów nie uruchomiono.
 
