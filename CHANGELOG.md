@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.15 - 2026-10-21
 
 - Hold throttle during Trackmania's countdown instead of waiting for a positive
   race clock and the first policy inference. The first policy action takes over
