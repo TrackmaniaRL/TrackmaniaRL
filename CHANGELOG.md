@@ -6,6 +6,7 @@
 - Skip unused target-current encoding for single-step value batches and disable autograd for bootstrap features; retain recurrent bootstrap and float32 head/target behavior.
 - Report hard gradient clipping coefficients/fractions and actor preprocessing, diagnostics, environment and bookkeeping timings, with explicit long-step and invalid-timing counts.
 - Add opt-in transition milestone checkpoints for local and distributed training. Preserve independent copies after successful writes, record actual snapshot counters and keep them outside recovery retention.
+- Keep checkpoint read staging paths within the same length budget as successful saves on Windows.
 - Document real-time collection limits, milestone storage costs and the distinction between shorter experimental budgets and implementation throughput.
 
 ## 1.2.13 - 2026-10-18
