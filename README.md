@@ -1,4 +1,4 @@
-> Team training branch: new starts use [campaign v4](experiments/tmrl_test_comparison/release_20261021_v4/START_HERE.md), library 1.2.14, 7,168,000 transitions per seed and 30 final trials. Existing runs retain their pinned source and budget. Launch requires the published v1.2.14 release in checkout history.
+> Team training branch: new starts use campaign `weeks-20261021-v4`; see `RUN_ALGORITHMS.md` in this branch. Library 1.2.14, 7,168,000 transitions per seed and 30 final trials. Existing runs retain their pinned source and budget. Launch requires the published v1.2.14 release in checkout history.
 
 [![Latest release](https://img.shields.io/github/v/release/TrackmaniaRL/TrackmaniaRL)](https://github.com/TrackmaniaRL/TrackmaniaRL/releases/latest)
 [![PyPI version](https://img.shields.io/pypi/v/trackmaniarl)](https://pypi.org/project/TrackmaniaRL/)

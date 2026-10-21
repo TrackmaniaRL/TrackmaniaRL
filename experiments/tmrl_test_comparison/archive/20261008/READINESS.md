@@ -1,12 +1,12 @@
 > Update 2026-10-08 07:22 UTC — repair search reorganized around decisions; calibration trajectory COMPLETE.
 >
-> Central entry point: [SD_SAC_REPAIR_DECISIONS.md](SD_SAC_REPAIR_DECISIONS.md), with closed hypotheses, fixed budgets and decision/stop rules. Existing scheduler instructions shortened to current state and durable constraints; no more unrelated audits or grids at each wakeup. One checkpoint load now collects complementary trajectory metrics and reason groups.
+> Central entry point: [SD_SAC_REPAIR_DECISIONS.md](../../SD_SAC_REPAIR_DECISIONS.md), with closed hypotheses, fixed budgets and decision/stop rules. Existing scheduler instructions shortened to current state and durable constraints; no more unrelated audits or grids at each wakeup. One checkpoint load now collects complementary trajectory metrics and reason groups.
 >
 > Fixed weight0/.01, seeds17/29,48steps each:192 copied steps,212.36s; all four endpoints EXACTLY reproduce prior calibration. Both weight0.01 seeds first fail held nonterminal MAE guard at sampled step8. Final held MAE0.113856/0.115229, MSE0.095405/0.090436 versus initial0.071385/0.033756; fit nonterminal MSE also worsens. Held clipped loss worsens alongside MAE. Terminal MAE improves to4.550828/4.597501. This supports a finite calibration tradeoff, not merely metric disagreement or ordinary train-only overfit; no optimizer/clipping bug is established. Close further generic weighting/initial-optimizer tweaks; no early promotion.
 >
 > Original actual CP SHA/model/target/all optimizers unchanged; pins/STOP valid, both captured exact processes closed. Ruff/mypy PASS. Evidence calibration-trajectory.json plus receipts/verification and repair-state.json under evidence/sd-projlr08-final. No runtime learner/controller/pilot; full SD BLOCKED.
 >
-> Concrete next hypothesis and causal/control/scope contract prepared in [SD_SAC_OBSERVABILITY_PROPOSAL.md](SD_SAC_OBSERVABILITY_PROPOSAL.md). SD-SAC-only remaining-clock adapter requires explicit widening of the current no-observation/model/architecture-change scope. No dependent experiment before that decision; keep heartbeat ACTIVE5min and quiet on unchanged pending state.
+> Concrete next hypothesis and causal/control/scope contract prepared in [SD_SAC_OBSERVABILITY_PROPOSAL.md](../../SD_SAC_OBSERVABILITY_PROPOSAL.md). SD-SAC-only remaining-clock adapter requires explicit widening of the current no-observation/model/architecture-change scope. No dependent experiment before that decision; keep heartbeat ACTIVE5min and quiet on unchanged pending state.
 
 > Update 2026-10-08 07:14 UTC — critic Adam-direction audit COMPLETE; zero optimizer/model/runtime steps.
 >
@@ -206,7 +206,7 @@ Completed zero-update CPU idle/single-thread inference on both immutable project
 
 Terminal clipping blocks the selected loss branch for only1/130 samples per critic (0.77%) in the current checkpoint,versus0/181 and1/181 previously. Nonterminal blocked fractions0%. This checkpoint snapshot does not explain terminal MAE5.53 through pervasive clipped gradients and cannot reconstruct historical gradients. Terminal bootstrap and mean-minus-min target gap are exactly0; terminal targets match immediate rewards. Nonterminal mean-minus-min target gap0.01718 on1024 rows,entropy bootstrap0.03785. These counterfactual targets do not establish true Q values.
 
-New runnable audit: audit_sd_sac_target_calibration.py. Ruff and boundary-scoped mypy pass; two real CPU inference executions pass fingerprint/SHA/model immutability checks. Terminal-zero-bootstrap,target-equals-reward,and mean>=min invariants pass. No optimizer/controller/training run created. Evidence: [current](evidence/sd-projlr08-final/target-calibration.json),[predecessor](evidence/sd-projlr08-final/predecessor-target-calibration.json).
+New runnable audit: audit_sd_sac_target_calibration.py. Ruff and boundary-scoped mypy pass; two real CPU inference executions pass fingerprint/SHA/model immutability checks. Terminal-zero-bootstrap,target-equals-reward,and mean>=min invariants pass. No optimizer/controller/training run created. Evidence: [current](../../evidence/sd-projlr08-final/target-calibration.json),[predecessor](../../evidence/sd-projlr08-final/predecessor-target-calibration.json).
 
 Next diagnostic remains offline: test whether projected disposable critic+savedAdam copies can reduce episode-held terminal error while preserving fixed nonterminal Bellman targets under a relative20% drift guard; include an unmodified-loss baseline and paired seeds. Earlier unprojected checkpoint weighting probes failed the guard; do not promote terminal weighting or claim an architecture bottleneck. Only a positive,repeatable scoped result can justify a fresh pilot. Current sd-projlr08 remains closed;full BLOCKED;automationACTIVE5min. No new controller launched.
 
@@ -220,7 +220,7 @@ Completed offline CPU idle/single-thread audits,zero runtime learner/controller 
 
 Completed disposable saved-Adam actor probe64 steps per LR/seed,384 total,86.77s,checkpoint/model/Adam unchanged. Fixed averageQ held agreement23.24% initially; LR0.0001 gives25.00/25.00%,0.0003 gives25.20/24.61%,0.0009 gives76.95/77.15%. For0.0009 held KL0.37559->0.08744/0.08687 and regret0.00861->0.000536/0.000518,while saved-start top1 agreement remains0% for every variant. Frozen-Q fitting improvements did not establish useful driving. Next step: offline inspect critic target/value calibration and mean-versus-min actor target before selecting a justified fresh plan. No terminal-weighting promotion,shared reward/model/GNN changes,resume,or reused-queue restart.
 
-Evidence: [closure](evidence/sd-projlr08-final/post-closure-verification.json),[critic](evidence/sd-projlr08-final/critic-audit.json),[starts](evidence/sd-projlr08-final/initial-landscape.json),[actor copies](evidence/sd-projlr08-final/actor-lr-probe.json). Automation ACTIVE every5min during offline diagnosis; earlier active-training states below are historical.
+Evidence: [closure](../../evidence/sd-projlr08-final/post-closure-verification.json),[critic](../../evidence/sd-projlr08-final/critic-audit.json),[starts](../../evidence/sd-projlr08-final/initial-landscape.json),[actor copies](../../evidence/sd-projlr08-final/actor-lr-probe.json). Automation ACTIVE every5min during offline diagnosis; earlier active-training states below are historical.
 
 ## Aktualizacja 2026-10-08 02:20UTC: nowy projected actor-LR pilot działa
 
