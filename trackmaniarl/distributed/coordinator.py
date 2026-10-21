@@ -78,7 +78,6 @@ class Coordinator:
         self._timed_out_actors: set[str] = set()
         self._evaluation_due: set[str] = set()
         self._last_ingest_at = monotonic()
-        self._started_at = monotonic()
         self._rollouts: Queue[tuple[int, float]] = Queue(
             maxsize=coordinator_support.ROLLOUT_QUEUE_MAXSIZE
         )
@@ -87,10 +86,14 @@ class Coordinator:
     def _initialize_metrics(self) -> None:
         self._metrics = coordinator_support._MetricAccumulator()
         self._metric_window_started = monotonic()
+        self._started_at = self._metric_window_started
+        self._segment_initial_transitions = self.counters.transitions
+        self._last_checkpoint_transitions = self.counters.transitions
         self._last_metric_credit = 0.0
         self._growing_credit_windows = 0
         self._last_logging_s = 0.0
-        self._last_metric_transitions = 0
+        self._last_metric_transitions = self.counters.transitions
+        self._last_metric_updates = self.counters.updates
 
     def _initialize_evaluation(self) -> None:
         evaluation = self.run.spec.evaluation

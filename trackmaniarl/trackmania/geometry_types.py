@@ -16,3 +16,7 @@ class GeometryBuildRequest:
     spacing_m: float = 2.0
     smooth_window: int = 5
     lookahead_points: int = 60
+    already_paired: bool = False
+    """The two recordings match point for point, as walls built around one driven
+    line do, so they are not re-paired by proximity. Proximity pairing picks the
+    wrong section where a track passes over or beside itself."""

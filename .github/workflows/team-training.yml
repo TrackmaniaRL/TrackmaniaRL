@@ -1,0 +1,44 @@
+name: Team training release
+
+on:
+  pull_request:
+    branches: ["codex/tmrl-algorithm-runs"]
+  push:
+    branches: ["codex/tmrl-algorithm-runs"]
+
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: "0.12.5"
+  TORCH_CPU_INDEX: https://download.pytorch.org/whl/cpu
+  TORCH_CPU_VERSION: 2.11.0+cpu
+  VGAMEPAD_SKIP_VIGEMBUS_INSTALL: "true"
+  OMP_NUM_THREADS: "1"
+  MKL_NUM_THREADS: "1"
+
+jobs:
+  campaign:
+    name: Frozen v4 campaign (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+          enable-cache: true
+      - name: Verify lock and export CPU test dependencies
+        run: uv export --quiet --locked --group dev --prune torch --no-header --no-annotate --no-emit-project --output-file .ci-dev-requirements.txt
+      - name: Verify the frozen plan without game input
+        run: uv run --isolated --no-project --no-config --index "${{ env.TORCH_CPU_INDEX }}" --index-strategy unsafe-best-match --with "torch==${{ env.TORCH_CPU_VERSION }}" --with-requirements .ci-dev-requirements.txt python -m experiments.tmrl_test_comparison.release_20261021_v4.campaign verify
+      - name: Test merged library and campaign contracts
+        run: uv run --isolated --no-project --no-config --index "${{ env.TORCH_CPU_INDEX }}" --index-strategy unsafe-best-match --with "torch==${{ env.TORCH_CPU_VERSION }}" --with-requirements .ci-dev-requirements.txt pytest -q

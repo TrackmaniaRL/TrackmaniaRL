@@ -6,6 +6,7 @@ import pytest
 import yaml
 
 from experiments.tmrl_test_comparison.generate import ALGORITHMS, configuration
+from experiments.tmrl_test_comparison.policy import EXPERIMENTAL_ALGORITHMS
 from trackmaniarl.algorithms.sac_config import DiscreteSACConfig, SDSACConfig
 from trackmaniarl.core.contracts import ModelContract
 from trackmaniarl.core.spec import RunSpec
@@ -43,5 +44,6 @@ def test_new_comparison_and_scaffold_configs_use_sd_sac(name: str) -> None:
 
 def test_sd_sac_config_preserves_the_previous_import() -> None:
     assert DiscreteSACConfig is SDSACConfig
-    assert "sd-sac" in ALGORITHMS
+    assert "sd-sac" in EXPERIMENTAL_ALGORITHMS
+    assert "sd-sac" not in ALGORITHMS
     assert "discrete-sac" not in ALGORITHMS

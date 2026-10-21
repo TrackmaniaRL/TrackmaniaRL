@@ -19,6 +19,7 @@ from tests.integration.runtime.distributed_runtime_support import (
     _SlowLearner,
     _spawn_probe,
 )
+from trackmaniarl.distributed import coordinator_metrics
 from trackmaniarl.distributed.actor_transport import Client
 from trackmaniarl.distributed.coordinator import Coordinator
 from trackmaniarl.distributed.coordinator_support import _Counters
@@ -117,6 +118,30 @@ def test_coordinator_reset_replay_restores_only_learner_state(tmp_path: Path) ->
     assert case.replay.restored is None
     assert case.sampler.restored is None
     assert case.coordinator.counters == _Counters()
+
+
+def test_resume_throughput_excludes_restored_counters(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    case = _restore_case(tmp_path)
+    try:
+        case.coordinator.restore_checkpoint(tmp_path / "checkpoint.pt")
+        baseline = case.coordinator._metric_window_started
+        assert case.coordinator._segment_initial_transitions == 42
+        case.coordinator.run.replay_store = []
+        case.coordinator.run.spec.training = SimpleNamespace(updates_per_transition=0.25)
+        case.coordinator.counters.transitions += 20
+        case.coordinator.counters.updates += 3
+        monkeypatch.setattr(coordinator_metrics, "monotonic", lambda: baseline + 2.0)
+        # The first resumed window can contain fewer updates than the interval.
+        window = coordinator_metrics._metric_window(case.coordinator)
+        payload = coordinator_metrics._throughput_metrics(case.coordinator, window)
+        assert window.transitions_per_s == 10.0
+        assert window.updates_per_s == 1.5
+        assert payload["cumulative_transitions_per_s"] == 10.0
+        assert payload["segment_transitions"] == 20
+    finally:
+        case.coordinator._close_runtime()
 
 
 def test_coordinator_restores_evaluation_leaders(

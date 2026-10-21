@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import tomllib
 from pathlib import Path
 
 from PIL import Image
@@ -31,15 +30,13 @@ def test_neural_media_documentation_keeps_provenance_and_links() -> None:
     film = (ROOT / "docs/activation-film.md").read_text(encoding="utf-8")
     readme_prose = " ".join(readme.split())
     film_prose = " ".join(film.split())
-    with (ROOT / "pyproject.toml").open("rb") as file:
-        version = tomllib.load(file)["project"]["version"]
     assert (
-        "https://raw.githubusercontent.com/Palamabron/TrackmaniaRL/"
-        f"v{version}/docs/assets/trackmaniarl-neural-flow.gif"
+        "https://raw.githubusercontent.com/TrackmaniaRL/TrackmaniaRL/"
+        "main/docs/assets/trackmaniarl-neural-flow.gif"
     ) in readme
     assert (
-        "https://raw.githubusercontent.com/Palamabron/TrackmaniaRL/"
-        f"v{version}/docs/assets/trackmaniarl-logo.png"
+        "https://raw.githubusercontent.com/TrackmaniaRL/TrackmaniaRL/"
+        "main/docs/assets/trackmaniarl-logo.png"
     ) in readme
     assert "reports approximately 12 wall-clock hours" in readme_prose
     assert "capturing and rendering the film did not update its" in readme_prose

@@ -96,6 +96,7 @@ class TrajectoryReward:
         self._accepted_progress_delta_m = 0.0
         self._window_progress_m = 0.0
         self._previous_position: np.ndarray | None = None
+        self._progress_motion_remainder_m = 0.0
 
     @classmethod
     def from_file(cls, path: str | Path, config: RewardConfig | None = None) -> TrajectoryReward:
@@ -130,6 +131,7 @@ class TrajectoryReward:
         self._accepted_progress_delta_m = 0.0
         self._window_progress_m = 0.0
         self._previous_position = None
+        self._progress_motion_remainder_m = 0.0
 
     def _initialize_position(self, position: np.ndarray) -> None:
         point = self._vector3("position", position)

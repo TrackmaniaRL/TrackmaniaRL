@@ -11,9 +11,9 @@ normal shutdown and a final checkpoint without sending a console interrupt.
 An existing stop file is rejected before starting child processes; remove it
 before resuming. Check final checkpoint completion before closing the launcher.
 
-A RunSpec YAML file is the public runtime configuration boundary in 1.2.9.
+A RunSpec YAML file is the public runtime configuration boundary in 1.2.14.
 The generated choices are `run.yaml`, `run-sac.yaml`, `run-redq.yaml`,
-`run-tqc.yaml`, `run-discrete-sac.yaml`, `run-ppo.yaml` and `run-ppo-vision.yaml`.
+`run-tqc.yaml`, `run-sd-sac.yaml`, `run-ppo.yaml` and `run-ppo-vision.yaml`.
 Each is parsed by
 Pydantic as RunSpec 2.0, rejects unknown fields and NaN/Inf, then resolves each
 `module:attribute` component from the local environment. It is executable
@@ -86,11 +86,13 @@ Relative asset paths are resolved against the directory containing
 | `n_step` | positive int, `1` | Bellman horizon. It must be smaller than `sequence_length` for recurrent replay, terminal stops bootstrap, truncation does not. |
 | `gamma` | float, `0.99` | Discount in `[0,1]`. For first-party Trackmania rewards it must equal `components.environment.kwargs.config.reward_gamma`. |
 | `beta` | float or null, null | Request-time PER importance exponent. When set, it overrides the sampler's constructor `beta`. |
+| `reset_after_on_policy_rollout` | `false` | Reset the environment between completed on-policy rollouts when explicitly enabled; never carry stale collection state across an update. |
 | `warmup_transitions` | int, `1000` | Replay items collected before the first off-policy update, no deferred update debt is accumulated. |
 | `offline_pretrain_updates` | int, `0` | Updates performed from loaded demonstration replay before actors start. |
 | `updates_per_transition` | finite float `>0`, `1.0` | Off-policy update-to-data ratio. High values improve reuse but amplify stale-policy and overfitting risk. |
 | `checkpoint_interval_updates` | positive int or null, `1000` | Periodic exact-state checkpoint cadence, null disables periodic saves. |
 | `checkpoint_keep_last` | positive int or null, null | Retains only the newest count within each checkpoint family after a successful save. Regular and evaluation-leader checkpoints are pruned independently, null disables pruning. |
+| `checkpoint_milestones` | increasing positive-int list, empty | Request immutable checkpoint copies at transition thresholds, each no larger than `total_transitions`. Saves occur at the first safe learner update after a threshold; filenames and JSON sidecars record the actual counters. Copies survive recovery retention. Resume never fabricates thresholds at or before its restored baseline. |
 | `save_final_checkpoint` | bool, `true` | Atomically writes the latest counters/state even when no new optimizer update followed the last periodic save. |
 | `metrics_interval_updates` | positive int, `50` | Learner diagnostic cadence, it does not change optimization. |
 | `per_beta_final` | `[0,1]` or null, null | Linear final PER beta, requires `training.beta`. |
@@ -129,6 +131,7 @@ not encrypt. Bind to loopback and use an encrypted tunnel.
 | `max_message_bytes` | `16777216` | Compressed and decompressed wire bound. |
 | `soft_policy_lag_updates` / `hard_policy_lag_updates` | `1000` / `5000` | Refresh warning and rejection thresholds measured in learner updates. |
 | `max_update_credit` | `512` | Caps accumulated learner update debt after bursts. |
+| `strict_update_budget` | `false` | Pause actors between episodes until learner update credit is available. |
 | `epsilon_profiles` | `[1,.4,.1,.02]` | Multipliers assigned by stable actor ID. Each value is in `[0,1]`. |
 | `epsilon_start` / `epsilon_final` | `.5` / `.05` | Base epsilon schedule in `[0,1]`. |
 | `epsilon_decay_transitions`, `epsilon_decay_updates` | `1500000`, null | Transition decay is the default, a positive update count switches the epsilon schedule axis to learner updates. |
@@ -177,6 +180,10 @@ The paths below are under `components.environment.kwargs.config`.
 Configure exactly one of `geometry_path` and `reward_points_path`. The latter
 supports camera agents without recording track boundaries; it cannot supply
 LiDAR observations, racing-line optimization or a reference pace profile.
+
+The reward defaults use `max_projected_speed_mps: 278.0` and
+`velocity_to_mps_scale: 1.0`; see the [reward reference](../docs/reward-function.md)
+for their effects. Pace-reference projection also allows up to 278 m/s.
 
 ### Connection, controls and termination
 

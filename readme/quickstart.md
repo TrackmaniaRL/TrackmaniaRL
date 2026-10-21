@@ -7,7 +7,7 @@
 Install [uv](https://docs.astral.sh/uv/), then create a project:
 
 ```powershell
-uv tool install "trackmaniarl==1.2.9"
+uv tool install trackmaniarl
 trackmaniarl init my-agent --template trackmania
 cd my-agent
 uv sync
@@ -16,7 +16,7 @@ uv sync
 To install a locally built wheel instead:
 
 ```powershell
-uv tool install path\to\trackmaniarl-1.2.9-py3-none-any.whl
+uv tool install path\to\trackmaniarl-VERSION-py3-none-any.whl
 ```
 
 To work from this repository, run `uv sync --group dev` and prefix commands with

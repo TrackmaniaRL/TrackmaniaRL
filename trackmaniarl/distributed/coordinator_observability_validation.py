@@ -46,6 +46,31 @@ def _validate_observability_summary(value: Mapping[str, Any], name: str, steps: 
     _validate_skipped_frame_counts(observed, name)
     _validate_step_race_time_tail(observed, name)
     _validate_step_race_time_metadata(value, name, steps)
+    _validate_optional_timing(value, name, steps)
+
+
+def _validate_optional_timing(value: Mapping[str, Any], name: str, steps: int) -> None:
+    for phase in ("environment", "preprocessing", "diagnostics", "bookkeeping"):
+        prefix = f"timing/actor_{phase}_ms_"
+        if prefix + "mean" not in value and prefix + "max" not in value:
+            continue
+        mean = _validate_nonnegative_number(value.get(prefix + "mean"), name + " " + prefix)
+        maximum = _validate_nonnegative_number(value.get(prefix + "max"), name + " " + prefix)
+        if mean > maximum or (steps == 0 and maximum > 0):
+            raise ValueError(f"{name} actor phase timing is inconsistent")
+    for key in (
+        "timing/policy_inference_over_100ms_fraction",
+        "timing/step_race_over_100ms_fraction",
+    ):
+        if key in value:
+            fraction = _validate_nonnegative_number(value[key], name + " " + key)
+            if fraction > 1 or (steps == 0 and fraction > 0):
+                raise ValueError(f"{name} timing fraction must be between zero and one")
+    key = "timing/step_race_invalid_measurements"
+    if key in value:
+        count = _validate_nonnegative_number(value[key], name + " " + key)
+        if not count.is_integer() or count > steps:
+            raise ValueError(f"{name} invalid timing count must be an integer within step count")
 
 
 def _skipped_frame_fraction(value: Mapping[str, Any], name: str) -> float:

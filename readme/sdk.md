@@ -1,6 +1,10 @@
 # TrackmaniaRL SDK Guide
 
-This guide describes the public SDK in package version 1.2.9.
+This guide describes the public SDK in package version 1.2.14.
+
+Start with the runnable [Python quickstart](python-quickstart.md).
+The [public API guide](public-api.md) distinguishes supported imports and
+extension contracts from internal implementation and research tooling.
 
 Start with the runnable [Python quickstart](python-quickstart.md).
 The [public API guide](public-api.md) distinguishes supported imports and
@@ -19,7 +23,7 @@ or offline-supervised lifecycle is executed. The same commands work in
 PowerShell, bash, WSL and CI.
 
 ```bash
-uv tool install --index https://download.pytorch.org/whl/cpu --with "torch==2.11.0+cpu" "trackmaniarl==1.2.9"
+uv tool install --index https://download.pytorch.org/whl/cpu --with "torch==2.11.0+cpu" trackmaniarl
 trackmaniarl init my-trackmania-agent --template trackmania
 cd my-trackmania-agent
 uv sync
@@ -284,6 +288,19 @@ off-policy runtime:
 - prefix remapping and partial-shape copying are unsupported.
 - pre-2.0 checkpoints are rejected. Warm-start accepts current compressed
   checkpoints only.
+
+Composite module authors must declare non-tensor attributes that affect inference
+in a `fingerprint_parameters` tuple, for example `("residual_scale",)`.
+The architecture fingerprint includes the current values from all named
+submodules. Extend the parent's tuple when subclassing. Graph encoders declare
+their residual scales and incident gate thresholds this way.
+
+Checkpoints written before 1.2.13 can still load when their legacy architecture
+fingerprint matches, with a `RuntimeWarning` that non-tensor settings cannot be
+verified. Load these checkpoints with their original configuration and retain
+their frozen source environment; the warning is not proof of policy equivalence.
+New graph checkpoints reject changed declared settings before loading weights.
+Exact run resume still requires the original semantic run fingerprint.
 
 The local on-policy `Trainer` used by PPO persists a separate schema 2.0 state
 containing its semantic run fingerprint, learner, replay store, sampler and

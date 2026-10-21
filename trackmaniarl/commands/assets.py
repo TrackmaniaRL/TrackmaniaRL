@@ -34,6 +34,7 @@ from trackmaniarl.trackmania.environment import (
 )
 from trackmaniarl.trackmania.geometry import BoundaryGeometry, build_geometry_asset
 from trackmaniarl.trackmania.geometry_types import GeometryBuildRequest
+from trackmaniarl.trackmania.ghost_import import GhostAssetRequest, build_ghost_assets
 from trackmaniarl.trackmania.session import OpenPlanetSessionClient
 from trackmaniarl.trackmania.steering_curve import (
     SteeringCurve,
@@ -286,3 +287,18 @@ def _print_steering_curve(curve: SteeringCurve) -> None:
             "gamepad's Analog Sensitivity to 1.0 and Analog Dead Zone to its minimum, "
             "then measure again; or save this curve and set steering_curve_path."
         )
+
+
+def _build_from_ghost(args: argparse.Namespace) -> None:
+    assets = build_ghost_assets(
+        GhostAssetRequest(
+            args.ghost, args.map_path, args.output_dir, args.half_width, args.spacing, args.map_uid
+        )
+    )
+    print(f"Built geometry asset: {assets.geometry_path}")
+    print(f"Built pace reference: {assets.pace_path} ({assets.finish_time_s:.3f} s)")
+    print("Set these in run.yaml (components.environment.kwargs.config):")
+    print(f"  expected_map_uid: {assets.map_uid}")
+    print(f"  geometry_path: {assets.geometry_path.as_posix()}")
+    print(f"  pace_reference_path: {assets.pace_path.as_posix()}")
+    print(f"  time_attack_target_s: {assets.finish_time_s:.3f}")

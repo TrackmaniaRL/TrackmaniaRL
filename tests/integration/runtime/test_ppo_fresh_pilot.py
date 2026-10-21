@@ -18,6 +18,16 @@ from trackmaniarl.algorithms.proximal_policy_optimization import ProximalPolicyO
 from trackmaniarl.trackmania.baseline import TelemetryPpoModel
 
 
+@pytest.fixture(autouse=True)
+def archived_campaign_contract(monkeypatch: pytest.MonkeyPatch) -> None:
+    from experiments.tmrl_test_comparison import campaign
+
+    # Exercise historical pilot contracts without repinning or launching an old run.
+    # Production verify must keep rejecting this newer checkout.
+    recorded = json.loads(campaign.PLAN.read_text(encoding="utf-8"))
+    monkeypatch.setattr(campaign, "verify", lambda: copy.deepcopy(recorded))
+
+
 def test_prefix_retains_all_71_campaign_learning_rates_and_optimizer_settings() -> None:
     torch.manual_seed(17)
     long = ProximalPolicyOptimization(TelemetryPpoModel(hidden_dim=8), execution={"device": "cpu"})
@@ -71,6 +81,10 @@ def prepared(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict:
         "powershell_probe",
         lambda _: {"executable": "pwsh.exe", "version": "7.6.6", "policy": "RemoteSigned"},
     )
+    from trackmaniarl.trackmania.steering_curve import SteeringCurve
+
+    curve = SteeringCurve((0.0, 1.0), (0.0, 1.0)).save(tmp_path / "steering-test.json")
+    monkeypatch.setattr(pilot, "CALIBRATION", curve)
     return pilot.prepare(Path("pwsh.exe"))
 
 
@@ -102,8 +116,13 @@ def test_dead_supervisor_cannot_report_running(
     prepared: dict, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (pilot.DIRECTORY / "status.json").write_text(
-        json.dumps({"run_id": pilot.RUN_ID, "status": "RUNNING",
-                    "launcher": {"pid": 123, "create_time": 1.0}})
+        json.dumps(
+            {
+                "run_id": pilot.RUN_ID,
+                "status": "RUNNING",
+                "launcher": {"pid": 123, "create_time": 1.0},
+            }
+        )
     )
     monkeypatch.setattr(pilot.psutil, "Process", lambda _: SimpleNamespace(create_time=lambda: 2.0))
     assert pilot.observed_status(pilot.verify()) == "SUPERVISOR_LOST"

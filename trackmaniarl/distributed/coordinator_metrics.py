@@ -28,7 +28,7 @@ def emit_metrics_if_ready(coordinator: Coordinator) -> None:
     interval = coordinator.run.spec.training.metrics_interval_updates
     if coordinator.counters.updates % interval != 0:
         return
-    window = _metric_window(coordinator, interval)
+    window = _metric_window(coordinator)
     payload = _metric_payload(coordinator, window)
     _add_execution_metrics(coordinator, payload)
     _add_credit_health(coordinator, payload)
@@ -38,12 +38,12 @@ def emit_metrics_if_ready(coordinator: Coordinator) -> None:
     coordinator._last_logging_s = perf_counter() - started
 
 
-def _metric_window(coordinator: Coordinator, interval: int) -> _MetricWindow:
+def _metric_window(coordinator: Coordinator) -> _MetricWindow:
     now = monotonic()
     elapsed = max(now - coordinator._metric_window_started, 1e-6)
     transitions = coordinator.counters.transitions - coordinator._last_metric_transitions
     transitions_per_s = transitions / elapsed
-    updates_per_s = interval / elapsed
+    updates_per_s = (coordinator.counters.updates - coordinator._last_metric_updates) / elapsed
     target = transitions_per_s * coordinator.run.spec.training.updates_per_transition
     capacity = int(getattr(coordinator.run.replay_store, "capacity", 0))
     journal = coordinator.journal.statistics(coordinator.counters.journal_applied_frontier)
@@ -74,8 +74,13 @@ def _throughput_metrics(coordinator: Coordinator, window: _MetricWindow) -> dict
         "rollout_queue_depth": coordinator._rollouts.qsize(),
         "updates_per_s": window.updates_per_s,
         "transitions_per_s": window.transitions_per_s,
-        "cumulative_transitions_per_s": coordinator.counters.transitions
+        "cumulative_transitions_per_s": (
+            coordinator.counters.transitions - coordinator._segment_initial_transitions
+        )
         / max(window.now - coordinator._started_at, 1e-6),
+        "segment_transitions": coordinator.counters.transitions
+        - coordinator._segment_initial_transitions,
+        "segment_elapsed_s": max(window.now - coordinator._started_at, 0.0),
         "target_updates_per_s": window.target_updates_per_s,
         "update_backlog_s": coordinator.counters.update_credit / max(window.updates_per_s, 1e-6),
     }
@@ -112,6 +117,7 @@ def _advance_metric_window(coordinator: Coordinator, window: _MetricWindow) -> N
     coordinator._last_metric_credit = coordinator.counters.update_credit
     coordinator._metric_window_started = window.now
     coordinator._last_metric_transitions = coordinator.counters.transitions
+    coordinator._last_metric_updates = coordinator.counters.updates
 
 
 def check_actor_timeouts(coordinator: Coordinator) -> None:

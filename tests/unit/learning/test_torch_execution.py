@@ -26,6 +26,21 @@ from trackmaniarl.algorithms.execution import (
 )
 
 
+@pytest.mark.parametrize("threads", [0, -1, True, 1.5])
+def test_execution_rejects_invalid_cpu_thread_limits(threads: Any) -> None:
+    with pytest.raises(TorchExecutionError, match="positive integer"):
+        TorchExecutionConfig(torch_threads=threads)
+
+
+def test_execution_applies_cpu_thread_limit_before_model_setup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[int] = []
+    monkeypatch.setattr(torch, "set_num_threads", calls.append)
+    resolve_torch_execution(TorchExecutionConfig(device="cpu", torch_threads=2))
+    assert calls == [2]
+
+
 def _new_checkpoint_learner(name: str) -> Any:
     match name:
         case "ppo":

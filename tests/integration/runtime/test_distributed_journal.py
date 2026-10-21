@@ -216,6 +216,36 @@ def test_distributed_checkpoint_retention_runs_after_async_saves(tmp_path: Path)
         _close(coordinator)
 
 
+def test_distributed_milestones_use_snapshot_counters_and_survive_retention(tmp_path: Path) -> None:
+    from trackmaniarl.distributed.coordinator_learning import _checkpoint_if_due
+
+    training = {
+        "total_transitions": 10,
+        "warmup_transitions": 10,
+        "checkpoint_interval_updates": None,
+        "checkpoint_keep_last": 1,
+        "checkpoint_milestones": [4, 8],
+    }
+    coordinator = _coordinator(_resolved_run(tmp_path, "milestones", training))
+    try:
+        coordinator.counters.transitions = 5
+        coordinator.counters.updates = 1
+        _checkpoint_if_due(coordinator)
+        coordinator.counters.transitions = 9
+        coordinator.counters.updates = 2
+        _checkpoint_if_due(coordinator)
+        coordinator._checkpoint_writer.wait()
+        directory = coordinator.run.run_dir / "checkpoints"
+        names = sorted(path.name for path in directory.glob("milestone-*.pt"))
+        assert names == [
+            "milestone-000000000004-transitions-000000000005-update-00000001.pt",
+            "milestone-000000000008-transitions-000000000009-update-00000002.pt",
+        ]
+        assert len(list(directory.glob("distributed-update-*.pt"))) == 1
+    finally:
+        _close(coordinator)
+
+
 @dataclass(slots=True)
 class _CheckpointCapture:
     started: threading.Event = field(default_factory=threading.Event)

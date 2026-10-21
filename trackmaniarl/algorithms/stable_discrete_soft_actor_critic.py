@@ -243,6 +243,11 @@ class StableDiscreteSoftActorCritic(TorchLearnerBase):
 
     def _prepare_batch(self, batch: TrainingBatch) -> SACBatch:
         size = len(batch.transition_ids)
+        # A scalar column is supported; a declared or actual temporal batch is not.
+        layout_rewards = batch.rewards
+        if isinstance(layout_rewards, torch.Tensor) and layout_rewards.shape == (size, 1):
+            layout_rewards = layout_rewards.reshape(size)
+        self._validate_batch_layout(replace(batch, rewards=layout_rewards))
         if size == 0:
             raise ValueError("SD-SAC batch must contain transitions")
         values = {
@@ -625,6 +630,9 @@ class StableDiscreteSoftActorCritic(TorchLearnerBase):
         return options
 
     def _validate_checkpoint_options(self, state: Mapping[str, Any]) -> None:
+        for required in ("log_alpha", "alpha_optimizer"):
+            if required not in state:
+                raise KeyError(required)
         saved = state.get("sd_sac_options")
         if saved is not None:
             if saved != self._checkpoint_options():

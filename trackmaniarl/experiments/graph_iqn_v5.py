@@ -214,6 +214,11 @@ class BoundaryGraphFeaturePipelineV5(BoundaryGraphFeaturePipelineV3):
 class TrackGnnSimbaEncoderV5(TrackGnnSimbaEncoderV4):
     """V4 encoder plus an initially inert recovery-state correction."""
 
+    fingerprint_parameters: tuple[str, ...] = (
+        *TrackGnnSimbaEncoderV4.fingerprint_parameters,
+        "recovery_residual_scale",
+    )
+
     def __init__(
         self,
         context_residual_scale: float = 1.0,

@@ -30,7 +30,7 @@ reward and encoder. Custom components do not require changes to the library.
 
 `trackmaniarl.commands`, underscore-prefixed helpers and runtime implementation
 modules are internal. Import public names through the facades above when available.
-`trackmaniarl.experiments` and `trackmaniarl.research` are research tooling;
+`trackmaniarl.experiments` contains research tooling;
 their importability does not give them the stable SDK contract. Existing paths
 remain available for historical configurations and reproductions.
 

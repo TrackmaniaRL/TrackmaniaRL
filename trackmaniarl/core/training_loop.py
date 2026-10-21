@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from trackmaniarl.core.checkpoint_milestones import milestone_due
 from trackmaniarl.core.collector import (
     CollectionResult,
     EpisodeCollector,
@@ -95,6 +96,8 @@ def _resume_session(trainer: Trainer, session: _TrainingSession) -> None:
     state = trainer.run.checkpoint_codec.load(trainer.resume_checkpoint)
     restored = trainer._restore_checkpoint(state)
     session.counters = _restored_counters(restored)
+    trainer._checkpoint_baseline_transitions = session.counters.transitions
+    trainer._last_checkpoint_transitions = session.counters.transitions
     trainer._log("train/resumed", {"checkpoint": str(trainer.resume_checkpoint)}, session.counters)
 
 
@@ -319,8 +322,15 @@ def _batch_request(
 
 
 def _maybe_checkpoint(trainer: Trainer, session: _TrainingSession) -> None:
-    interval = trainer.run.spec.training.checkpoint_interval_updates
-    if interval is None or session.counters.updates % interval:
+    training = trainer.run.spec.training
+    interval = training.checkpoint_interval_updates
+    periodic = interval is not None and session.counters.updates % interval == 0
+    milestone = milestone_due(
+        training.checkpoint_milestones,
+        trainer._last_checkpoint_transitions,
+        session.counters.transitions,
+    )
+    if not periodic and not milestone:
         return
     session.checkpoints.append(trainer._write_checkpoint(session.counters))
 

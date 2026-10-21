@@ -52,7 +52,10 @@ def _bootstrap_values(
         return bootstrap_target(inputs)
 
     monkeypatch.setattr(updater, "bootstrap_target", recording_bootstrap_target)
-    learner.update(_graph_batch())
+    # Cover forward AND backward: autocast ends before the optimizer step.
+    # This tests dtype boundaries, not oneDNN's processor-specific BF16 kernels.
+    with torch.backends.mkldnn.flags(enabled=False):
+        learner.update(_graph_batch())
     return recorded[0]
 
 

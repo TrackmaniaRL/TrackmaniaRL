@@ -1,5 +1,24 @@
+import pytest
+
 from trackmaniarl.observability.trackers import WandbTracker, _EventContext
 from trackmaniarl.observability.wandb_metrics import _event_metrics
+
+
+def test_episode_projection_keeps_cumulative_best_finish_time() -> None:
+    metrics = _event_metrics(
+        "train/episode", {"finished": 0.0, "finish_time_s": 0.0, "best_finish_time_s": 34.79}
+    )
+
+    assert metrics["episode/best_finish_time_s"] == 34.79
+    assert metrics["episode/finish_time_s"] == 0.0
+    assert "episode/best_finish_time_s" not in _event_metrics("train/episode", {"finished": 0.0})
+
+
+@pytest.mark.parametrize("best", [0.0, -1.0, float("nan"), float("inf"), None, True, "34.79"])
+def test_episode_projection_omits_missing_or_invalid_record(best: object) -> None:
+    assert "episode/best_finish_time_s" not in _event_metrics(
+        "train/episode", {"best_finish_time_s": best}
+    )
 
 
 def test_offline_pretraining_progress_projection() -> None:

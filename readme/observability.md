@@ -1,5 +1,28 @@
 # Observability and W&B
 
+After resume, global transition/update counters retain their original meaning.
+`segment_transitions` and `segment_elapsed_s` describe only the current process
+segment; `cumulative_transitions_per_s` is their ratio, not global transitions
+divided by the new process uptime. The first metric window uses the actual number
+of updates since resume rather than assuming a full reporting interval.
+
+Discrete value learners report `gradients/norm` before clipping. Without adaptive
+clipping, `debug/gradient_clipped_fraction` is a per-update indicator and
+`debug/gradient_clip_coefficient` is the applied hard-clip scale. Averaging the
+indicators gives a clipping fraction; thresholding an average norm does not.
+Adaptive clipping retains its separate `gradients/adaptive_*` diagnostics.
+
+Distributed actor episode summaries include `timing/actor_{phase}_ms_mean` and
+`timing/actor_{phase}_ms_max` for `environment`, `preprocessing`, `diagnostics` and
+`bookkeeping`. Environment time includes controller/telemetry waits; preprocessing
+times the observation pipeline; diagnostics times policy/control statistics;
+bookkeeping includes transition snapshots, reward accounting and any spool flush.
+These CPU wall times require no GPU synchronization or extra telemetry connection.
+They are separate from policy inference and do not add up to all episode overhead.
+The reported `timing/step_race_over_100ms_fraction` uses valid race-time samples;
+`timing/step_race_invalid_measurements` counts missing, zero, negative or non-finite
+samples separately. These diagnostics do not impose an evaluation threshold.
+
 Every run writes `artifacts/<run-id>/events.jsonl`. This local stream is the
 complete audit record and remains available when W&B is disabled or unavailable.
 W&B is an optional, bounded projection of that stream: it keeps metrics that
@@ -96,6 +119,7 @@ payload, including per-progress-bin diagnostics, remains in local JSONL.
 | `episode/return` | reward per episode | Training signal only, compare with evaluation rather than optimizing the chart in isolation. |
 | `episode/progress_pct`, `episode/progress_m` | percent and metres per episode | Shows whether failures move farther along the track. |
 | `episode/duration_s`, `episode/race_time_s`, `episode/finish_time_s` | seconds per episode | Diagnose stalls and pace. `finish_time_s` is meaningful only when `episode/finished=1`. |
+| `episode/best_finish_time_s` | seconds per episode, after the first finish | Cumulative minimum completed training lap, retained across failed episodes. This is a training record, not the final checkpoint's evaluation score. |
 | `episode/finished` | 0/1 per episode | Training finish rate input. Use deterministic evaluation for release decisions. |
 | `episode/termination_no_progress`, `episode/termination_slow_progress`, `episode/termination_off_track`, `episode/termination_max_steps`, `episode/termination_telemetry_error` | 0/1 per episode | Reason-coded failure distribution. Telemetry errors are system incidents, not policy failures. |
 | `episode/collision_count` | count per episode | Safety proxy, inspect together with pace and finish rate. |

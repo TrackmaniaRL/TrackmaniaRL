@@ -1,5 +1,27 @@
 # Performance and GPU tuning
 
+At a 50 ms decision interval, collecting 8,192,000 transitions already requires
+113.78 hours of nominal race time. A faster learner cannot remove that collection
+limit. Larger decision intervals, lower sample budgets and multiple actors change
+the experiment; independent seeds on separate game hosts can shorten the calendar
+without changing an individual seed's collection setup.
+
+Single-step discrete value batches encode online/current, online/next and
+target/next. Target/current is needed only for sequences with interior bootstrap
+positions. Bootstrap encodings do not retain autograd graphs; value heads and
+Double-DQN targets still run in float32. Numerical parity tests cover deterministic
+scalar and QR models. Custom stochastic encoders may consume a different RNG
+sequence when an unused forward is removed, so this is not a claim of bitwise
+continuation across library revisions.
+
+Use `training.checkpoint_milestones` to retain models for later sample-efficiency
+analysis. Each milestone stores an independent full-state copy plus a completion
+sidecar, outside `checkpoint_keep_last` rotation. Budget disk space for the replay
+and optimizer state in every copy. Copies are made after a successful source write
+(in the distributed writer thread); an incomplete copy fails explicitly and is
+never silently overwritten. The last checkpoint remains the final-evaluation
+candidate; retained milestones do not trigger extra evaluations or select a winner.
+
 GPU utilization is an outcome, not the optimization target. TrackmaniaRL first
 separates collection, ingestion/replay, host-to-device transfer and learner
 time, then changes one measured bottleneck without changing the seed, replay,

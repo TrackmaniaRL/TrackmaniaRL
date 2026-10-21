@@ -80,7 +80,10 @@ def _source_architecture_fixture() -> tuple[dict[str, Any], Any, Any, list[objec
     }
     run = SimpleNamespace(checkpoint_codec=SimpleNamespace(load=lambda _path: state))
     loaded: list[object] = []
-    model = SimpleNamespace(architecture_fingerprint=lambda: "configured")
+    model = SimpleNamespace(
+        architecture_fingerprint=lambda: "configured",
+        legacy_architecture_fingerprint=lambda: "legacy",
+    )
     learner = SimpleNamespace(model=model, load_policy_state_dict=loaded.append)
     return state, run, learner, loaded
 
@@ -94,9 +97,10 @@ def test_recovery_rejects_a_different_source_architecture(tmp_path: Path) -> Non
     assert loaded == []
 
 
-def test_recovery_loads_an_exact_source_policy(tmp_path: Path) -> None:
+@pytest.mark.parametrize("fingerprint", ["configured", "legacy"])
+def test_recovery_loads_a_compatible_source_policy(tmp_path: Path, fingerprint: str) -> None:
     state, run, learner, loaded = _source_architecture_fixture()
-    state["learner"]["architecture_fingerprint"] = "configured"
+    state["learner"]["architecture_fingerprint"] = fingerprint
 
     command._require_source_architecture(run, cast(Any, learner), tmp_path / "source.pt")
 

@@ -1,4 +1,5 @@
 import logging
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
@@ -7,11 +8,25 @@ import pytest
 
 from trackmaniarl.commands.training import (
     _LocalProcesses,
+    _stop_file_requested,
     _stop_local_processes_with_notice,
+    _wait_for_processes,
 )
 from trackmaniarl.distributed.coordinator import Coordinator
 from trackmaniarl.distributed.coordinator_runtime import _run_offline_pretraining, close_runtime
 from trackmaniarl.distributed.coordinator_support import _AsyncCheckpointWriter
+
+
+def test_stop_file_requests_shutdown_without_console_signal(tmp_path: Path) -> None:
+    flag = tmp_path / "stop"
+    event = threading.Event()
+    process = SimpleNamespace(is_alive=lambda: True)
+    processes = _LocalProcesses(process, process, event, "unused", flag)
+    assert not _stop_file_requested(processes)
+    assert not event.is_set()
+    flag.touch()
+    _wait_for_processes(processes)
+    assert event.is_set()
 
 
 class _ShutdownProcess:

@@ -118,7 +118,7 @@ class TrackmaniaEnvironmentConfig(BaseModel):
     progress_reward_full_lap: float = Field(default=10.0, ge=0.0)
     finish_reward: float = Field(default=30.0, ge=0.0)
     potential_progress_weight: float = Field(default=2.0, ge=0.0)
-    max_projected_speed_mps: float = Field(default=100.0, gt=0.0)
+    max_projected_speed_mps: float = Field(default=278.0, gt=0.0)
     velocity_to_mps_scale: float = Field(default=1.0, gt=0.0)
     projected_velocity_scale: float = Field(default=0.0, ge=0.0)
     projected_speed_bonus_scale: float = Field(default=0.0, ge=0.0)

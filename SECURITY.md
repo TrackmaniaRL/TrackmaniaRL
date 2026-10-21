@@ -4,7 +4,7 @@
 
 Do not publish suspected vulnerabilities, credentials, checkpoints, telemetry
 captures or unredacted manifests in a public issue. Use a private
-[GitHub security advisory](https://github.com/Palamabron/TrackmaniaRL/security/advisories/new)
+[GitHub security advisory](https://github.com/TrackmaniaRL/TrackmaniaRL/security/advisories/new)
 and include:
 
 - the affected TrackmaniaRL version and platform;

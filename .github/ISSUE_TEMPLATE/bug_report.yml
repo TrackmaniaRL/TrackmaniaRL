@@ -1,0 +1,35 @@
+name: Bug report
+description: Report a reproducible problem with the library or game integration.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For security vulnerabilities, use the private reporting instructions in SECURITY.md.
+        Remove tokens, private paths and personal data from configurations and logs.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the actual behavior and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Include the smallest command, Python example or configuration that reproduces the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include TrackmaniaRL, Python and PyTorch versions, OS, CPU/GPU, and whether this uses the game or a synthetic environment. For game issues, include Openplanet and plugin versions.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant error or logs
+      description: Paste only the relevant excerpt after removing sensitive information.
+      render: text

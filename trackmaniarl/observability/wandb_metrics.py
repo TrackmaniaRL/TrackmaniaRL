@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -85,7 +86,7 @@ def _event_metrics(event: str, payload: Mapping[str, Any]) -> dict[str, Any]:
     if event in {"train/update", "train/offline_pretrain", "train/offline_pretrain_progress"}:
         return _update_metrics(payload)
     if event == "train/episode":
-        return _selected(payload, _EPISODE_METRICS, "episode")
+        return _episode_metrics(payload)
     if event == "train/rollout":
         return _selected(
             payload,
@@ -113,6 +114,19 @@ def _event_metrics(event: str, payload: Mapping[str, Any]) -> dict[str, Any]:
     if event == "distributed/policy_published":
         return _policy_publish_metrics(payload)
     return {}
+
+
+def _episode_metrics(payload: Mapping[str, Any]) -> dict[str, Any]:
+    values = _selected(payload, _EPISODE_METRICS, "episode")
+    best = payload.get("best_finish_time_s")
+    if (
+        not isinstance(best, (int, float))
+        or isinstance(best, bool)
+        or not isfinite(best)
+        or best <= 0
+    ):
+        values.pop("episode/best_finish_time_s", None)
+    return values
 
 
 def _single_event_metrics(event: str, payload: Mapping[str, Any]) -> dict[str, Any]:

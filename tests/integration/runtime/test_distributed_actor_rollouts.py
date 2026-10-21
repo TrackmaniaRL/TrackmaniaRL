@@ -397,3 +397,36 @@ def test_actor_marks_mid_episode_telemetry_interruption_as_truncated() -> None:
     assert not transition.terminated
     assert transition.truncated
     assert transition.info["termination_reason"] == "telemetry_interruption"
+
+
+def test_capture_pause_restarts_episode_without_fabricating_failed_step() -> None:
+    from trackmaniarl.core.environment_errors import EnvironmentPausedError
+
+    probe = _InterruptionProbe()
+    actor = _interruption_actor(probe)
+
+    class Environment:
+        steps = 0
+        resets = 0
+
+        def reset(self, *, seed: int) -> tuple[np.ndarray, dict[str, Any]]:
+            self.resets += 1
+            return np.zeros(1, dtype=np.float32), {}
+
+        def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
+            self.steps += 1
+            if self.steps == 2:
+                raise EnvironmentPausedError("background")
+            if self.steps == 3:
+                actor.stop.set()
+            return np.ones(1, dtype=np.float32), 1.0, False, False, {}
+
+    env = Environment()
+    actor._collect(env, _Pipeline())
+    transitions = [t for batch in probe.transitions for t in batch]
+    assert len(transitions) == 2
+    assert transitions[0].truncated
+    assert transitions[0].info["termination_reason"] == "capture_interruption"
+    assert transitions[0].episode_id != transitions[1].episode_id
+    assert transitions[1].step == 0
+    assert env.resets == 3

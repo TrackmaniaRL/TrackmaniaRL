@@ -223,6 +223,13 @@ class CompositeValueModel(nn.Module):
         return dict(manifest()) if callable(manifest) else {}
 
     def architecture_fingerprint(self) -> str:
+        return self._fingerprint(include_configuration=True)
+
+    def legacy_architecture_fingerprint(self) -> str:
+        """Identity written before non-tensor component settings were included."""
+        return self._fingerprint(include_configuration=False)
+
+    def _fingerprint(self, *, include_configuration: bool) -> str:
         return self._architecture_fingerprint(
             (
                 "input_dim",
@@ -238,15 +245,18 @@ class CompositeValueModel(nn.Module):
                 "d_state",
                 "d_conv",
                 "inner_dim",
-            )
+            ),
+            include_configuration=include_configuration,
         )
 
-    def _architecture_fingerprint(self, dimensions: tuple[str, ...]) -> str:
+    def _architecture_fingerprint(
+        self, dimensions: tuple[str, ...], *, include_configuration: bool
+    ) -> str:
         modules = ("encoder", "temporal", "head", "strategy")
         architecture: dict[str, object] = {}
         for name in modules:
             module = cast(nn.Module, getattr(self, name))
-            architecture[name] = {
+            entry: dict[str, object] = {
                 "class": f"{type(module).__module__}:{type(module).__qualname__}",
                 "state": {
                     key: {"shape": list(value.shape), "dtype": str(value.dtype)}
@@ -256,5 +266,14 @@ class CompositeValueModel(nn.Module):
                     key: getattr(module, key) for key in dimensions if hasattr(module, key)
                 },
             }
+            if include_configuration:
+                configuration = {
+                    path: {key: getattr(child, key) for key in child.fingerprint_parameters}
+                    for path, child in module.named_modules()
+                    if getattr(child, "fingerprint_parameters", ())
+                }
+                if configuration:
+                    entry["configuration"] = configuration
+            architecture[name] = entry
         encoded = json.dumps(architecture, sort_keys=True, separators=(",", ":"))
         return sha256(encoded.encode("utf-8")).hexdigest()

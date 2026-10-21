@@ -243,6 +243,23 @@ def test_local_checkpoint_retention_runs_only_after_successful_saves(tmp_path: P
     assert retention[-1]["payload"]["removed_count"] == 1
 
 
+def test_local_milestones_trigger_without_periodic_saves_and_survive_retention(
+    tmp_path: Path,
+) -> None:
+    training = {
+        **_CHECKPOINT_TRAINING,
+        "checkpoint_interval_updates": None,
+        "checkpoint_keep_last": 1,
+        "checkpoint_milestones": [5, 7],
+    }
+    run = resolve_run(_trainer_spec(tmp_path, training, _FAKE_ENVIRONMENT))
+    result = _train_and_close(run)
+    milestones = sorted((run.run_dir / "checkpoints").glob("milestone-*.pt"))
+    assert len(milestones) == 2
+    assert result.checkpoints[-1].is_file()
+    assert _event_names(run.run_dir).count("train/checkpoint_milestone") == 2
+
+
 def _retention_events(run_dir: Path) -> list[dict[str, Any]]:
     return [
         event

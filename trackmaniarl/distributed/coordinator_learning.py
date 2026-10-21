@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from time import perf_counter, sleep
 from typing import TYPE_CHECKING, Any
 
+from trackmaniarl.core.checkpoint_milestones import milestone_due
 from trackmaniarl.distributed.coordinator_metrics import (
     check_actor_timeouts as check_actor_timeouts,
 )
@@ -142,8 +143,15 @@ def _update_metrics(update: _PreparedUpdate) -> dict[str, float]:
 
 
 def _checkpoint_if_due(coordinator: Coordinator) -> None:
-    interval = coordinator.run.spec.training.checkpoint_interval_updates
-    if interval is None or coordinator.counters.updates % interval:
+    training = coordinator.run.spec.training
+    interval = training.checkpoint_interval_updates
+    periodic = interval is not None and coordinator.counters.updates % interval == 0
+    milestone = milestone_due(
+        training.checkpoint_milestones,
+        coordinator._last_checkpoint_transitions,
+        coordinator.counters.transitions,
+    )
+    if not periodic and not milestone:
         return
     coordinator._checkpoints.append(coordinator._checkpoint())
 
