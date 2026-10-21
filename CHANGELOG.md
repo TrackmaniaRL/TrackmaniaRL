@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Add an opt-in native headless environment for a pinned Linux server/map profile, with verified external assets, owned process cleanup and preserved raw protocol evidence.
+- Add a separate CPU QR-DQN example with terminal-aware replay, duration discounts and evaluation isolation. Native binaries and a portable native bootstrap are not bundled.
+- Include the native driver/shim source workspace with upstream MIT attribution, locked dependency declarations and source-only distribution checks.
+- Port the explicit runtime-root and driver-approval configuration from the portable preview; keep binary identity checks and terminal training contracts intact.
+
 ## 1.2.13 - 2026-10-18
 
 - Include graph encoder residual scales, incident gate thresholds and declared nested component settings in checkpoint architecture fingerprints; reject mismatches before loading weights.

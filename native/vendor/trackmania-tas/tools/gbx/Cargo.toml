@@ -1,0 +1,7 @@
+[package]
+name = "gbx"
+version.workspace = true
+edition = "2021"
+
+[dependencies]
+miniz_oxide = "0.9.1"

@@ -1,0 +1,87 @@
+{
+  "schema": "tmrl.native-headless.python-port/v1",
+  "originalPythonSha256": {
+    "experiments/headless-native16-training-001/core.py": "578311d0f976ca2bc34d17a88c03da831c1731a3e4aaf7eeb3dcc48dece5a21e",
+    "experiments/headless-terminal-transport-001/pinned_decoder.py": "b13ddfeb88ac91b825202600081e9360b29dcd0a623f76be8eb69e163ea64bb0",
+    "recovered/headless-reader-release-v5-001/read_state_v5.py": "e103228b10a6f47afaf464b1e696d5c2596056c8697e844c45a3b10dc7e25ca1",
+    "recovered/headless-long-v6-001/read_state_v6.py": "ed1f01662e6ce727d6f0eb2270f87384bc086f4ae7b7dd8c14cc1a6baa8dc02d",
+    "scripts/headless_validator.py": "825f152621d90f590fe358f72810086d428d671eb6aba016b375b37ed447ec79",
+    "build/forkoracle/native-long-v6-001/host/headless_v6_env.py": "72baea441c3035a37611b7864587c74f3cebb33852982cd223b28d38ca5130b1",
+    "experiments/headless-native16-env-002/env.py": "7c8d908dd598793f6e98e5253aa72fc5ea6ca7708ae56ccb7024081c2a99a789",
+    "experiments/headless-native16-env-002/outcome.py": "bf38737149d4c0f3cae4eee20528c6bce866ce452ebf5b8c607ecc48eee1fbf9",
+    "experiments/headless-ipc-rx-009/staged_rx.py": "271427aed5544de8cc0d85a9f7bc976f0bbf5c98b74416b72da8f8691f00b634",
+    "experiments/headless-ipc-rx-009/native.py": "2385e77e93d66669b369077ee3cbab00a68c13da5823c11982ce4d2dbcd4ed02"
+  },
+  "notes": [
+    "Runtime imports use SDK modules only; no execution/import of research Python paths.",
+    "Unused linear learner, automatic final-step recipe and legacy killpg cleanup removed.",
+    "Port runtime parity pending; original audit hashes do not assert cleaned source byte equality.",
+    "Private protocol calls use dataclass argument bundles; host hash/layout/wire gates remain active with Python -O.",
+    "Publication port: explicit runtime root and hash-bound portable deployment; cleaned hashes cover LF-normalized current files, not original runtime parity."
+  ],
+  "cleanedPythonSha256": {
+    "__init__.py": "58a2cc4f93fe4ad7e8f7279a2f2bab7a9c818914f70b6ba40acfa5ef0939e064",
+    "artifacts.py": "8ad5ba4eb0617cb1cd95de146dd808b9befd0a4a6e13e2f0c6c105efb45ca7b4",
+    "backend.py": "85f24bc17d89dc97ede9971477762b48e9757cfad8fcb0e546bc8173731f5b27",
+    "capture.py": "5c08016b27b28e0e83aa80eb9edfc67ca39dc272030702105ca25a419c62f0d9",
+    "codec_v4.py": "2e937e9efcbb4fb38e29d0bfd351709f513a399a7cd5f54ed8b90368eb9cf956",
+    "codec_v5.py": "af1b92af2355519a5c9c1baa69f5b467f875db7c6ec68a2062a0de7612c94496",
+    "codec_v6.py": "9d80d184748bd72aaea106c4f038825e05d38cc1bbdb92264dcb1b9e6f557ed6",
+    "env.py": "710022338de0bb993cf6666de88087613eff34ddc11723c5b0ab39d8374522a3",
+    "features.py": "404e199a9f433bbbf7eeaceddce196e9c623508830466d736dcd4314f74a9273",
+    "host.py": "4e4bdb494ff0fc6937cf356b04b896e44de14011464b29270340affc1fbbb4bf",
+    "outcome.py": "aa5b5088a7757444433cf5acc4eebd1762bf526ed66afc9355554ca4b79bdad4",
+    "ownership.py": "0358ec1231159ad8309dc4f709963c748dd739ca6d16d13d06568680b7143b94",
+    "portable.py": "4cd4cf726790227904483fb3517f22386d005b8bd6718cb93a76ca6217a5fb96",
+    "session.py": "f635b62cb6493138988b6d4d018cdeb31b81e5ad29783cbb2ed0b37e9f78beef",
+    "shapes.py": "3bee3abc733a1da3cb04e22564e0ca334b597af1809b5fdd42c0a02028212f1b",
+    "validator.py": "4f1e5a4a5f0bdb93d008b646620711a87f96b6260b7ed885d92ba40edf774c35"
+  },
+  "portedComponents": {
+    "env.py": [
+      "env002/env.py"
+    ],
+    "features.py": [
+      "training001/core.py (linear learner removed)"
+    ],
+    "host.py": [
+      "V6host selected methods; explicit ValueError gates replace22asserts"
+    ],
+    "session.py": [
+      "native009 full env002 overrides+RX009 concreteclass merge"
+    ],
+    "codec_v4.py": [
+      "terminal_transport001/pinned_decoder.py"
+    ],
+    "codec_v5.py": [
+      "reader_release_v5 decoder"
+    ],
+    "codec_v6.py": [
+      "long_v6 decoder"
+    ],
+    "outcome.py": [
+      "env002/outcome.py"
+    ],
+    "capture.py": [
+      "rx009/staged_rx.py capture"
+    ],
+    "validator.py": [
+      "scripts/headless_validator.py"
+    ]
+  },
+  "authorChecks": {
+    "stdlibSyntheticContractTests": 6,
+    "offlineActualCapturedTransitions": 3196,
+    "offlineTruncatedFinal44": 4,
+    "newNativeSessionExecuted": false,
+    "newRuntimeParityPendingRoot": true,
+    "TorchImportedByStdlibHarness": false
+  },
+  "terminalTransportRevision": {
+    "contract": "tmrl.native-headless.terminal/v2",
+    "baselineCommit": "ae7abd92479a780d08f694bd572c30183268b878",
+    "change": "Preserve verified final intervals when complete boundary ACK precedes zero-tail EOF during next ARM.",
+    "wireABI": "Unchanged V6 request192/response448; external native assets unchanged.",
+    "qualification": "Source revision; new actual execution required. Historical failed030 is not upgraded."
+  }
+}

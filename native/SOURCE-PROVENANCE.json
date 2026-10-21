@@ -1,0 +1,705 @@
+{
+  "schema": "trackmaniarl.native-source-provenance/v1",
+  "upstream": {
+    "repository": "https://github.com/vjeux/trackmania-tas",
+    "sourceCommit": "235f4943188732f491ab9243954ede759e8a7f16",
+    "licenseCommit": "ad6bf1cb4085d554ce981bf2a29f659211a0b6a9",
+    "license": "MIT",
+    "licenseSha256": "e1c08a450dbb5acd48ddd3538058289907f1341909bed29cccc2b4286bc8cfdf"
+  },
+  "scope": "Selected source dependencies, driver211 and native-long-v6 shim; no server, map, ghost, capture or compiled executable.",
+  "packagingChanges": [
+    "Local Cargo paths now share the native workspace.",
+    "The shim pred_core module path points into the same vendored source.",
+    "Driver source formatting only; no intentional protocol or simulation change.",
+    "Shim truncation unit test accounts for the appended plane-axis word; production parser unchanged."
+  ],
+  "runtimeQualification": "Historical runtime evidence applies to its frozen binaries, not automatically to binaries built from this relocated source tree.",
+  "files": [
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/Cargo.toml",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/Cargo.toml",
+      "sourceSha256": "8ab06819b0a893cf90e5c2247a15fbe4cf63787862a282707fc4427684d05087",
+      "packagedSha256": "8ab06819b0a893cf90e5c2247a15fbe4cf63787862a282707fc4427684d05087"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/bin/fk.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/bin/fk.rs",
+      "sourceSha256": "5b4ad4551dba45ddb2b6abf4c626981b1ecd85b12af880af69dc471e78a6f8f5",
+      "packagedSha256": "5b4ad4551dba45ddb2b6abf4c626981b1ecd85b12af880af69dc471e78a6f8f5"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/carrier.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/carrier.rs",
+      "sourceSha256": "2a925fa03e74f672f05a787649b8bba4098fcd7f7b12209493f29b5d2de8d095",
+      "packagedSha256": "2a925fa03e74f672f05a787649b8bba4098fcd7f7b12209493f29b5d2de8d095"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/cmd/carrier.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/cmd/carrier.rs",
+      "sourceSha256": "b032e99f9a745c66fc916848eea3e8e172cce8b5d7745bf0955be53595cbaef1",
+      "packagedSha256": "b032e99f9a745c66fc916848eea3e8e172cce8b5d7745bf0955be53595cbaef1"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/cmd/events.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/cmd/events.rs",
+      "sourceSha256": "c17d37637c815fc1fb5a6dc32d14ee3742141e097db9d5e146628817d600275a",
+      "packagedSha256": "c17d37637c815fc1fb5a6dc32d14ee3742141e097db9d5e146628817d600275a"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/cmd/liveness.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/cmd/liveness.rs",
+      "sourceSha256": "4e6ee3a04452aa46cb647661d198177f063e84a66bb7e18888c3509cbc4f077e",
+      "packagedSha256": "4e6ee3a04452aa46cb647661d198177f063e84a66bb7e18888c3509cbc4f077e"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/cmd/mod.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/cmd/mod.rs",
+      "sourceSha256": "da6f59c25c2a49010f5c718db2073abfcf78a5d11e3f5e498fd1a09f0c1a86a7",
+      "packagedSha256": "da6f59c25c2a49010f5c718db2073abfcf78a5d11e3f5e498fd1a09f0c1a86a7"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/cmd/probe.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/cmd/probe.rs",
+      "sourceSha256": "20f1afe07e4843fde9093fd1b1eed3f76dec8a8fbaa9e3358a49352a6b3eecda",
+      "packagedSha256": "20f1afe07e4843fde9093fd1b1eed3f76dec8a8fbaa9e3358a49352a6b3eecda"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/cmd/ptr.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/cmd/ptr.rs",
+      "sourceSha256": "b5720c6e806444cf992371fdc40e7693baa6be8dd0e60f8ec70cd53258e06012",
+      "packagedSha256": "b5720c6e806444cf992371fdc40e7693baa6be8dd0e60f8ec70cd53258e06012"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/cmd/regen.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/cmd/regen.rs",
+      "sourceSha256": "254989d6630b195f17a4b723d9e126ae5d1803712216a52329578e71635cfac9",
+      "packagedSha256": "254989d6630b195f17a4b723d9e126ae5d1803712216a52329578e71635cfac9"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/cmd/resync.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/cmd/resync.rs",
+      "sourceSha256": "e262a32cae19134e3dbb02ab3f64a72dee1583f42f42559d4bfe2eb3c27c4f88",
+      "packagedSha256": "e262a32cae19134e3dbb02ab3f64a72dee1583f42f42559d4bfe2eb3c27c4f88"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/cmd/server.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/cmd/server.rs",
+      "sourceSha256": "b5c2dc281a9eff99645f21caf5876ab23d3696a492b0a262b109b8fe8af8c604",
+      "packagedSha256": "b5c2dc281a9eff99645f21caf5876ab23d3696a492b0a262b109b8fe8af8c604"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/cmd/trace.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/cmd/trace.rs",
+      "sourceSha256": "e1fe5d9fb963418cd6677947051ddc873ea94a71e75a4818642fcedb97477809",
+      "packagedSha256": "e1fe5d9fb963418cd6677947051ddc873ea94a71e75a4818642fcedb97477809"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/cmd/tree.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/cmd/tree.rs",
+      "sourceSha256": "924616ebe7078d3634bb1546c992421ba515d7bfab26a230659a2a0d7c81a1cd",
+      "packagedSha256": "924616ebe7078d3634bb1546c992421ba515d7bfab26a230659a2a0d7c81a1cd"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/cmd/watch.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/cmd/watch.rs",
+      "sourceSha256": "5196c51068cd278a3b5a0693f91306a3bfb8cb63b876919ffa91a2513b496398",
+      "packagedSha256": "5196c51068cd278a3b5a0693f91306a3bfb8cb63b876919ffa91a2513b496398"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/lib.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/lib.rs",
+      "sourceSha256": "6cbcccbc70eaf61749f7b870ecf0b071938644b3640e46544ba1246d63589e46",
+      "packagedSha256": "6cbcccbc70eaf61749f7b870ecf0b071938644b3640e46544ba1246d63589e46"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/locate.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/locate.rs",
+      "sourceSha256": "3aa0a2825a7a3c7a28235b96f9104dfc1ef75b2c22789a3f06678ab15def0192",
+      "packagedSha256": "3aa0a2825a7a3c7a28235b96f9104dfc1ef75b2c22789a3f06678ab15def0192"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/oracle.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/oracle.rs",
+      "sourceSha256": "c31855f48dd0521d1312223ca2a8a0c58a82249e8837bb3c013cb6000e3dc125",
+      "packagedSha256": "c31855f48dd0521d1312223ca2a8a0c58a82249e8837bb3c013cb6000e3dc125"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/ptr.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/ptr.rs",
+      "sourceSha256": "03ee67af6d67ddf6b0d10148528e0eb2fea66c05ba1f38566a9022f51e40c040",
+      "packagedSha256": "03ee67af6d67ddf6b0d10148528e0eb2fea66c05ba1f38566a9022f51e40c040"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/record.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/record.rs",
+      "sourceSha256": "6ff6f0ff10b44c8b72267258a1006848ad3ea6e938b05c182df05bdc69a9668c",
+      "packagedSha256": "6ff6f0ff10b44c8b72267258a1006848ad3ea6e938b05c182df05bdc69a9668c"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/session.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/session.rs",
+      "sourceSha256": "c6e666477cc4bf255c684b301e99054fc98365aec300e54a03491e3bf1afba61",
+      "packagedSha256": "c6e666477cc4bf255c684b301e99054fc98365aec300e54a03491e3bf1afba61"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/tape.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/tape.rs",
+      "sourceSha256": "1a25038e77a5bca00cd14e09c1871ca258ecf3892dc29999ee8233b546c81ebf",
+      "packagedSha256": "1a25038e77a5bca00cd14e09c1871ca258ecf3892dc29999ee8233b546c81ebf"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/traj.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/traj.rs",
+      "sourceSha256": "8663ae204e9e04ee7722d5a44caba18aef3f910bfc167539c52f58a68b32737c",
+      "packagedSha256": "8663ae204e9e04ee7722d5a44caba18aef3f910bfc167539c52f58a68b32737c"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/validator.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/validator.rs",
+      "sourceSha256": "b26ee2e78216f7ffbdfb7413addbfbba79b580501b661ff22e93b71657907d5e",
+      "packagedSha256": "b26ee2e78216f7ffbdfb7413addbfbba79b580501b661ff22e93b71657907d5e"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/fk/fk/src/vislayout.rs",
+      "origin": "preview236/native-driver-211/deps/tools/fk/fk/src/vislayout.rs",
+      "sourceSha256": "d6bb7fea446472e94da50ad22cb60f96a9c150cea228547eaf46fe4a9d21c4d6",
+      "packagedSha256": "d6bb7fea446472e94da50ad22cb60f96a9c150cea228547eaf46fe4a9d21c4d6"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/gbx/Cargo.toml",
+      "origin": "preview236/native-driver-211/deps/tools/gbx/Cargo.toml",
+      "sourceSha256": "20ce89142e0af938d5cc94571115c18af840d305c414a5324595617e52f8418e",
+      "packagedSha256": "20ce89142e0af938d5cc94571115c18af840d305c414a5324595617e52f8418e"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/gbx/src/bits.rs",
+      "origin": "preview236/native-driver-211/deps/tools/gbx/src/bits.rs",
+      "sourceSha256": "a5ed2d8abfa56f12477500024c43308b5090337b5e957597ab169f7566777314",
+      "packagedSha256": "a5ed2d8abfa56f12477500024c43308b5090337b5e957597ab169f7566777314"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/gbx/src/container.rs",
+      "origin": "preview236/native-driver-211/deps/tools/gbx/src/container.rs",
+      "sourceSha256": "60931f124662ed337445f7a008259aaf8155b5135f52e461e75943d0b40d5985",
+      "packagedSha256": "60931f124662ed337445f7a008259aaf8155b5135f52e461e75943d0b40d5985"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/gbx/src/header.rs",
+      "origin": "preview236/native-driver-211/deps/tools/gbx/src/header.rs",
+      "sourceSha256": "a6f4df40998a3307bf792baf9a573bb3217650365a285ebfe6f24357f7cfec7b",
+      "packagedSha256": "a6f4df40998a3307bf792baf9a573bb3217650365a285ebfe6f24357f7cfec7b"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/gbx/src/lib.rs",
+      "origin": "preview236/native-driver-211/deps/tools/gbx/src/lib.rs",
+      "sourceSha256": "19b86a9063fec0a096a7e0bd911b918c446041bd55fa2bab0568be77386b6bcc",
+      "packagedSha256": "19b86a9063fec0a096a7e0bd911b918c446041bd55fa2bab0568be77386b6bcc"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/gbx/src/manifest.rs",
+      "origin": "preview236/native-driver-211/deps/tools/gbx/src/manifest.rs",
+      "sourceSha256": "f9d9a3535849af907b25b7688c8997bcd799f261306d898d7fe19583f88f5d86",
+      "packagedSha256": "f9d9a3535849af907b25b7688c8997bcd799f261306d898d7fe19583f88f5d86"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/gbx/src/name.rs",
+      "origin": "preview236/native-driver-211/deps/tools/gbx/src/name.rs",
+      "sourceSha256": "12f2cf9c3b25ee0d264cb4d87c0b3eebc42c52c94be780ee5384b94029a03e47",
+      "packagedSha256": "12f2cf9c3b25ee0d264cb4d87c0b3eebc42c52c94be780ee5384b94029a03e47"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/gbx/src/record.rs",
+      "origin": "preview236/native-driver-211/deps/tools/gbx/src/record.rs",
+      "sourceSha256": "1480e5d074115b57c6a73db9c271167c8f187a371897aa1b620f93d48ee0e117",
+      "packagedSha256": "1480e5d074115b57c6a73db9c271167c8f187a371897aa1b620f93d48ee0e117"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/gbx/src/recwrite.rs",
+      "origin": "preview236/native-driver-211/deps/tools/gbx/src/recwrite.rs",
+      "sourceSha256": "c3296f40968f584aaf9c3478d3b451a315ca52ebb9d765689750610124edc675",
+      "packagedSha256": "c3296f40968f584aaf9c3478d3b451a315ca52ebb9d765689750610124edc675"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/gbx/src/sample.rs",
+      "origin": "preview236/native-driver-211/deps/tools/gbx/src/sample.rs",
+      "sourceSha256": "f22b75259df068fe09f66ac103f476f63cfc299269ef7640b9fdf1ebf387be8a",
+      "packagedSha256": "f22b75259df068fe09f66ac103f476f63cfc299269ef7640b9fdf1ebf387be8a"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/gbx/src/sha.rs",
+      "origin": "preview236/native-driver-211/deps/tools/gbx/src/sha.rs",
+      "sourceSha256": "e9fb94bf3b013f4799dee5784c2bd5d75e8fb818fd6d3c92ea7dd3beac0021ba",
+      "packagedSha256": "e9fb94bf3b013f4799dee5784c2bd5d75e8fb818fd6d3c92ea7dd3beac0021ba"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/gbx/src/tape.rs",
+      "origin": "preview236/native-driver-211/deps/tools/gbx/src/tape.rs",
+      "sourceSha256": "7f6d422a9b69ee6c1496308df828d3c0ff3e6ab0181f447515aa20eb7807247e",
+      "packagedSha256": "7f6d422a9b69ee6c1496308df828d3c0ff3e6ab0181f447515aa20eb7807247e"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/Cargo.toml",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/Cargo.toml",
+      "sourceSha256": "411f7ecd667e7f4527cde3fb50d647d15f6811c203ca2a5461cb6078a9505caa",
+      "packagedSha256": "411f7ecd667e7f4527cde3fb50d647d15f6811c203ca2a5461cb6078a9505caa"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/census.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/census.rs",
+      "sourceSha256": "cefd4a84c947141188228da377eefae497d2853a00a056b7d3c0fea025463e33",
+      "packagedSha256": "cefd4a84c947141188228da377eefae497d2853a00a056b7d3c0fea025463e33"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/cli.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/cli.rs",
+      "sourceSha256": "c09bf11cb1ebcb44158adedd77c359f9a2587f43f86c50420ba4ebff5cc5eb3c",
+      "packagedSha256": "c09bf11cb1ebcb44158adedd77c359f9a2587f43f86c50420ba4ebff5cc5eb3c"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/declare.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/declare.rs",
+      "sourceSha256": "929be413083c60bd2bbd91cc83b03df02ed1152eca2272649e3b2184d198537f",
+      "packagedSha256": "929be413083c60bd2bbd91cc83b03df02ed1152eca2272649e3b2184d198537f"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/engine.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/engine.rs",
+      "sourceSha256": "f4f4d2e8bfce5d6d44c2999ec84a08f792781d3eb6462c06054d7190509d4f7e",
+      "packagedSha256": "f4f4d2e8bfce5d6d44c2999ec84a08f792781d3eb6462c06054d7190509d4f7e"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/film.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/film.rs",
+      "sourceSha256": "4e4afd39a66d190682aa457851b7e2e359864c49355f12ce7b998cfe4ded9cde",
+      "packagedSha256": "4e4afd39a66d190682aa457851b7e2e359864c49355f12ce7b998cfe4ded9cde"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/finish.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/finish.rs",
+      "sourceSha256": "24d9f6981316ed548fc617c79b8cc031e8fdc56956fd45a19d89d6087dfdbf32",
+      "packagedSha256": "24d9f6981316ed548fc617c79b8cc031e8fdc56956fd45a19d89d6087dfdbf32"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/hdr.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/hdr.rs",
+      "sourceSha256": "9ccfa05aa511fe51cb5125ea1e875b8fa5875b05489318758fbc809f97e943d7",
+      "packagedSha256": "9ccfa05aa511fe51cb5125ea1e875b8fa5875b05489318758fbc809f97e943d7"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/ident.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/ident.rs",
+      "sourceSha256": "80eb88055b4eb79549de0741e7c2468de8343068b4d493787cfa9364258a8ad6",
+      "packagedSha256": "80eb88055b4eb79549de0741e7c2468de8343068b4d493787cfa9364258a8ad6"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/lcp.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/lcp.rs",
+      "sourceSha256": "1e566f574f182878c08db5981c1230e94dbb6f4823c2335a74f4547590a63963",
+      "packagedSha256": "1e566f574f182878c08db5981c1230e94dbb6f4823c2335a74f4547590a63963"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/lib.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/lib.rs",
+      "sourceSha256": "987efeb844100bee3b63fbe7cba917dd6fdc54004db678ca9b816e0c73175737",
+      "packagedSha256": "987efeb844100bee3b63fbe7cba917dd6fdc54004db678ca9b816e0c73175737"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/main.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/main.rs",
+      "sourceSha256": "c1034d4f5448fc45cc302049623f1cb8f6e6e7d411e8fcdd28b4482cc88a2b91",
+      "packagedSha256": "c1034d4f5448fc45cc302049623f1cb8f6e6e7d411e8fcdd28b4482cc88a2b91"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/oracle.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/oracle.rs",
+      "sourceSha256": "7c8635af6db6ecd698a30257451cb925b4f15ff160c328c54d7b850a22319734",
+      "packagedSha256": "7c8635af6db6ecd698a30257451cb925b4f15ff160c328c54d7b850a22319734"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/phase.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/phase.rs",
+      "sourceSha256": "fd3a430f49ac03f711e3d8a4fd5529d6631183ea2c23e74ee08b7ed1d6b6ef3c",
+      "packagedSha256": "fd3a430f49ac03f711e3d8a4fd5529d6631183ea2c23e74ee08b7ed1d6b6ef3c"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/record.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/record.rs",
+      "sourceSha256": "5a8d9c2f3c95fda8da485925f64457542e415ad4e6e37b16ae6125f4eae4e901",
+      "packagedSha256": "5a8d9c2f3c95fda8da485925f64457542e415ad4e6e37b16ae6125f4eae4e901"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/regen.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/regen.rs",
+      "sourceSha256": "67ac632067505d9bad5b070925d7bc0554e58a397ab6f03a7ef53412aaa7c569",
+      "packagedSha256": "67ac632067505d9bad5b070925d7bc0554e58a397ab6f03a7ef53412aaa7c569"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/roundtrip.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/roundtrip.rs",
+      "sourceSha256": "f269ee1e6be401913eb7c8b76997bbaa9c2c82f1d7842ddff2a758c412933552",
+      "packagedSha256": "f269ee1e6be401913eb7c8b76997bbaa9c2c82f1d7842ddff2a758c412933552"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/script.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/script.rs",
+      "sourceSha256": "fafe11dba9922ce5f281fc647787a4fb98f91bd38d544053a25430ec0a614d18",
+      "packagedSha256": "fafe11dba9922ce5f281fc647787a4fb98f91bd38d544053a25430ec0a614d18"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/selftest.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/selftest.rs",
+      "sourceSha256": "ff5262a04fcc2ab0f67c02233a1f936aba9e98dcde59072243e8597d93e4e14b",
+      "packagedSha256": "ff5262a04fcc2ab0f67c02233a1f936aba9e98dcde59072243e8597d93e4e14b"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/splice.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/splice.rs",
+      "sourceSha256": "6646c2c02c70644b652090fa2efce9928720d4fd074de85e6f4780e1e3f632ce",
+      "packagedSha256": "6646c2c02c70644b652090fa2efce9928720d4fd074de85e6f4780e1e3f632ce"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/statik.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/statik.rs",
+      "sourceSha256": "77e026ad395a85e376eace33041e7ac97c43ac1fab45c0acdbb71e41552501ce",
+      "packagedSha256": "77e026ad395a85e376eace33041e7ac97c43ac1fab45c0acdbb71e41552501ce"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/sweep.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/sweep.rs",
+      "sourceSha256": "f07e005f8ec212f06192cf2234800bbf93638547ceec91450c771e9b6ec70038",
+      "packagedSha256": "f07e005f8ec212f06192cf2234800bbf93638547ceec91450c771e9b6ec70038"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/synth.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/synth.rs",
+      "sourceSha256": "6af263fa936971781bf045896b915eada7e25081857f710f34c9583a9b65b43d",
+      "packagedSha256": "6af263fa936971781bf045896b915eada7e25081857f710f34c9583a9b65b43d"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/trim.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/trim.rs",
+      "sourceSha256": "cac66ae06c11378624f0fc3f2789f15437458aae1f94e200008d5e6825f2368d",
+      "packagedSha256": "cac66ae06c11378624f0fc3f2789f15437458aae1f94e200008d5e6825f2368d"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/unwrap.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/unwrap.rs",
+      "sourceSha256": "c6268e500db1c10d3c92eb3117a7b260e0032f99456b6775819d33cf1b7a4efc",
+      "packagedSha256": "c6268e500db1c10d3c92eb3117a7b260e0032f99456b6775819d33cf1b7a4efc"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/ghost/src/verify.rs",
+      "origin": "preview236/native-driver-211/deps/tools/ghost/src/verify.rs",
+      "sourceSha256": "871238e61556db3b6099f18431bbf9ec9e6a30d8dfb1651ac57ad3792c82c58e",
+      "packagedSha256": "871238e61556db3b6099f18431bbf9ec9e6a30d8dfb1651ac57ad3792c82c58e"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/search/branch/Cargo.toml",
+      "origin": "preview236/native-driver-211/deps/tools/search/branch/Cargo.toml",
+      "sourceSha256": "f82f16e4ba3c16a7ba1e0b1276248269f43b47c57a2e0c1d4a1b6dca71047f03",
+      "packagedSha256": "f82f16e4ba3c16a7ba1e0b1276248269f43b47c57a2e0c1d4a1b6dca71047f03"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/search/branch/src/lib.rs",
+      "origin": "preview236/native-driver-211/deps/tools/search/branch/src/lib.rs",
+      "sourceSha256": "cde3ebc457d68933687bfd05d7d16ae95cc013e2897f81d67b629bd902360079",
+      "packagedSha256": "cde3ebc457d68933687bfd05d7d16ae95cc013e2897f81d67b629bd902360079"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/search/forkoracle/Cargo.toml",
+      "origin": "preview236/native-driver-211/deps/tools/search/forkoracle/Cargo.toml",
+      "sourceSha256": "a6af637d0b9bf8907ec06eab143007b269ae727cee55c56c55b7998582aee571",
+      "packagedSha256": "a6af637d0b9bf8907ec06eab143007b269ae727cee55c56c55b7998582aee571"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/search/forkoracle/src/blind.rs",
+      "origin": "preview236/native-driver-211/deps/tools/search/forkoracle/src/blind.rs",
+      "sourceSha256": "e2a54a953967d4b82c905e09b1fd101e7a6881cf597732263b744951bead1bee",
+      "packagedSha256": "e2a54a953967d4b82c905e09b1fd101e7a6881cf597732263b744951bead1bee"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/search/forkoracle/src/forksrv.rs",
+      "origin": "preview236/native-driver-211/deps/tools/search/forkoracle/src/forksrv.rs",
+      "sourceSha256": "1fb9e5c06972be4cc6f2da52f5ab959cd38a0e1bd489aa7b6b2e740c08e3400b",
+      "packagedSha256": "1fb9e5c06972be4cc6f2da52f5ab959cd38a0e1bd489aa7b6b2e740c08e3400b"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/search/forkoracle/src/inputs.rs",
+      "origin": "preview236/native-driver-211/deps/tools/search/forkoracle/src/inputs.rs",
+      "sourceSha256": "6bc47c3dd6d3e145628fb0afc9d8803ddda7667c718870436f0ca7d20be58d65",
+      "packagedSha256": "6bc47c3dd6d3e145628fb0afc9d8803ddda7667c718870436f0ca7d20be58d65"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/search/forkoracle/src/layout.rs",
+      "origin": "preview236/native-driver-211/deps/tools/search/forkoracle/src/layout.rs",
+      "sourceSha256": "48d3ec53fa5cbe64e0e08f6ee4ec94e8f8bfa3f66918d9d73a310dd7df986820",
+      "packagedSha256": "48d3ec53fa5cbe64e0e08f6ee4ec94e8f8bfa3f66918d9d73a310dd7df986820"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/search/forkoracle/src/lib.rs",
+      "origin": "preview236/native-driver-211/deps/tools/search/forkoracle/src/lib.rs",
+      "sourceSha256": "0872ffb593f75241a88a8a4e36c66a475302199fe19620c9a69ba87c2c0b2a14",
+      "packagedSha256": "0872ffb593f75241a88a8a4e36c66a475302199fe19620c9a69ba87c2c0b2a14"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/search/forkoracle/src/pred.rs",
+      "origin": "preview236/native-driver-211/deps/tools/search/forkoracle/src/pred.rs",
+      "sourceSha256": "bca3ce70b0cccad39d31e8ca993447d50a9a47e9c4f5c4358090547365bd1a23",
+      "packagedSha256": "bca3ce70b0cccad39d31e8ca993447d50a9a47e9c4f5c4358090547365bd1a23"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/search/forkoracle/src/pred_core.rs",
+      "origin": "preview236/native-driver-211/deps/tools/search/forkoracle/src/pred_core.rs",
+      "sourceSha256": "4c72a4a7a6a4093ae45693f0afe6c1ae77d6409be6f075b886573a29c80106c5",
+      "packagedSha256": "4c72a4a7a6a4093ae45693f0afe6c1ae77d6409be6f075b886573a29c80106c5"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/search/forkoracle/src/procmem.rs",
+      "origin": "preview236/native-driver-211/deps/tools/search/forkoracle/src/procmem.rs",
+      "sourceSha256": "444523080e0481bd0e0670d517deb668bcd66c3a002dd1148581331666c2318b",
+      "packagedSha256": "444523080e0481bd0e0670d517deb668bcd66c3a002dd1148581331666c2318b"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/search/forkoracle/src/tree.rs",
+      "origin": "preview236/native-driver-211/deps/tools/search/forkoracle/src/tree.rs",
+      "sourceSha256": "a8a381b5f5dd9336e9b5f9230e4ee3592d5407a9e18613bebe615530b54652f1",
+      "packagedSha256": "a8a381b5f5dd9336e9b5f9230e4ee3592d5407a9e18613bebe615530b54652f1"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/Cargo.toml",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/Cargo.toml",
+      "sourceSha256": "77d1978cb80010c39ece7d998e476501621580eeb4124eedf906f0fd4adbad66",
+      "packagedSha256": "77d1978cb80010c39ece7d998e476501621580eeb4124eedf906f0fd4adbad66"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/adjudicate.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/adjudicate.rs",
+      "sourceSha256": "0bbf1f6ac052bf484537b3578841b3ec0e516796f0d050dbc2f539e033a9098d",
+      "packagedSha256": "0bbf1f6ac052bf484537b3578841b3ec0e516796f0d050dbc2f539e033a9098d"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/adjudicate_batch.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/adjudicate_batch.rs",
+      "sourceSha256": "0a9c071ab27815d36c843ff183e4903002a2208b2afc9ea58832788a74aa3896",
+      "packagedSha256": "0a9c071ab27815d36c843ff183e4903002a2208b2afc9ea58832788a74aa3896"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/aircmd.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/aircmd.rs",
+      "sourceSha256": "c2b017c183b5303828f64b1f569a78fa856edead44b84c1e95f9b0577f2d9fd6",
+      "packagedSha256": "c2b017c183b5303828f64b1f569a78fa856edead44b84c1e95f9b0577f2d9fd6"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/blockdiffcmd.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/blockdiffcmd.rs",
+      "sourceSha256": "451981c114b5b0daaa854854be602963106b423a1e5710d09d4ff11a6c4309e2",
+      "packagedSha256": "451981c114b5b0daaa854854be602963106b423a1e5710d09d4ff11a6c4309e2"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/checkcmd.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/checkcmd.rs",
+      "sourceSha256": "ca39fcc3cb35dca19f8ee4b7f61b30bb7e060d54771fd795ea45913b384b3ec0",
+      "packagedSha256": "ca39fcc3cb35dca19f8ee4b7f61b30bb7e060d54771fd795ea45913b384b3ec0"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/claimscmd.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/claimscmd.rs",
+      "sourceSha256": "619ecf0b09fe1c336c9e573fc0985c1e4faa1032052bc00234ea318276736200",
+      "packagedSha256": "619ecf0b09fe1c336c9e573fc0985c1e4faa1032052bc00234ea318276736200"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/cli.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/cli.rs",
+      "sourceSha256": "24a5a7e1f93a43014ed5545ba6280422bedc7295f44749fe73e0c188c18f855e",
+      "packagedSha256": "24a5a7e1f93a43014ed5545ba6280422bedc7295f44749fe73e0c188c18f855e"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/corpuscmd.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/corpuscmd.rs",
+      "sourceSha256": "02f7cf8edf223a5b82420fa77073422ac752a31fde487295036c7c591d9b1a2f",
+      "packagedSha256": "02f7cf8edf223a5b82420fa77073422ac752a31fde487295036c7c591d9b1a2f"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/csvdiff.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/csvdiff.rs",
+      "sourceSha256": "1ce5c6a3d685c4f3ba162750abb53d37d52d3c3e553bb0a7fb4796a7ef82dfb5",
+      "packagedSha256": "1ce5c6a3d685c4f3ba162750abb53d37d52d3c3e553bb0a7fb4796a7ef82dfb5"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/diffcmd.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/diffcmd.rs",
+      "sourceSha256": "51433cd341681466faad7f9993d66789bdb5ef3d6940c4a4fed8cb035012b742",
+      "packagedSha256": "51433cd341681466faad7f9993d66789bdb5ef3d6940c4a4fed8cb035012b742"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/envelope.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/envelope.rs",
+      "sourceSha256": "3c46552a4f230c6180d05a656c2f6ea0442264770e3e9dbdb0a53f8e99068cdd",
+      "packagedSha256": "3c46552a4f230c6180d05a656c2f6ea0442264770e3e9dbdb0a53f8e99068cdd"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/facingcmd.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/facingcmd.rs",
+      "sourceSha256": "7d85872cd21edf151f25e4db7190175d25afd636272ba2fbec8765366fcb7bc5",
+      "packagedSha256": "7d85872cd21edf151f25e4db7190175d25afd636272ba2fbec8765366fcb7bc5"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/fmt.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/fmt.rs",
+      "sourceSha256": "04744b25be50e1c137220afd93fad9bb74ed6e494c900b86676e6cbbf26fe5c7",
+      "packagedSha256": "04744b25be50e1c137220afd93fad9bb74ed6e494c900b86676e6cbbf26fe5c7"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/geomcmd.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/geomcmd.rs",
+      "sourceSha256": "fe8e8b16995273ce7603d43062025c22bfaa7164fc8179dfb1d520037106934a",
+      "packagedSha256": "fe8e8b16995273ce7603d43062025c22bfaa7164fc8179dfb1d520037106934a"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/impactcmd.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/impactcmd.rs",
+      "sourceSha256": "ba13042532b5e33cad0e3e309cada42101f4f4ef331d71adbbd3000ec39a1e67",
+      "packagedSha256": "ba13042532b5e33cad0e3e309cada42101f4f4ef331d71adbbd3000ec39a1e67"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/intgcmd.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/intgcmd.rs",
+      "sourceSha256": "bb53a91babe0bba1a2f1364d090fbbeba49e2e62d353e4fc038e439536278d58",
+      "packagedSha256": "bb53a91babe0bba1a2f1364d090fbbeba49e2e62d353e4fc038e439536278d58"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/json.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/json.rs",
+      "sourceSha256": "aa4d96912897eb1132fad71aff1b4c30a8fad0733b91f745b4c8393ea45c1cad",
+      "packagedSha256": "aa4d96912897eb1132fad71aff1b4c30a8fad0733b91f745b4c8393ea45c1cad"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/lib.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/lib.rs",
+      "sourceSha256": "516d61670715324588a317481012f1ff03d67b969e89161ec5593dcef5fe1721",
+      "packagedSha256": "516d61670715324588a317481012f1ff03d67b969e89161ec5593dcef5fe1721"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/lines.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/lines.rs",
+      "sourceSha256": "5c38b28e335c3c5152eb3973a006d46cf732b45dec3ee967645d351ced4957cf",
+      "packagedSha256": "5c38b28e335c3c5152eb3973a006d46cf732b45dec3ee967645d351ced4957cf"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/main.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/main.rs",
+      "sourceSha256": "24d20763f5a9a3f7d0a7986735b31bf394dc5fc320d81b3bc9d2aa0ac9f2ab72",
+      "packagedSha256": "24d20763f5a9a3f7d0a7986735b31bf394dc5fc320d81b3bc9d2aa0ac9f2ab72"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/manifest.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/manifest.rs",
+      "sourceSha256": "e01c247fbce66ad668dd5c60e3f3c490aea44f2627c9bed3a61448efe09e79ca",
+      "packagedSha256": "e01c247fbce66ad668dd5c60e3f3c490aea44f2627c9bed3a61448efe09e79ca"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/provcmd.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/provcmd.rs",
+      "sourceSha256": "067e1fd3fc9db8c6b65a2884b2f6ba5045f4ecd61e16126d3289c1baefbd9c99",
+      "packagedSha256": "067e1fd3fc9db8c6b65a2884b2f6ba5045f4ecd61e16126d3289c1baefbd9c99"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/routecmd.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/routecmd.rs",
+      "sourceSha256": "1d076e66c4f97e08deb0d109a0c39695767b973c7a2daaf8b0d1139355d1caf6",
+      "packagedSha256": "1d076e66c4f97e08deb0d109a0c39695767b973c7a2daaf8b0d1139355d1caf6"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/run.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/run.rs",
+      "sourceSha256": "cf0dafa653eeb63590fa9de8db7ed87265171a51e7229786056993670403141b",
+      "packagedSha256": "cf0dafa653eeb63590fa9de8db7ed87265171a51e7229786056993670403141b"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/scancmd.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/scancmd.rs",
+      "sourceSha256": "6415e0299536c534e332de56e275594624b3fadb64913d3e96500a04600f7e84",
+      "packagedSha256": "6415e0299536c534e332de56e275594624b3fadb64913d3e96500a04600f7e84"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/selftest.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/selftest.rs",
+      "sourceSha256": "05e288acf0adbe092f5d7bc7a611ffa6bdeded4aefa621b735a2fecdb87c8904",
+      "packagedSha256": "05e288acf0adbe092f5d7bc7a611ffa6bdeded4aefa621b735a2fecdb87c8904"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/serial.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/serial.rs",
+      "sourceSha256": "81a2b24e3b4ac691f561ffb03c5ca99f1ebb56c734753e42a088ec81b6dfd23c",
+      "packagedSha256": "81a2b24e3b4ac691f561ffb03c5ca99f1ebb56c734753e42a088ec81b6dfd23c"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/shippedcmd.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/shippedcmd.rs",
+      "sourceSha256": "b2a1c3939734a54d1ce577bd9de0ebd82c0396da8983a446502959e82c24495e",
+      "packagedSha256": "b2a1c3939734a54d1ce577bd9de0ebd82c0396da8983a446502959e82c24495e"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/splitscmd.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/splitscmd.rs",
+      "sourceSha256": "8fcac30926c39d78d3295411e1ec111e23d4a34c5fd289d5a68cbe134a9d09e5",
+      "packagedSha256": "8fcac30926c39d78d3295411e1ec111e23d4a34c5fd289d5a68cbe134a9d09e5"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/stats.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/stats.rs",
+      "sourceSha256": "aafc330c6fda5d4fefc8f8183ab31d9b67fa3ef938f6d94c63f8160b66d3dca4",
+      "packagedSha256": "aafc330c6fda5d4fefc8f8183ab31d9b67fa3ef938f6d94c63f8160b66d3dca4"
+    },
+    {
+      "path": "native/vendor/trackmania-tas/tools/tmtraj/src/whlcmd.rs",
+      "origin": "preview236/native-driver-211/deps/tools/tmtraj/src/whlcmd.rs",
+      "sourceSha256": "1a7a8206265a0470727981945f03e374e3e04163ac8d288f603a6a6d3ebe9de0",
+      "packagedSha256": "1a7a8206265a0470727981945f03e374e3e04163ac8d288f603a6a6d3ebe9de0"
+    },
+    {
+      "path": "native/driver/src/main.rs",
+      "origin": "preview236/native-driver-211/src/main.rs",
+      "sourceSha256": "6fa237a83c884cc2771347636fd6210f05df04e634252b1d812c387759725f84",
+      "packagedSha256": "d13971737e5c7db16237409ce27ed9e89c35e4ba6d7a68c6745c348cdc6a8e34"
+    },
+    {
+      "path": "native/shim/src/bin/shimhost.rs",
+      "origin": "native-long-v6/shim/src/bin/shimhost.rs",
+      "sourceSha256": "79d0def0436008183679c645b0bf8bec04797c5d2e7b18b5b99630766aea0d82",
+      "packagedSha256": "79d0def0436008183679c645b0bf8bec04797c5d2e7b18b5b99630766aea0d82"
+    },
+    {
+      "path": "native/shim/src/lib.rs",
+      "origin": "native-long-v6/shim/src/lib.rs",
+      "sourceSha256": "4c06bb6cf4e6ab822722e42ee2a2b71510dd526ff810d08c338ac8d3f9a9211c",
+      "packagedSha256": "1962a88335794f3dfd687830f16030031f4c9643fe45c1c36c5afe19cfd261ec"
+    },
+    {
+      "path": "native/shim/src/post_observe/native_ipc.rs",
+      "origin": "native-long-v6/shim/src/post_observe/native_ipc.rs",
+      "sourceSha256": "94f864828b0000b3061b070fe08794bb99697a292b6a1ff51070378b9da18b40",
+      "packagedSha256": "94f864828b0000b3061b070fe08794bb99697a292b6a1ff51070378b9da18b40"
+    },
+    {
+      "path": "native/shim/src/post_observe/reader.rs",
+      "origin": "native-long-v6/shim/src/post_observe/reader.rs",
+      "sourceSha256": "f30046eefb88b5b232202eded9ffcbc09f64bbf248c6969ef79f3af540dcbd9f",
+      "packagedSha256": "f30046eefb88b5b232202eded9ffcbc09f64bbf248c6969ef79f3af540dcbd9f"
+    },
+    {
+      "path": "native/shim/src/post_observe/result_observe.rs",
+      "origin": "native-long-v6/shim/src/post_observe/result_observe.rs",
+      "sourceSha256": "eb4a01a2aa2a9044775e1b46c98a0bb2550bc04f0e1ffa82774f31c03d057b6f",
+      "packagedSha256": "eb4a01a2aa2a9044775e1b46c98a0bb2550bc04f0e1ffa82774f31c03d057b6f"
+    },
+    {
+      "path": "native/shim/src/post_observe.rs",
+      "origin": "native-long-v6/shim/src/post_observe.rs",
+      "sourceSha256": "7192f57bb4e2052236c248616f3f35c771e99197a01dfef846aafe5ce6d6527a",
+      "packagedSha256": "7192f57bb4e2052236c248616f3f35c771e99197a01dfef846aafe5ce6d6527a"
+    }
+  ],
+  "packagedHashConvention": "SHA-256 of UTF-8 files with CRLF normalized to LF, matching .gitattributes"
+}

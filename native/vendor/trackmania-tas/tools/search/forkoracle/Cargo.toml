@@ -1,0 +1,14 @@
+[package]
+name = "forkoracle"
+version = "1.0.0"
+edition = "2021"
+[lib]
+name = "forkoracle"
+path = "src/lib.rs"
+
+[dev-dependencies]
+# ONLY for the suite. `forkoracle` itself has no dependencies -- the shim
+# compiles part of it into a game server -- but the never-crossed sentinel
+# exists in two places for that reason, and a test is the only thing that can
+# stop the copies drifting.
+ghost = { path = "../../ghost" }

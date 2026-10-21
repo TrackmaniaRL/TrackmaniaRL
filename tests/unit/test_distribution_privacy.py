@@ -20,6 +20,11 @@ from scripts.distribution_privacy import validate_archive_privacy, validate_memb
         "x/session.npz",
         "x/__pycache__/a.pyc",
         "../outside.txt",
+        "native/libforkshim.so",
+        "native/TrackmaniaServer.exe",
+        "native/example.Map.Gbx",
+        "native/dedicated.pak",
+        "native/captured-state.bin",
     ],
 )
 def test_distribution_rejects_private_or_unsafe_members(name: str) -> None:
@@ -62,4 +67,23 @@ def test_distribution_rejects_archive_links(tmp_path: Path) -> None:
         member.linkname = "../../outside"
         sdist.addfile(member)
     with pytest.raises(RuntimeError, match="links"):
+        validate_archive_privacy(archive)
+
+
+@pytest.mark.parametrize("payload", [b"\x7fELF" + bytes(64), b"MZ" + bytes(64), b"GBX" + bytes(64)])
+@pytest.mark.parametrize("kind", ["wheel", "sdist"])
+def test_source_archives_reject_disguised_runtime_payloads(
+    tmp_path: Path, payload: bytes, kind: str
+) -> None:
+    archive = tmp_path / kind
+    name = "package/native/innocent.txt"
+    if kind == "wheel":
+        with zipfile.ZipFile(archive, "w") as wheel:
+            wheel.writestr(name, payload)
+    else:
+        with tarfile.open(archive, "w:gz") as sdist:
+            member = tarfile.TarInfo(name)
+            member.size = len(payload)
+            sdist.addfile(member, io.BytesIO(payload))
+    with pytest.raises(RuntimeError, match="Executable or game payload"):
         validate_archive_privacy(archive)

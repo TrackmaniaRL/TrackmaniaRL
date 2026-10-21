@@ -1,0 +1,15 @@
+[package]
+name = "forkshim"
+version = "1.0.0"
+edition = "2021"
+license = "MIT"
+description = "Native simulation hooks for the experimental TrackmaniaRL validator profile"
+publish = false
+
+[lib]
+name = "forkshim"
+crate-type = ["cdylib", "rlib"]
+path = "src/lib.rs"
+
+[dev-dependencies]
+forkoracle = { path = "../vendor/trackmania-tas/tools/search/forkoracle" }

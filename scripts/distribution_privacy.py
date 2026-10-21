@@ -32,6 +32,15 @@ _PRIVATE_SUFFIXES = frozenset(
         ".pyo",
         ".pem",
         ".key",
+        ".exe",
+        ".dll",
+        ".so",
+        ".a",
+        ".o",
+        ".gbx",
+        ".pak",
+        ".bin",
+        ".dmp",
     }
 )
 _CONTENT_PATTERNS = {
@@ -69,6 +78,8 @@ def validate_member(name: str, data: bytes) -> None:
         or relative.suffix.lower() in _PRIVATE_SUFFIXES
     ):
         raise RuntimeError(f"Forbidden private archive member: {relative.name}")
+    if data.startswith((b"\x7fELF", b"MZ", b"GBX")):
+        raise RuntimeError(f"Executable or game payload in source archive: {relative.name}")
     categories = content_categories(data)
     if categories:
         raise RuntimeError(

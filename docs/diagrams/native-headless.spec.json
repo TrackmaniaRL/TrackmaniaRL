@@ -1,0 +1,30 @@
+{
+  "title": "Experimental native environment boundary",
+  "subtitle": "A pinned local runtime supplies checked transitions to an explicit project integration.",
+  "eyebrow": "TRACKMANIARL   /   SYSTEM GUIDE   /   10",
+  "width": 1000,
+  "height": 1060,
+  "zones": [
+    {"id": "project-zone", "label": "01  Application project", "x": 40, "y": 306, "w": 296, "h": 306, "color": "slate"},
+    {"id": "python-zone", "label": "02  Python environment", "x": 352, "y": 306, "w": 296, "h": 306, "color": "slate"},
+    {"id": "native-zone", "label": "03  External native runtime", "x": 664, "y": 306, "w": 296, "h": 306, "color": "slate"}
+  ],
+  "nodes": [
+    {"id": "collector", "label": "Policy + collector", "detail": "44 features / 78 actions\nTerminal-aware replay", "x": 64, "y": 380, "w": 248, "h": 156, "color": "green", "shape": "rectangle"},
+    {"id": "environment", "label": "Environment facade", "detail": "Reset / step / state / close\nReceipts + native state", "x": 376, "y": 380, "w": 248, "h": 156, "color": "blue", "shape": "rectangle"},
+    {"id": "driver", "label": "Driver + native child", "detail": "Fork from prepared parent\nPinned build + map + shim", "x": 688, "y": 380, "w": 248, "h": 156, "color": "orange", "shape": "rectangle"},
+    {"id": "trace", "label": "Persistent evidence", "detail": "Raw RX + applied inputs\nOwned state + outcome", "x": 376, "y": 688, "w": 248, "h": 136, "color": "blue", "shape": "rectangle"}
+  ],
+  "edges": [
+    {"id": "policy-action", "from": "collector", "to": "environment", "color": "green"},
+    {"id": "native-request", "from": "environment", "to": "driver", "color": "blue"},
+    {"id": "native-response", "from": "driver", "to": "environment", "color": "orange", "points": [[812, 536], [812, 576], [500, 576], [500, 536]]},
+    {"id": "observation", "from": "environment", "to": "collector", "color": "blue", "points": [[376, 488], [348, 488], [348, 576], [188, 576], [188, 536]]},
+    {"id": "publish-trace", "from": "environment", "to": "trace", "color": "blue", "points": [[450, 536], [450, 650], [500, 650], [500, 688]]}
+  ],
+  "notes": [
+    {"id": "assets", "text": "EXPLICIT OPT-IN\nExternal assets are hash-checked. Imports and construction do not start native processes.", "x": 40, "y": 174, "w": 920, "h": 104, "color": "blue"},
+    {"id": "transport", "text": "TRANSPORT\nLocal AF_UNIX stream sockets. Explicit runtime root and deployment; external assets stay pinned.", "x": 40, "y": 866, "w": 448, "h": 154, "color": "orange"},
+    {"id": "terminal", "text": "ENDPOINT CONTRACT\nTime-limit final44 can bootstrap. Natural EOF has no terminal44. Inconclusive evidence raises.", "x": 512, "y": 866, "w": 448, "h": 154, "color": "slate"}
+  ]
+}

@@ -17,6 +17,12 @@ Trackmania runs through Proton and is not officially supported by Ubisoft Nadeo,
 the game setup is experimental. WSL is not a supported game host.
 TrackmaniaRL 1.2.x requires Python 3.12 and uses RunSpec 2.0 and checkpoint schema 2.0.
 
+An [experimental native headless backend](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/native-headless.md)
+is available for a pinned Linux validator profile. Its
+[driver and shim sources](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/native/README.md)
+are included under MIT. Game binaries and input data are supplied separately;
+this backend does not establish compatibility with arbitrary game versions or maps.
+
 ## Installation
 
 Add the library to your Python 3.12 project:
@@ -108,6 +114,7 @@ Start at the [documentation index](https://github.com/TrackmaniaRL/TrackmaniaRL/
 | Learn the Python API | [Python quickstart](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/python-quickstart.md) · [SDK reference](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/sdk.md) |
 | Extend the library | [Public API](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/public-api.md) · [Examples](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/examples/README.md) |
 | Configure training | [Configuration](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/configuration.md) · [Algorithms](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/algorithms.md) |
+| Explore the optional native backend | [Experimental native headless environment](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/native-headless.md) |
 | Use images or demonstrations | [Vision and PPO](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/vision.md) · [Imitation learning](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/imitation-learning.md) |
 | Understand the runtime | [Architecture](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/docs/library-architecture.md) · [Distributed training](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/architecture.md) |
 | Diagnose a run | [Observability](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/observability.md) · [Troubleshooting](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/docs/troubleshooting.md) |

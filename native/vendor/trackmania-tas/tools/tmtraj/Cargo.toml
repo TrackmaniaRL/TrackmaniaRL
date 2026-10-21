@@ -1,0 +1,19 @@
+[package]
+name = "tmtraj"
+version.workspace = true
+edition = "2021"
+
+[lib]
+name = "tmtraj"
+path = "src/lib.rs"
+
+[[bin]]
+name = "tmtraj"
+path = "src/main.rs"
+
+[dependencies]
+gbx = { path = "../gbx" }
+# The plain oracle: ONE dedicated-server driver and ONE parser of its output,
+# in the crate that owns them. This gate used to keep a fifth copy and it was
+# the copy with the DNF checkpoint bug.
+ghost = { path = "../ghost" }

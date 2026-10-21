@@ -1,0 +1,12 @@
+[package]
+name = "tmre-reset-driver"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Native driver for the experimental TrackmaniaRL validator profile"
+publish = false
+
+[dependencies]
+fk = { path = "../vendor/trackmania-tas/tools/fk/fk" }
+forkoracle = { path = "../vendor/trackmania-tas/tools/search/forkoracle" }
+serde_json = "=1.0.145"

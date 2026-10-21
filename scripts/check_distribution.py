@@ -113,6 +113,7 @@ def _wheel_required_members(version: str) -> set[str]:
         f"{dist_info}/entry_points.txt",
         f"{dist_info}/licenses/LICENSE",
         f"{dist_info}/licenses/NOTICE",
+        f"{dist_info}/licenses/native/licenses/trackmania-tas-MIT.txt",
         f"{dist_info}/METADATA",
     }
 

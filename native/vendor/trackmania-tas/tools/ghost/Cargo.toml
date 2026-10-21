@@ -1,0 +1,15 @@
+[package]
+name = "ghost"
+version.workspace = true
+edition = "2021"
+
+[lib]
+name = "ghost"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ghost"
+path = "src/main.rs"
+
+[dependencies]
+gbx = { path = "../gbx" }

@@ -72,6 +72,7 @@ documentation width before committing all rendered forms.
 | Recurrent replay, n-step targets and PER | [replay-sequence.excalidraw](replay-sequence.excalidraw) | [PNG](replay-sequence-preview.png) · [SVG](replay-sequence-preview.svg) · [HTML](replay-sequence-preview.html) |
 | Local and remote deployment | [distributed-security.excalidraw](distributed-security.excalidraw) | [PNG](distributed-security-preview.png) · [SVG](distributed-security-preview.svg) · [HTML](distributed-security-preview.html) |
 | Trackmania and Openplanet integration | [trackmania-integration.excalidraw](trackmania-integration.excalidraw) | [PNG](trackmania-integration-preview.png) · [SVG](trackmania-integration-preview.svg) · [HTML](trackmania-integration-preview.html) |
+| Experimental native headless boundary | [native-headless.excalidraw](native-headless.excalidraw) | [PNG](native-headless-preview.png) · [SVG](native-headless-preview.svg) · [HTML](native-headless-preview.html) |
 
 The committed HTML previews are local-only and expose a download of the
 editable scene. They do not upload repository diagrams or their contents.

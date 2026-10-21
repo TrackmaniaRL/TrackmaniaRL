@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = [
+    "driver",
+    "shim",
+    "vendor/trackmania-tas/tools/fk/fk",
+    "vendor/trackmania-tas/tools/gbx",
+    "vendor/trackmania-tas/tools/ghost",
+    "vendor/trackmania-tas/tools/tmtraj",
+    "vendor/trackmania-tas/tools/search/branch",
+    "vendor/trackmania-tas/tools/search/forkoracle",
+]
+default-members = ["driver", "shim"]
+
+[workspace.package]
+version = "1.0.0"
+
+[profile.release]
+opt-level = 3
+
+[profile.release.package.forkshim]
+opt-level = 2

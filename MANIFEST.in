@@ -24,3 +24,11 @@ prune wandb
 prune .venv
 
 recursive-include examples *.py *.md
+include examples/native_headless/assets.example.json
+
+# Source-only native build. Runtime artifacts and external inputs stay outside.
+include native/LICENSE
+include native/vendor/trackmania-tas/LICENSE
+recursive-include native *.md *.toml *.lock *.rs *.json *.txt
+prune native/target
+global-exclude *.exe *.dll *.so *.a *.o *.Gbx *.gbx *.pak *.bin *.dmp

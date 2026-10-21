@@ -1,0 +1,18 @@
+# The `Branch` interface of DESIGN §3.1, over the savestate tree.
+#
+# Depends on `forkoracle` alone: this crate is the API, `forkoracle::tree` is
+# the transport, and the LD_PRELOAD half lives in `forkshim`. Nothing here
+# starts a server -- that is `fk`'s job, and `fk tree` is the rig that drives
+# this crate. Keeping it that way is what stops a dependency cycle between the
+# API and the tool that measures it.
+[package]
+name = "branch"
+version = "1.0.0"
+edition = "2021"
+
+[lib]
+name = "branch"
+path = "src/lib.rs"
+
+[dependencies]
+forkoracle = { path = "../forkoracle" }

@@ -94,6 +94,14 @@ are not transferred into value heads. See [imitation learning](imitation-learnin
 
 ## Package ownership
 
+The optional [native headless backend](native-headless.md) also lives under
+`trackmaniarl.trackmania`. It owns a local driver session and checked native
+transitions for one pinned build/map profile. It uses AF_UNIX sockets and a
+fork-created episode child, with external assets and explicit execution opt-in.
+The [native example](../examples/native_headless/README.md) owns its terminal-aware
+collector and ragged QR-DQN integration. This experimental path does not replace
+the Openplanet flow or change the default CLI lifecycle shown above.
+
 | Package | Owns | Must not own |
 | --- | --- | --- |
 | `trackmaniarl.core` | contracts, RunSpec, data, replay, runtime and checkpoint boundary | Trackmania APIs, algorithm math |

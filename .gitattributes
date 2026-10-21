@@ -1,0 +1,3 @@
+native/** text eol=lf
+# Preserve upstream source formatting while checking our additions normally.
+native/vendor/** whitespace=-blank-at-eof

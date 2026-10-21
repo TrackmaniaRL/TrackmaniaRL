@@ -22,6 +22,7 @@ EXPECTED_STEMS = (
     "distributed-security",
     "imitation-learning",
     "model-composition",
+    "native-headless",
     "replay-sequence",
     "reward-decomposition",
     "runtime-architecture",

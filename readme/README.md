@@ -13,6 +13,7 @@ retain the versions and dates of the runs they describe.
 | --- | --- |
 | Use the library from Python | [Python quickstart](python-quickstart.md) |
 | Connect the game and train an agent | [Game quickstart](quickstart.md) |
+| Evaluate the optional native backend | [Experimental native headless environment](native-headless.md) |
 | Train with actors on multiple computers | [Distributed setup](distributed-setup.md) |
 | Add your own components | [Public API](public-api.md), [examples](../examples/README.md) and [SDK reference](sdk.md) |
 | Develop the library | [Development](development.md) and [repository layout](../docs/repository-layout.md) |

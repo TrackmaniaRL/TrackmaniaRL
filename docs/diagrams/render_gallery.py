@@ -48,7 +48,7 @@ def render_gallery(root: Path) -> str:
         f"<title>TrackmaniaRL visual guide</title><style>{STYLE}</style></head><body><main>"
         '<div class="brand">TRACKMANIARL / VISUAL GUIDE</div>'
         "<h1>The system, explained.</h1>"
-        '<p class="intro">Nine diagrams covering training, demonstrations, value learning '
+        '<p class="intro">Diagrams covering training, demonstrations, value learning '
         "and game integration. Start with the runtime, then explore the part you need.</p>"
         f'<div class="grid">{"".join(cards)}</div>'
         "<footer>Open any diagram to read it at documentation size or download its editable "

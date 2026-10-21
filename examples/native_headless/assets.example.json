@@ -1,0 +1,37 @@
+{
+  "schema": "tmrl.native-headless.assets/v1",
+  "profile": "native16-pending-reference78/44/v2",
+  "runtime_root": "/srv/trackmaniarl/runtime",
+  "roles": {
+    "server": "build/server-probe/linux-validate-map2-001/TrackmaniaServer",
+    "driver": "build/tmrl-shortcut/long-horizon-001/driver/target/release/tmre-reset-driver",
+    "shim": "build/forkoracle/native-long-v6-001/libforkshim.so",
+    "map": "analysis/tmrl-shortcut/assets-001/tmrl-test.Map.Gbx",
+    "tape": "analysis/tmrl-shortcut/long-horizon-controls-001/n4152-decl40000.Ghost.Gbx",
+    "reference": "experiments/headless-native16-training-001/reference.json",
+    "cold_post": "analysis/headless-normalstart/run-001/posts/post-828.bin"
+  },
+  "assets": {
+    "build/server-probe/linux-validate-map2-001/TrackmaniaServer": {
+      "sha256": "3b6107824feea402bd32c888e994dcd6df4a10afc8676a2647ac9560ccf0d779"
+    },
+    "build/tmrl-shortcut/long-horizon-001/driver/target/release/tmre-reset-driver": {
+      "sha256": "1586652d46b907eee7fedf86bc29f545067f65fc3b79c9f3abfc1f8c231a4d3c"
+    },
+    "build/forkoracle/native-long-v6-001/libforkshim.so": {
+      "sha256": "a14837a1c64595a697ddea89637e4f12a904df7ddaa84d814b4fc2cd47e97781"
+    },
+    "analysis/tmrl-shortcut/assets-001/tmrl-test.Map.Gbx": {
+      "sha256": "ed61a14dcfed9d4b3e3e961b1f1655deef6ac3f5ad05b6875f7722c1440004cc"
+    },
+    "analysis/tmrl-shortcut/long-horizon-controls-001/n4152-decl40000.Ghost.Gbx": {
+      "sha256": "1cb2dfe4749c9743c8aa7cc710c5442f82c1193157e2c15b8e973f5bb5d6979e"
+    },
+    "experiments/headless-native16-training-001/reference.json": {
+      "sha256": "49b7663cc35f4fefedb68309a54e37c627634c990d51aec9de3590a217efdeea"
+    },
+    "analysis/headless-normalstart/run-001/posts/post-828.bin": {
+      "sha256": "b30d31c5d0758319237c3251f7d79c4b42d5105bda8a66e457847d3de9a7d324"
+    }
+  }
+}

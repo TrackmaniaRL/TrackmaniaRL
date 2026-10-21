@@ -1,0 +1,26 @@
+[package]
+name = "fk"
+version = "1.0.0"
+edition = "2021"
+
+# `fk` is a LIBRARY first and a CLI second. The search (`tmsearch`) drives the
+# fork server through this library rather than through the binary, which is why
+# the driver code must not live inside a `main.rs`. The predecessor of this
+# crate split the driver into a separate `fkdrv` crate purely because `fk`
+# depended on `tmsearch` for its input codec and a shared dependency could live
+# in neither; that dependency is gone (the codec is `ghost`'s), so the split is
+# gone too.
+[lib]
+name = "fk"
+path = "src/lib.rs"
+
+[[bin]]
+name = "fk"
+path = "src/bin/fk.rs"
+
+[dependencies]
+ghost = { path = "../../ghost" }
+gbx = { path = "../../gbx" }
+tmtraj = { path = "../../tmtraj" }
+forkoracle = { path = "../../search/forkoracle" }
+branch = { path = "../../search/branch" }

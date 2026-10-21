@@ -12,3 +12,20 @@ License 2.0: https://github.com/state-spaces/mamba
 
 TrackmaniaRL is not affiliated with, endorsed by, or sponsored by Ubisoft,
 Nadeo, or the TMRL maintainers. Trackmania is a trademark of Nadeo/Ubisoft.
+
+The optional native driver and shim include and adapt source from
+trackmania-tas, copyright (c) 2026 Christopher Chedeau, under the MIT license:
+https://github.com/vjeux/trackmania-tas
+The source base is commit 235f4943188732f491ab9243954ede759e8a7f16. MIT was
+added directly on that base in commit ad6bf1cb4085d554ce981bf2a29f659211a0b6a9.
+The complete upstream license is retained in native/licenses/trackmania-tas-MIT.txt
+and native/vendor/trackmania-tas/LICENSE. Native additions by Jakub Szulc are
+also MIT. Source origins and packaging changes are in native/SOURCE-PROVENANCE.json.
+
+Registry dependencies keep their own licenses; native/DEPENDENCIES.md records
+the locked Rust declarations, including Unicode-3.0 and ryu's license choices.
+orjson is installed separately and includes MPL-2.0, Apache-2.0 and MIT code;
+its covered files are not relicensed by TrackmaniaRL's MIT license.
+No Ubisoft server/client binaries, Packs, maps, ghosts or captured runtime
+state are supplied by the native source package. These licenses grant rights
+to the contributed code, not rights to third-party games or data.

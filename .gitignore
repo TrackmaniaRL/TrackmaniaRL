@@ -232,6 +232,7 @@ output/
 /assets/
 /demonstrations/
 .release-check-*/
+/native/target/
 # Generated plans pin the agreed source checkout.
 /experiments/tmrl_test_comparison/team_campaign/campaign.json
 /experiments/tmrl_test_comparison/team_campaign/configs/
