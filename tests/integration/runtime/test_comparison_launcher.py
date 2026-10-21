@@ -8,6 +8,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -62,7 +63,7 @@ def test_comparison_launcher_rejects_unqualified_sd_sac_and_busy_game(tmp_path: 
     script = tmp_path / "guards.ps1"
     script.write_text(
         r"""
-param([string]$Launcher)
+param([string]$Launcher, [string]$Python)
 $ErrorActionPreference = 'Stop'
 $tokens = $null; $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile(
@@ -87,14 +88,35 @@ $blocked = $false
 try { Assert-ComparisonIdle } catch { $blocked = $_.Exception.Message -match 'steruje gra' }
 if (-not $blocked) { throw 'Active controller was not blocked' }
 $blocked = $false
-try { & $Launcher sac } catch { $blocked = $_.Exception.Message -match 'steruje gra' }
+$text = Get-Content -Raw -LiteralPath $Launcher
+$text = $text.Replace(
+    '$comparisonRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent',
+    '$comparisonRoot = Split-Path (Split-Path (Split-Path $Launcher -Parent) -Parent) -Parent')
+$text = $text.Replace(
+    '$comparisonPython = Join-Path $comparisonRoot ''.venv/Scripts/python.exe''',
+    '$comparisonPython = $Python')
+$text = $text.Replace('Global\TrackmaniaRL.ComparisonController',
+                      "Local\TrackmaniaRL.LauncherGuards.$PID")
+$text = $text.Replace('& $comparisonPython', 'Invoke-BlockedPython')
+function Invoke-BlockedPython { throw 'Unexpected Python invocation' }
+$code = [scriptblock]::Create($text)
+try { & $code sac } catch { $blocked = $_.Exception.Message -match 'steruje gra' }
 if (-not $blocked) { throw 'Qualified SAC must reach the busy-game guard before any controller' }
 Write-Output 'Launcher guards passed without game input'
 """,
         encoding="utf-8",
     )
     result = subprocess.run(
-        [shell, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script), str(launcher)],
+        [
+            shell,
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(script),
+            str(launcher),
+            sys.executable,
+        ],
         capture_output=True,
         text=True,
         timeout=30,
@@ -114,7 +136,7 @@ def test_launcher_sequences_three_seeds_and_stops_without_live_python(tmp_path: 
     wrapper = tmp_path / "sequence.ps1"
     wrapper.write_text(
         r"""
-param([string]$Launcher, [string]$StopPath)
+param([string]$Launcher, [string]$StopPath, [string]$Python)
 $ErrorActionPreference = 'Stop'
 $tokens = $null; $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile(
@@ -136,6 +158,11 @@ $text = $text.Replace(
 $text = $text.Replace(
     '$comparisonStop = Join-Path $comparisonRoot "artifacts/STOP-$Algorithm"',
     '$comparisonStop = $StopPath')
+$text = $text.Replace(
+    '$comparisonPython = Join-Path $comparisonRoot ''.venv/Scripts/python.exe''',
+    '$comparisonPython = $Python')
+$text = $text.Replace('Global\TrackmaniaRL.ComparisonController',
+                      "Local\TrackmaniaRL.LauncherSequence.$PID")
 $text = $text.Replace('& $comparisonPython', 'Invoke-MockPython')
 $code = [scriptblock]::Create($text)
 function Get-CimInstance { param($ClassName, $Filter) @() }
@@ -195,6 +222,7 @@ Write-Output 'Mock launch sequences passed; no Python or game controller execute
             str(wrapper),
             str(launcher),
             str(tmp_path / "STOP"),
+            sys.executable,
         ],
         capture_output=True,
         text=True,
