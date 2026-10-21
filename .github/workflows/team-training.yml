@@ -40,5 +40,5 @@ jobs:
         run: uv export --quiet --locked --group dev --prune torch --no-header --no-annotate --no-emit-project --output-file .ci-dev-requirements.txt
       - name: Verify the frozen plan without game input
         run: uv run --isolated --no-project --no-config --index "${{ env.TORCH_CPU_INDEX }}" --index-strategy unsafe-best-match --with "torch==${{ env.TORCH_CPU_VERSION }}" --with-requirements .ci-dev-requirements.txt python -m experiments.tmrl_test_comparison.release_20261021_v4.campaign verify
-      - name: Exercise campaign contracts and mocked supervision
-        run: uv run --isolated --no-project --no-config --index "${{ env.TORCH_CPU_INDEX }}" --index-strategy unsafe-best-match --with "torch==${{ env.TORCH_CPU_VERSION }}" --with-requirements .ci-dev-requirements.txt pytest tests/integration/runtime/test_training_release_v4.py tests/integration/runtime/test_portable_campaign.py tests/integration/runtime/test_colleague_release.py tests/unit/learning/test_value_feature_fastpath.py tests/unit/core/test_checkpoint_milestones.py tests/unit/trackmania/test_keyboard_focus.py
+      - name: Test merged library and campaign contracts
+        run: uv run --isolated --no-project --no-config --index "${{ env.TORCH_CPU_INDEX }}" --index-strategy unsafe-best-match --with "torch==${{ env.TORCH_CPU_VERSION }}" --with-requirements .ci-dev-requirements.txt pytest -q
