@@ -192,6 +192,7 @@ for their effects. Pace-reference projection also allows up to 278 m/s.
 | `host`, `port`, `session_port` | `127.0.0.1`, `9000`, `9001` | OpenPlanet telemetry/control and session endpoints. |
 | `timeout_s`, `start_timeout_s`, `start_poll_s`, `reset_settle_s` | `10`, `15`, `.01`, `0` s | I/O timeout, start deadline, polling cadence and optional post-reset wait. |
 | `start_race_time_ms` | `0` ms | Optional lower bound on the first observation after a detected restart. Timing alignment was not used in the V108 confirmation. |
+| `countdown_throttle` | `true` | Hold full throttle, no brake and centered steering immediately after requesting a restart, throughout the countdown and initial policy inference. The first policy action replaces this command without an override. Release controls on reset failure and before recovery-menu confirmation. Set `false` to preserve historical neutral countdowns when reproducing an old run. |
 | `confirm_finish_before_reset` | `true` | Send Enter before reset for normal play result screens, set `false` when School Mode requires editor validation. |
 | `restart_input` | `gamepad` | With gamepad driving, use its Give Up binding, `keyboard` Delete, or the `editor_validation` Delete/Improve sequence. |
 | `action_repeat_frames` | `4` | Native telemetry frames per decision, `1..20`. Must be `1` when `decision_interval_ms` is set. |
