@@ -20,17 +20,20 @@ class InferenceTimingTracker:
         self.total_s = 0.0
         self.maximum_s = 0.0
         self.samples = 0
+        self.over_100ms = 0
 
     def record(self, duration_s: float) -> None:
         self.total_s += duration_s
         self.maximum_s = max(self.maximum_s, duration_s)
         self.samples += 1
+        self.over_100ms += int(duration_s > 0.1)
 
     def summary(self) -> dict[str, float]:
         mean_s = self.total_s / self.samples if self.samples else 0.0
         return {
             "policy_inference_ms_mean": mean_s * 1_000.0,
             "policy_inference_ms_max": self.maximum_s * 1_000.0,
+            "policy_inference_over_100ms_fraction": self.over_100ms / max(1, self.samples),
         }
 
 
@@ -119,6 +122,12 @@ class ControlUsageTracker:
             "step_race_time_ms_max": maximum,
             "step_race_time_measurement_count": float(race_count),
             "step_race_time_measurements_valid": float(self._race_time_measurements_valid()),
+            "step_race_time_invalid_measurements": float(self.race_ms_invalid_measurements),
+            "step_race_time_over_100ms_fraction": (
+                sum(value > 100.0 for value in self.race_ms_values) / race_count
+                if race_count
+                else 0.0
+            ),
         }
         summary.update(self._timing_summary())
         return summary
@@ -189,6 +198,7 @@ class EpisodeMetrics:
     margins: MarginTracker = field(default_factory=MarginTracker)
     controls: ControlUsageTracker = field(default_factory=ControlUsageTracker)
     inference_timing: InferenceTimingTracker = field(default_factory=InferenceTimingTracker)
+    phase_timings: dict[str, InferenceTimingTracker] = field(default_factory=dict)
 
     @classmethod
     def from_policy(cls, policy: Any) -> Self:
@@ -202,6 +212,23 @@ class EpisodeMetrics:
 
     def record_inference(self, duration_s: float) -> None:
         self.inference_timing.record(duration_s)
+
+    def record_phase(self, name: str, duration_s: float) -> None:
+        tracker = self.phase_timings.get(name)
+        if tracker is None:
+            tracker = InferenceTimingTracker()
+            self.phase_timings[name] = tracker
+        tracker.record(duration_s)
+
+    def _phase_summary(self) -> dict[str, float]:
+        return {
+            f"actor_{name}_ms_{statistic}": value
+            for name, tracker in self.phase_timings.items()
+            for statistic, value in (
+                ("mean", tracker.total_s * 1_000.0 / max(1, tracker.samples)),
+                ("max", tracker.maximum_s * 1_000.0),
+            )
+        }
 
     def record_diagnostics(  # noqa: PLR0913 - policy statistics stay separate from environment info
         self,
@@ -258,6 +285,7 @@ class EpisodeMetrics:
             **self.margins.summary(),
             **self.controls.summary(),
             **self.inference_timing.summary(),
+            **self._phase_summary(),
             **self.diagnostics.flat_summary(),
         }
 
@@ -411,6 +439,22 @@ def _control_timing_summary(info: Mapping[str, Any]) -> dict[str, float]:
         "controller_apply_ms_max": float(info.get("controller_apply_ms_max", 0.0)),
         "telemetry_wait_ms_mean": float(info.get("telemetry_wait_ms_mean", 0.0)),
         "telemetry_wait_ms_max": float(info.get("telemetry_wait_ms_max", 0.0)),
+        "timing/policy_inference_over_100ms_fraction": float(
+            info.get("policy_inference_over_100ms_fraction", 0.0)
+        ),
+        "timing/step_race_invalid_measurements": float(
+            info.get("step_race_time_invalid_measurements", 0.0)
+        ),
+        "timing/step_race_over_100ms_fraction": float(
+            info.get("step_race_time_over_100ms_fraction", 0.0)
+        ),
+        **{
+            f"timing/actor_{phase}_ms_{statistic}": float(
+                info.get(f"actor_{phase}_ms_{statistic}", 0.0)
+            )
+            for phase in ("environment", "preprocessing", "diagnostics", "bookkeeping")
+            for statistic in ("mean", "max")
+        },
     }
 
 

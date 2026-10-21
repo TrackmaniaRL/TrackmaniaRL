@@ -1,4 +1,5 @@
 """Namespace identity is independent of duplicate import search paths."""
+
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch

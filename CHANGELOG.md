@@ -1,20 +1,47 @@
 # Changelog
 
-## Unreleased
+## 1.2.14 - 2026-10-21
 
-- Add `track check-steering`, which measures how Trackmania's Analog Sensitivity and
-  Dead Zone bend the virtual stick and reports steering levels that drive identically.
-  A saved curve set as `steering_curve_path` makes the gamepad backend send the stick
-  position that produces each requested steer. The curve file is part of the run
-  fingerprint.
-- Default `velocity_to_mps_scale` to `1.0`. The supported plugin sends m/s, and the
-  old `0.001` default left every velocity and speed observation channel near zero for
-  template users (the project's own benchmark configurations already set `1`).
-- Bound kinematically limited reward progress per step instead of by total distance
-  driven. A racing line is shorter than the centre line, so a corner-cutting lap could
-  never reach `finish_progress` and its finish was refused.
-- Run value heads and bootstrap targets in float32 under reduced-precision autocast.
+- Compute resumed throughput from segment deltas, including partial first metric windows, while preserving global training counters.
+- Skip unused target-current encoding for single-step value batches and disable autograd for bootstrap features; retain recurrent bootstrap and float32 head/target behavior.
+- Report hard gradient clipping coefficients/fractions and actor preprocessing, diagnostics, environment and bookkeeping timings, with explicit long-step and invalid-timing counts.
+- Add opt-in transition milestone checkpoints for local and distributed training. Preserve independent copies after successful writes, record actual snapshot counters and keep them outside recovery retention.
+- Keep checkpoint read staging paths within the same length budget as successful saves on Windows.
+- Document real-time collection limits, milestone storage costs and the distinction between shorter experimental budgets and implementation throughput.
 
+## 1.2.13 - 2026-10-18
+
+- Include graph encoder residual scales, incident gate thresholds and declared nested component settings in checkpoint architecture fingerprints; reject mismatches before loading weights.
+- Warn when loading a legacy graph checkpoint whose fingerprint cannot verify non-tensor settings. Retain schema 2.0 and require the original configuration for historical checkpoints.
+- Export the cumulative training lap record to W&B as `episode/best_finish_time_s`.
+
+## 1.2.12 - 2026-10-15
+
+- Correct QR quantile-loss reduction, mixed-precision value targets and PPO initialization.
+- Preserve PPO rollout budgets and warmup accounting; release controllers between training and evaluation.
+- Record issued controls, checkpoint identity, timing and cancellation in evaluation artifacts.
+- Add calibrated analog steering and guarded editor reset support for Linux X11.
+- Build geometry, pace references and demonstrations from exported ghost laps, preserving paired boundaries at track crossings.
+- Raise the default projected-speed and pace-projection limit to 278 m/s.
+- Validate ghost asset filenames and destinations before writing, and avoid duplicate finish timestamps.
+- Preserve sub-point motion in kinematic reward progress and reject non-finite steering calibration samples.
+- Add strict distributed update accounting and experimental SD-SAC numerical and checkpoint validation fixes.
+
+## 1.2.11 - 2026-09-28
+
+- Link the latest release, PyPI package and all release tags at the top of the README.
+- Add a multi-computer setup guide for asynchronous off-policy actors and one learner.
+
+## 1.2.10 - 2026-09-26
+
+- Protect prefetched CUDA tensors until their consumer stream finishes.
+- Reset replay priorities when binding a different store and correctly mask padded recurrent histories.
+- Respect forbidden actions during exploration.
+- Make actor cleanup and process stop signals robust; support stop files for training and benchmarks.
+- Add opt-in Windows client-area capture with neutral-control pauses on focus loss.
+- Preserve interrupted benchmark trials, record timer sources and bind artifacts to checkpoint hashes.
+- Exclude window-availability pauses and reset latency from benchmark throughput and fallback finish times.
+- Allow explicit CPU thread limits and validate synthetic replay with expert slots.
 
 ## 1.2.9 - 2026-09-11
 

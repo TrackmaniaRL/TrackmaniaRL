@@ -5,7 +5,7 @@ include LICENSE
 include NOTICE
 include SECURITY.md
 recursive-include readme *.md
-recursive-include docs/assets *.png *.gif
+recursive-include docs/assets *.png *.gif *.jpg
 recursive-include docs/diagrams *.md *.spec.json *.py *.excalidraw *.svg *.png *.html
 recursive-include scripts *.py
 recursive-include examples *.yaml
@@ -22,3 +22,5 @@ global-exclude *.npz *.npy *.mp4 *.mkv *.sqlite3 *.log *.pyc *.pyo
 prune artifacts
 prune wandb
 prune .venv
+
+recursive-include examples *.py *.md

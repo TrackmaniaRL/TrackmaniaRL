@@ -83,6 +83,7 @@ class TrainingSpec(BaseModel):
     updates_per_transition: float = Field(default=1.0, gt=0.0)
     checkpoint_interval_updates: PositiveInt | None = 1_000
     checkpoint_keep_last: PositiveInt | None = None
+    checkpoint_milestones: tuple[PositiveInt, ...] = ()
     save_final_checkpoint: bool = True
     metrics_interval_updates: PositiveInt = 50
     per_beta_final: float | None = Field(default=None, ge=0.0, le=1.0)
@@ -92,6 +93,16 @@ class TrainingSpec(BaseModel):
     evaluation_stop_median_s: float | None = Field(default=None, gt=0.0)
     evaluation_stop_consecutive_batches: PositiveInt | None = None
     max_episode_artifacts: PositiveInt = 100
+
+    @field_validator("checkpoint_milestones")
+    @classmethod
+    def _ordered_checkpoint_milestones(cls, values: tuple[int, ...], info: Any) -> tuple[int, ...]:
+        if values != tuple(sorted(set(values))):
+            raise ValueError("checkpoint_milestones must be strictly increasing")
+        total = info.data.get("total_transitions")
+        if values and total is not None and values[-1] > total:
+            raise ValueError("checkpoint_milestones cannot exceed total_transitions")
+        return values
 
     @field_validator("per_beta_final")
     @classmethod

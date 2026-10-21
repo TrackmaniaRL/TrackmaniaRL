@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from trackmaniarl.core.checkpoint_milestones import CheckpointProgress, preserve_milestones
 from trackmaniarl.core.checkpoints import prune_checkpoint_family
 from trackmaniarl.core.data import PriorityUpdate
 from trackmaniarl.core.fingerprint import run_fingerprint
@@ -48,6 +49,8 @@ class Trainer:
         self.stop_file = Path(stop_file) if stop_file is not None else None
         self.fingerprint = run_fingerprint(run.spec, run.base_dir)
         self.on_policy = bool(getattr(run.learner, "on_policy", False))
+        self._checkpoint_baseline_transitions = 0
+        self._last_checkpoint_transitions = 0
         self._validate_on_policy_run()
 
     def _validate_on_policy_run(self) -> None:
@@ -100,7 +103,16 @@ class Trainer:
             self._log_checkpoint_failure(path, exc, counters)
             raise
         self._checkpoint_completed(path, counters)
+        progress = CheckpointProgress(
+            self._checkpoint_baseline_transitions, counters.transitions, counters.updates
+        )
+        milestones = preserve_milestones(
+            path, self.run.spec.training.checkpoint_milestones, progress
+        )
+        for milestone in milestones:
+            self._log("train/checkpoint_milestone", {"path": str(milestone)}, counters)
         self._apply_checkpoint_retention(path, counters)
+        self._last_checkpoint_transitions = counters.transitions
         return path
 
     def _checkpoint_state(self, counters: TrainingCounters) -> dict[str, Any]:

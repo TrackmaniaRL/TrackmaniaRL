@@ -22,6 +22,20 @@ from trackmaniarl.trackmania.telemetry import DEFAULT_TELEMETRY_FIELD_COUNT, Tel
 DEFAULT_LEVELS = np.linspace(-1.0, 1.0, BRAKE_TAP_TABLE_N_STEER)
 
 
+@pytest.mark.parametrize(
+    ("stick", "steer"),
+    [
+        ((0.0, float("nan")), (0.0, 1.0)),
+        ((0.0, 1.0), (0.0, float("nan"))),
+        ((0.0, float("inf")), (0.0, 1.0)),
+        (((0.0,), (1.0,)), ((0.0,), (1.0,))),
+    ],
+)
+def test_invalid_curve_samples_fail_at_construction(stick: tuple, steer: tuple) -> None:
+    with pytest.raises(ValueError, match="samples"):
+        SteeringCurve(stick, steer)
+
+
 def _steep_game_steer(stick: float) -> float:
     """A low-sensitivity pad: dead below 60% stick, then a steep power curve."""
 

@@ -64,9 +64,19 @@ def bounded_advance(reward: TrajectoryReward, request: AdvanceRequest) -> int:
         return reward._index
     displacement_m = float(np.linalg.norm(request.point - previous))
     accepted_motion_m = min(displacement_m, reward.max_projected_speed_mps * request.time_budget_s)
-    limit_m = reward._cumulative_distance[reward._index] + CORNER_SLACK * accepted_motion_m
+    distance = reward._cumulative_distance
+    available_m = reward._progress_motion_remainder_m + CORNER_SLACK * accepted_motion_m
+    limit_m = distance[reward._index] + available_m
     reachable = int(np.searchsorted(reward._cumulative_distance, limit_m, side="right")) - 1
-    return min(request.nearest, max(reachable, reward._index))
+    accepted = max(reward._index, min(request.nearest, reachable))
+    consumed_m = distance[accepted] - distance[reward._index]
+    next_index = min(accepted + 1, len(distance) - 1)
+    # Keep sub-point motion, but never bank more than one reference segment.
+    # Circling in place must not build credit for a jump to a distant track section.
+    reward._progress_motion_remainder_m = min(
+        max(0.0, available_m - consumed_m), distance[next_index] - distance[accepted]
+    )
+    return accepted
 
 
 def potential(reward: TrajectoryReward) -> float:

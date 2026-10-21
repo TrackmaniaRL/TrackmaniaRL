@@ -36,6 +36,25 @@ def test_torch_checkpoint_rejects_executable_pickle_and_cleans_up(tmp_path: Path
     assert list(tmp_path.iterdir()) == [target]
 
 
+def test_checkpoint_load_fits_the_same_path_budget_as_save(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "state.checkpoint"
+    maximum = len(str(target.with_name(f".{target.name}.{'0' * 32}.tmp")))
+    original = Path.open
+
+    def bounded_open(path: Path, *args: Any, **kwargs: Any) -> Any:
+        if len(str(path)) > maximum:
+            raise OSError("simulated Windows path length limit")
+        return original(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", bounded_open)
+    codec = TorchCheckpointCodec()
+    codec.save({"updates": 17}, target)
+    assert codec.load(target) == {"updates": 17}
+    assert list(tmp_path.iterdir()) == [target]
+
+
 def test_json_save_failure_preserves_checkpoint_and_removes_partial_file(tmp_path: Path) -> None:
     codec = JsonCheckpointCodec()
     target = tmp_path / "state.json"

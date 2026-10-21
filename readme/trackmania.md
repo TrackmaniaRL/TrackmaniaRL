@@ -1,4 +1,4 @@
-# Trackmania training and release workflow for 1.2.9
+# Trackmania training and release workflow for 1.2.14
 
 The default configuration below trains IQN from lidar and telemetry. The generated
 `run-ppo.yaml` trains PPO from telemetry, and `run-ppo-vision.yaml` trains PPO from
@@ -12,7 +12,7 @@ Install the released CLI, then create the game project only on a machine that
 has Trackmania, Openplanet and a virtual gamepad driver:
 
 ```powershell
-uv tool install --index https://download.pytorch.org/whl/cpu --with "torch==2.11.0+cpu" "trackmaniarl==1.2.9"
+uv tool install --index https://download.pytorch.org/whl/cpu --with "torch==2.11.0+cpu" "trackmaniarl==1.2.14"
 trackmaniarl init my-agent --template trackmania
 cd my-agent
 uv sync
@@ -70,14 +70,10 @@ process and virtual controller run natively. WSL is not a supported game host.
    uv run trackmaniarl track check --config run.yaml
    ```
 
-The multi-computer comparison campaign uses editor-validation resets rather than
-native gamepad Give Up. On Linux that reset path additionally requires a local
-X11 session and `xdotool`, with Trackmania already focused. It rejects Wayland,
-SSH and headless sessions and does not activate background windows. See the
-[current Windows/Linux campaign guide](../experiments/tmrl_test_comparison/release_20261014_v3/START_HERE.md)
-for native Python launch commands and mandatory host/game checks. The Linux
-reset implementation has software tests; a successful local game preflight is
-still required before a long run.
+Editor-validation resets on Linux require a local X11 session and `xdotool`,
+with Trackmania already focused. This reset path rejects Wayland, SSH and
+headless sessions and does not activate background windows. Software tests do
+not replace checking reset and controller readiness in the game before training.
 
 Install **TrackmaniaRL Connect** from Openplanet's in-game Plugin Manager just as
 on Windows. The native Python process and the Proton game share localhost, so no
@@ -167,6 +163,32 @@ uv run trackmaniarl track record-boundary left assets/my-map-left.npy
 uv run trackmaniarl track record-boundary right assets/my-map-right.npy
 uv run trackmaniarl track build-geometry assets/my-map.geometry.npz --left assets/my-map-left.npy --right assets/my-map-right.npy --map-uid YOUR_MAP_UID --map-path maps/my-map.Map.Gbx
 ```
+
+### Build a map from a ghost instead
+
+A replay or ghost of one finished lap can replace both hand-driven boundaries.
+Convert it to JSON with a [GBX.NET](https://github.com/BigBang1112/gbx-net)
+based exporter, in this shape: a `map_uid`, `checkpoints` with `time_ms` (the last
+one is the finish), `samples` every 50 ms with `time_ms`, `position`, `velocity`,
+`rotation` (`[x, y, z, w]`), `speed` and optional `extras` holding `steer`, `gas`,
+`brake` and `wheel_slip`, and, to use the lap as a demonstration, `inputs`: every
+input change with `time_ms`, `steer`, `throttle` and `brake`. Map UIDs used for
+asset filenames may contain ASCII letters, digits, underscores and hyphens;
+reserved Windows filenames and paths escaping the output directory are rejected
+before any files are written. Then run:
+
+```powershell
+uv run trackmaniarl track from-ghost record.json --map-path maps/my-map.Map.Gbx
+```
+
+The lap's line becomes the reward centre line inside a corridor of virtual walls
+(`--half-width`, default 8 m either side; the inner wall narrows on turns tighter
+than that), and its timing becomes a pace reference. The command prints the
+`run.yaml` values to set, including `time_attack_target_s` at the lap's time.
+With a record ghost the lidar then measures distance from the record line and
+the pace features measure time lost against the record at every point. The
+corridor is not the real track: the agent cannot find a route outside it, so
+widen it when the record line is not the one you want to beat.
 
 Replace `YOUR_MAP_UID` with the UID reported by `track check` and
 set that same UID in `environment.kwargs.config.expected_map_uid`,
@@ -516,3 +538,22 @@ evidence.
   with `--map-path`. The generated `.npz` is intentionally only a placeholder.
 - **Reset times out:** confirm that the configured `gamepad` or `keyboard`
   backend actually restarts the race timer before increasing any timeout.
+
+### Window-aware vision capture (Windows)
+
+For `VisionEnvironmentFactory`, replace the fixed `capture` argument with
+`window_capture: {title: Trackmania, client_width: 1280, client_height: 720}`.
+The two capture modes are mutually exclusive. Window capture measures the client
+area in physical pixels, restores the configured client size at each episode,
+and follows its screen position. The feature pipeline still determines the
+model's image dimensions. Telemetry-only environments do not resize windows.
+
+Keep the game visible and in the foreground. Losing focus or minimizing it
+releases controls and pauses collection; returning to the game starts a fresh
+episode and observation history. An interrupted evaluation trial remains a DNF.
+Frames captured while the window moves are discarded. The runtime does not steal
+focus. This mode requires Windows; fixed-region capture remains available.
+
+Training and resume also accept `--stop-file PATH`. Use a path that does not
+already exist, then create the file to request orderly shutdown. Blocking native
+calls must return before the request can be observed.

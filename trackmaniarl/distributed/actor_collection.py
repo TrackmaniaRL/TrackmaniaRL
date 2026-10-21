@@ -71,6 +71,7 @@ class PolicyStep:
     truncated: bool
     info: Mapping[str, Any]
     inference_s: float
+    environment_s: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,7 +180,9 @@ def _take_training_step(
     started = monotonic()
     action, policy_info = _sample_policy(state.policy, state.prepared)
     inference_s = monotonic() - started
+    started = monotonic()
     next_observation, reward, terminated, truncated, info = _step_environment(context, action)
+    environment_s = monotonic() - started
     final_step = step_index == context.runtime.spec.training.max_episode_steps - 1
     return PolicyStep(
         step_index,
@@ -191,6 +194,7 @@ def _take_training_step(
         bool(truncated or (final_step and not terminated)),
         cast(Mapping[str, Any], info),
         inference_s,
+        environment_s,
     )
 
 
@@ -212,16 +216,23 @@ def _record_training_step(
     context: CollectionContext, state: TrainingEpisode, step: PolicyStep
 ) -> None:
     metrics = state.metrics
+    started = monotonic()
     metrics.record_inference(step.inference_s)
+    metrics.record_phase("environment", step.environment_s)
     metrics.record_policy(state.policy, step.index)
     metrics.record_diagnostics(step.action, state.policy, step.info, policy_info=step.policy_info)
+    metrics.record_phase("diagnostics", monotonic() - started)
+    started = monotonic()
     next_prepared = context.pipeline.transform_observation(step.next_observation)
+    metrics.record_phase("preprocessing", monotonic() - started)
+    started = monotonic()
     context.buffers.transitions.append(_transition(state, step, next_prepared))
     state.prepared = next_prepared
     state.steps = step.index + 1
     metrics.record_reward(step.reward, step.info)
     if context.runtime._should_flush(context.buffers.transitions, context.buffers.started):
         context.buffers.flush(context.runtime, state.version)
+    metrics.record_phase("bookkeeping", monotonic() - started)
 
 
 def _transition(

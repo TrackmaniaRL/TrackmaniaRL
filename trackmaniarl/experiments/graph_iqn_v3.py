@@ -156,6 +156,8 @@ class BoundaryGraphFeaturePipelineV3(BoundaryGraphFeaturePipelineV2):
 class TrackGnnSimbaEncoderV3(TrackGnnSimbaEncoderV2):
     """V2 encoder with an initially inert residual context correction."""
 
+    fingerprint_parameters: tuple[str, ...] = ("context_residual_scale",)
+
     def __init__(self, context_residual_scale: float = 1.0) -> None:
         super().__init__()
         if not isfinite(context_residual_scale) or not 0.0 < context_residual_scale <= 1.0:

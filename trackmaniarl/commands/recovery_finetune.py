@@ -117,8 +117,11 @@ def _require_source_architecture(
 
     outer = run.checkpoint_codec.load(checkpoint)
     source = _training_learner_state(outer)
-    expected = learner.model.architecture_fingerprint()
-    if source.get("architecture_fingerprint") != expected:
+    compatible = {
+        learner.model.architecture_fingerprint(),
+        learner.model.legacy_architecture_fingerprint(),
+    }
+    if source.get("architecture_fingerprint") not in compatible:
         raise ValueError(
             "recovery source checkpoint architecture does not match the configured model"
         )

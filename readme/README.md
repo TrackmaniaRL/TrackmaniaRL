@@ -1,8 +1,9 @@
-# TrackmaniaRL 1.2.9 documentation
+# TrackmaniaRL documentation
 
 ![TrackmaniaRL logo](../docs/assets/trackmaniarl-logo.png)
 
-The package version is 1.2.9. Configuration and checkpoint schemas are 2.0.
+Configuration and checkpoint schemas are 2.0. See the [changelog](../CHANGELOG.md)
+for package versions.
 These numbers describe different contracts. Historical benchmark and review pages
 retain the versions and dates of the runs they describe.
 
@@ -12,9 +13,9 @@ retain the versions and dates of the runs they describe.
 | --- | --- |
 | Use the library from Python | [Python quickstart](python-quickstart.md) |
 | Connect the game and train an agent | [Game quickstart](quickstart.md) |
+| Train with actors on multiple computers | [Distributed setup](distributed-setup.md) |
 | Add your own components | [Public API](public-api.md), [examples](../examples/README.md) and [SDK reference](sdk.md) |
 | Develop the library | [Development](development.md) and [repository layout](../docs/repository-layout.md) |
-| Reproduce research | [Research index](../docs/research/README.md) |
 
 ## From setup to an evaluated policy
 

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 import torch
 
@@ -36,6 +38,46 @@ def _assert_final_n_step_targets(store: InMemoryReplayStore, batch: TrainingBatc
         )[-3:]
         assert float(batch.bootstrap_discounts[row, -1]) == pytest.approx(expected_discount)
         assert batch.next_observations[row].tolist() == pytest.approx(expected_history)
+
+
+@pytest.mark.parametrize("truncated", [False, True])
+def test_target_masks_follow_actual_short_terminal_horizon(*, truncated: bool) -> None:
+    source = _store(episodes=1, steps=4)
+    store = InMemoryReplayStore()
+    for item in source.get(source.available_ids()):
+        store.append(
+            replace(
+                item,
+                terminated=item.terminated and not truncated,
+                truncated=item.terminated and truncated,
+            )
+        )
+    sampler = PrioritizedSampler(IdentityFeaturePipeline(), seed=7, allow_padded_history=True)
+    seen = set()
+    for _ in range(8):
+        batch = sampler.sample(store, BatchRequest(batch_size=4, sequence_length=8, n_step=3))
+        for row, anchor in enumerate(batch.metadata["priority_transition_ids"]):
+            step = store.get([anchor])[0].step
+            seen.add(step)
+            horizon = len(store.n_step_ids(anchor, 3))
+            expected = torch.arange(8) >= max(0, 7 - step - horizon)
+            assert torch.equal(batch.metadata["next_observation_masks"][row], expected)
+    assert seen == {0, 1, 2, 3}
+
+
+def test_padded_history_does_not_treat_eviction_as_episode_start() -> None:
+    source = _store(episodes=1, steps=6)
+    store = InMemoryReplayStore(capacity=4)
+    sampler = PrioritizedSampler(IdentityFeaturePipeline(), allow_padded_history=True)
+    for item in source.get([0, 1, 2, 3]):
+        store.append(item)
+    sampler.sample(store, BatchRequest(batch_size=1, sequence_length=4))
+    for item in source.get([4, 5]):
+        store.append(item)
+    for _ in range(4):
+        batch = sampler.sample(store, BatchRequest(batch_size=1, sequence_length=4))
+        assert batch.metadata["priority_transition_ids"] == (5,)
+        assert bool(batch.masks.all())
 
 
 def _assert_expert_sequences(store: InMemoryReplayStore, batch: TrainingBatch) -> None:

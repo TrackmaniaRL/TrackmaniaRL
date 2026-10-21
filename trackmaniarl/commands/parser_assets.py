@@ -4,6 +4,7 @@ import argparse
 from pathlib import Path
 
 from trackmaniarl.commands.assets import (
+    _build_from_ghost,
     _build_geometry,
     _check_steering,
     _check_track_connection,
@@ -27,6 +28,7 @@ def register_asset_commands(commands: CommandParsers) -> None:
     _register_track_check(track_commands)
     _register_reward_points(track_commands)
     _register_steering_check(track_commands)
+    _register_ghost_import(track_commands)
 
 
 def _register_reward_points(commands: CommandParsers) -> None:
@@ -234,3 +236,19 @@ def _register_steering_check(commands: CommandParsers) -> None:
     parser.add_argument("--points", type=int, default=41)
     _add_telemetry_connection(parser)
     parser.set_defaults(handler=_check_steering)
+
+
+def _register_ghost_import(commands: CommandParsers) -> None:
+    parser = commands.add_parser(
+        "from-ghost",
+        help="build geometry and a pace reference from a ghost's JSON export",
+    )
+    parser.add_argument("ghost", type=Path, help="JSON export of a .Replay.Gbx or .Ghost.Gbx")
+    parser.add_argument("--map-path", type=Path, required=True)
+    parser.add_argument("--output-dir", type=Path, default=Path("assets"))
+    parser.add_argument(
+        "--half-width", type=float, default=8.0, help="metres of corridor either side of the line"
+    )
+    parser.add_argument("--spacing", type=float, default=2.0)
+    parser.add_argument("--map-uid", help="required for a .Ghost.Gbx export, which has no UID")
+    parser.set_defaults(handler=_build_from_ghost)

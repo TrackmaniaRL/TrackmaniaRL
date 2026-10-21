@@ -27,7 +27,8 @@ def test_ppo_warmup_preserves_rng_weights_and_first_behavior_sample() -> None:
     torch.set_rng_state(rng)
     expected_action, expected_info = reference.act_with_info(observation)
     assert (action == expected_action).all()
-    assert info["_trackmaniarl_behavior_log_probability"] == expected_info[
-        "_trackmaniarl_behavior_log_probability"
-    ]
+    assert (
+        info["_trackmaniarl_behavior_log_probability"]
+        == expected_info["_trackmaniarl_behavior_log_probability"]
+    )
     assert info["_trackmaniarl_behavior_value"] == expected_info["_trackmaniarl_behavior_value"]

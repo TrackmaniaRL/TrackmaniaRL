@@ -96,7 +96,8 @@ def test_rollout_warms_policy_and_collects_cycles_before_reset() -> None:
             return super().reset(seed=seed)
 
     collector = FixedStepRolloutCollector(
-        InMemoryReplayStore(), Pipeline(),
+        InMemoryReplayStore(),
+        Pipeline(),
         RolloutCollectionConfig(Policy(), Environment(), 10, reset_at_rollout_end=True),
     )
     collector.collect(1, "first")
@@ -116,7 +117,8 @@ def test_rollout_restores_gc_state_after_environment_failure(*, previously_enabl
     (gc.enable if previously_enabled else gc.disable)()
     try:
         collector = FixedStepRolloutCollector(
-            InMemoryReplayStore(), IdentityFeaturePipeline(),
+            InMemoryReplayStore(),
+            IdentityFeaturePipeline(),
             RolloutCollectionConfig(ZeroPolicy(), Environment(), 10, reset_at_rollout_end=True),
         )
         with pytest.raises(RuntimeError, match="step failed"):

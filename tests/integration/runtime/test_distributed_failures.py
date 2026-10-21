@@ -121,3 +121,44 @@ def test_actor_process_entry_reraises_typed_failures_for_a_nonzero_exit(
     config = ActorProcessRequest("run.yaml", "127.0.0.1:8787", "actor", _DISTRIBUTED_TOKEN)
     with pytest.raises(ActorEnvironmentError, match="telemetry reset failed"):
         actor_process_entry(config)
+
+
+@pytest.mark.parametrize("cancel", [False, True])
+def test_capture_pause_wait_is_cancellable_and_does_not_exhaust_reset_attempts(
+    *, cancel: bool
+) -> None:
+    from trackmaniarl.core.environment_errors import EnvironmentPausedError
+    from trackmaniarl.distributed.actor_watchdog import ProgressWatchdog
+
+    actor = object.__new__(ActorRuntime)
+    actor.actor_id = "actor"
+    actor._actor_seed = lambda: 7
+    actor.watchdog = ProgressWatchdog()
+
+    class Stop:
+        count = 0
+
+        def is_set(self) -> bool:
+            return cancel and self.count > 0
+
+        def wait(self, delay: float) -> bool:
+            assert delay == 0.5
+            self.count += 1
+            return self.is_set()
+
+    actor.stop = Stop()
+
+    class Environment:
+        attempts = 0
+
+        def reset(self, *, seed: int) -> tuple[str, dict[str, Any]]:
+            self.attempts += 1
+            if self.attempts <= 8:
+                raise EnvironmentPausedError("background")
+            return "ready", {}
+
+    environment = Environment()
+    result = actor._reset_environment(EnvironmentReset(environment, 0, attempts=1))
+    assert result == (None if cancel else "ready")
+    assert environment.attempts == (1 if cancel else 9)
+    assert actor.watchdog.idle_s() is not None

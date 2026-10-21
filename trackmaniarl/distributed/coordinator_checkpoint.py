@@ -10,6 +10,7 @@ from pathlib import Path
 from time import perf_counter
 from typing import TYPE_CHECKING, Any, cast
 
+from trackmaniarl.core.checkpoint_milestones import CheckpointProgress, preserve_milestones
 from trackmaniarl.core.checkpoints import prune_checkpoint_family
 from trackmaniarl.distributed.coordinator_support import (
     _CheckpointWrite,
@@ -84,6 +85,7 @@ class _CheckpointPlan:
     evaluated_policy: EvaluatedPolicyCheckpoint | None
     path: Path
     started_at: float
+    transitions: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,6 +96,17 @@ class _CheckpointCallbacks:
 
     def saved(self) -> None:
         coordinator = self.plan.coordinator
+        if self.plan.evaluated_policy is None:
+            progress = CheckpointProgress(
+                coordinator._segment_initial_transitions, self.plan.transitions, self.update
+            )
+            saved = preserve_milestones(
+                self.plan.path, coordinator.run.spec.training.checkpoint_milestones, progress
+            )
+            for path in saved:
+                coordinator.run.logger.log(
+                    "train/checkpoint_milestone", {"path": str(path)}, step=self.update
+                )
         try:
             coordinator.journal.prune(self.frontier)
         except Exception as exc:
@@ -172,6 +185,8 @@ def checkpoint(
     coordinator._checkpoint_writer.submit(
         _CheckpointWrite(state, plan.path, callbacks.saved, callbacks.failed)
     )
+    if evaluated_policy is None:
+        coordinator._last_checkpoint_transitions = plan.transitions
     _log_checkpoint_queued(plan)
     return plan.path
 
@@ -188,7 +203,9 @@ def _checkpoint_plan(
     else:
         name = f"distributed-update-{coordinator.counters.updates:08d}.pt"
     path = coordinator.run.run_dir / "checkpoints" / name
-    return _CheckpointPlan(coordinator, evaluated_policy, path, perf_counter())
+    return _CheckpointPlan(
+        coordinator, evaluated_policy, path, perf_counter(), coordinator.counters.transitions
+    )
 
 
 def _checkpoint_state(plan: _CheckpointPlan) -> dict[str, Any]:
@@ -260,9 +277,11 @@ def restore_checkpoint(
     _validate_checkpoint_state(request, state)
     if request.mode is ReplayRestoreMode.LEARNER_ONLY:
         _restore_learner_only(request, state)
+        coordinator._initialize_metrics()
         return
     distributed = _validated_distributed_state(request, state)
     _restore_distributed(request, state, distributed)
+    coordinator._initialize_metrics()
 
 
 def _validate_checkpoint_state(request: _RestoreRequest, state: Mapping[str, Any]) -> None:

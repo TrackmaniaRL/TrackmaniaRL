@@ -3,7 +3,6 @@ from __future__ import annotations
 import html
 import inspect
 import re
-import tomllib
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,6 +40,7 @@ ALL_MARKDOWN_FILES = (
     *sorted((ROOT / "readme").rglob("*.md")),
     *sorted((ROOT / "docs").rglob("*.md")),
     *sorted((ROOT / "experiments").rglob("*.md")),
+    *sorted((ROOT / "examples").rglob("*.md")),
     *sorted((ROOT / "trackmaniarl" / "project" / "openplanet").glob("*.md")),
 )
 YAML_EXAMPLES = tuple(sorted((*EXAMPLES.glob("*.yaml"), *EXAMPLES.glob("*.yml"))))
@@ -294,13 +294,12 @@ def test_repository_relative_markdown_links_and_anchors_resolve() -> None:
     assert not failures, "\n" + "\n".join(failures)
 
 
-def test_pypi_readme_uses_versioned_absolute_repository_links() -> None:
+def test_pypi_readme_uses_absolute_links_independent_of_release_tags() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    version = pyproject["project"]["version"]
-    assert isinstance(version, str)
-    expected_blob_prefix = f"/Palamabron/TrackmaniaRL/blob/v{version}/"
-    expected_raw_prefix = f"/Palamabron/TrackmaniaRL/v{version}/"
+    # PyPI needs absolute URLs. Using main avoids 404s between a version bump
+    # and publication of its tag; local targets are checked before publication.
+    expected_blob_prefix = "/TrackmaniaRL/TrackmaniaRL/blob/main/"
+    expected_raw_prefix = "/TrackmaniaRL/TrackmaniaRL/main/"
     failures: list[str] = []
 
     for destination in _markdown_destinations(readme):
@@ -309,16 +308,28 @@ def test_pypi_readme_uses_versioned_absolute_repository_links() -> None:
         if not parsed.scheme and not parsed.netloc and parsed.path:
             failures.append(f"{label}: PyPI cannot resolve relative link {destination.value}")
         elif parsed.hostname == "github.com" and parsed.path.startswith(
-            "/Palamabron/TrackmaniaRL/"
+            "/TrackmaniaRL/TrackmaniaRL/"
         ):
+            if parsed.path in {
+                "/TrackmaniaRL/TrackmaniaRL/releases/latest",
+                "/TrackmaniaRL/TrackmaniaRL/tags",
+            }:
+                continue
             if not parsed.path.startswith(expected_blob_prefix):
-                failures.append(f"{label}: repository link is not versioned: {destination.value}")
-        elif (
-            parsed.hostname == "raw.githubusercontent.com"
-            and parsed.path.startswith("/Palamabron/TrackmaniaRL/")
-            and not parsed.path.startswith(expected_raw_prefix)
+                failures.append(f"{label}: repository link depends on a tag: {destination.value}")
+            else:
+                target = ROOT / unquote(parsed.path.removeprefix(expected_blob_prefix))
+                if not target.is_file():
+                    failures.append(f"{label}: repository target does not exist: {target}")
+        elif parsed.hostname == "raw.githubusercontent.com" and parsed.path.startswith(
+            "/TrackmaniaRL/TrackmaniaRL/"
         ):
-            failures.append(f"{label}: raw media link is not versioned: {destination.value}")
+            if not parsed.path.startswith(expected_raw_prefix):
+                failures.append(f"{label}: raw media link depends on a tag: {destination.value}")
+            else:
+                target = ROOT / unquote(parsed.path.removeprefix(expected_raw_prefix))
+                if not target.is_file():
+                    failures.append(f"{label}: media target does not exist: {target}")
 
     assert not failures, "\n" + "\n".join(failures)
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from trackmaniarl.experiments.evaluation import EvaluationResult
+from trackmaniarl.experiments.evaluation import EvaluationResult, aggregate_results
 from trackmaniarl.trackmania.evaluation_observability import EvaluationObservability
 
 
@@ -87,3 +87,23 @@ def test_finish_does_not_excuse_invalid_or_regressing_clock(value: object) -> No
     )
     result = observability.annotated_result(_result(), step_count=2)
     assert result.step_race_time_measurements_valid is False
+
+
+def test_camera_missing_measurements_are_not_counted_as_zero_and_tails_are_per_episode() -> None:
+    observability = EvaluationObservability()
+    for index in range(20):
+        info = {"vision/capture_ms": 2.0, "vision/pairing_delay_ms": 3.0}
+        if index == 19:
+            info = {"vision/capture_ms": float("nan"), "vision/pairing_delay_ms": -1.0}
+        observability.record(info, float(index + 1))
+    camera = observability.annotated_result(_result(), step_count=20)
+    assert camera.vision_capture_measurement_count == 19
+    assert camera.vision_capture_ms == 2.0
+    assert camera.vision_pairing_measurement_count == 19
+    assert camera.vision_pairing_delay_ms == 3.0
+    assert camera.action_latency_ms_p95 == 19.0
+    metrics = aggregate_results([camera, _result()])
+    assert metrics["eval/vision_capture_measurement_count"] == 19.0
+    assert metrics["eval/vision_capture_ms"] == 2.0
+    assert metrics["eval/vision_pairing_delay_ms"] == 3.0
+    assert metrics["eval/action_latency_ms_p95_max"] == 19.0
