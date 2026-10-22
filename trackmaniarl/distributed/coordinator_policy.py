@@ -34,6 +34,7 @@ def can_update(coordinator: Coordinator) -> bool:
     return not coordinator._external_stop_requested() and (
         coordinator._has_active_actor()
         or coordinator.counters.transitions >= coordinator.run.spec.training.total_transitions
+        or drain_requested(coordinator)
     )
 
 
@@ -88,7 +89,13 @@ def should_stop(coordinator: Coordinator) -> bool:
         coordinator.counters.transitions >= coordinator.run.spec.training.total_transitions
         or getattr(coordinator, "_evaluation_stop_reason", None) is not None
         or coordinator._external_stop_requested()
+        or drain_requested(coordinator)
     )
+
+
+def drain_requested(coordinator: Coordinator) -> bool:
+    requested = getattr(coordinator.external_stop, "drain_requested", None)
+    return bool(callable(requested) and requested())
 
 
 def external_stop_requested(coordinator: Coordinator) -> bool:

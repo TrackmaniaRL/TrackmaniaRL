@@ -29,6 +29,18 @@ def test_stop_signal_wait_reports_timeout_and_remains_set() -> None:
     assert signal.is_set()
 
 
+def test_drain_request_is_distinct_from_emergency_stop() -> None:
+    signal = ProcessStopSignal(multiprocessing.get_context("spawn"))
+    assert not signal.drain_requested()
+    signal.request_drain()
+    assert signal.drain_requested()
+    assert not signal.is_set()
+    assert not signal.wait(0.0)
+    signal.set()
+    assert signal.is_set()
+    assert signal.drain_requested()
+
+
 def test_dead_child_does_not_block_notifying_surviving_child() -> None:
     context = multiprocessing.get_context("spawn")
     signal = ProcessStopSignal(context)
