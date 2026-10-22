@@ -1,6 +1,6 @@
 # Kampania na czterech komputerach — przygotowana, nieuruchomiona
 
-Aktualne nowe starty: **weeks-20261021-v4**, biblioteka **1.2.14**, **7 168 000 kroków na seed** (12,5% mniej), 30 prób końcowych. [Instrukcja i podział zespołu](release_20261021_v4/START_HERE.md). Przygotowano 15 nowych konfiguracji; żadnej nie uruchomiono. Uruchomienie wymaga wydanego tagu v1.2.14 w historii checkoutu. Rozpoczęte próby zachowują swoje źródła, konfiguracje i budżety. Wyniki dłuższych prób stanowią osobną kohortę.
+Aktualne nowe starty: **weeks-20261022-v5**, biblioteka **1.2.16**, **7 168 000 kroków na seed** (12,5% mniej), 30 prób końcowych. [Instrukcja i podział zespołu](release_20261022_v5/START_HERE.md). Plan obejmuje 15 nowych konfiguracji; żadnej nie uruchomiono. Start wymaga wydanego tagu v1.2.16 w historii checkoutu. Paczka zawiera gaz podczas odliczania i poprawione zamknięcie po STOP. Rozpoczęte próby zachowują swoje źródła, konfiguracje i budżety; starsze plany i wyniki pozostają oddzielne.
 
 ## Materiały historyczne
 

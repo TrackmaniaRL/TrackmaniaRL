@@ -1,5 +1,6 @@
 """Portable release contracts and mocked process supervision; no live game calls."""
 
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -10,6 +11,15 @@ import pytest
 from experiments.tmrl_test_comparison.release_20261021_v4 import plan, runtime
 from experiments.tmrl_test_comparison.release_20261021_v4.lease import controller_lease
 from trackmaniarl.core.spec import RunSpec
+
+
+@pytest.fixture(autouse=True)
+def archived_v4_snapshot(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Historical plans keep their original pins and release contract. Only the
+    # tests use that recorded snapshot; the real v4 launcher rejects new code.
+    recorded = json.loads(plan.PLAN.read_text(encoding="utf-8"))
+    monkeypatch.setattr(plan, "source_pins", lambda: recorded["source_pins"])
+    monkeypatch.setattr(plan, "library_release", lambda: recorded["library_release"])
 
 
 def test_plan_has_fifteen_portable_equal_budget_jobs() -> None:
