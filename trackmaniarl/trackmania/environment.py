@@ -150,6 +150,18 @@ class OpenPlanetEnvironment:
 
     def reset(self, *, seed: int | None = None) -> tuple[np.ndarray, dict[str, Any]]:
         del seed
+        try:
+            return self._reset_episode()
+        except BaseException as error:
+            # A failed telemetry/map/reward reset must not leave the countdown
+            # throttle held, including when interrupted before the first action.
+            try:
+                self.controller.apply(np.zeros(3, dtype=np.float32))
+            except Exception as release_error:
+                error.add_note(f"Failed to release reset controls: {release_error!r}")
+            raise
+
+    def _reset_episode(self) -> tuple[np.ndarray, dict[str, Any]]:
         if self.evaluation_map is not None:
             self.geometry.validate_map(self.evaluation_map.map_path)
         self._session.verify_loaded_map(self._expected_map_uid)
@@ -164,7 +176,19 @@ class OpenPlanetEnvironment:
         )
         self._episode_started_at = monotonic()
         self._last_race_time_ms = float(frame.values[3])
-        return frame.values, {"telemetry_health": "ok"}
+        return frame.values, {
+            "telemetry_health": "ok",
+            "reset/countdown_throttle": self.config.countdown_throttle,
+            "reset/race_time_ms": self._last_race_time_ms,
+        }
+
+    def _reset_controls(self) -> None:
+        self.controller.reset()
+        if self.config.countdown_throttle:
+            # Arm acceleration before polling for a positive race clock. Keep
+            # it held through readiness/settling and first policy inference;
+            # step() then applies the policy's full command without overrides.
+            self.controller.apply(np.asarray([1.0, 0.0, 0.0], dtype=np.float32))
 
     def _restart_race(self) -> TelemetryFrame:
         previous_race_time_ms = self._last_race_time_ms
@@ -175,9 +199,11 @@ class OpenPlanetEnvironment:
                     # A finish screen may stop telemetry entirely. Restart before
                     # reading, and discard packets from the previous controller.
                     self.client.close()
-                self.controller.reset()
+                self._reset_controls()
                 frame = self._wait_for_active_run(previous_race_time_ms)
             except TimeoutError:
+                if self.config.countdown_throttle:
+                    self.controller.apply(np.zeros(3, dtype=np.float32))
                 self._finish_confirmation_pending = True
                 self._recover_reset_timeout()
                 if attempt:
@@ -192,12 +218,14 @@ class OpenPlanetEnvironment:
         self.client.close()
         self._confirm_finish_if_needed()
         sleep(0.25)
-        self.controller.reset()
+        self._reset_controls()
         sleep(0.25)
 
     def _confirm_finish_if_needed(self) -> None:
         if not self._finish_confirmation_pending or not self.config.confirm_finish_before_reset:
             return
+        if self.config.countdown_throttle:
+            self.controller.apply(np.zeros(3, dtype=np.float32))
         self.controller.confirm_finish()
 
     def _wait_for_active_run(self, previous_race_time_ms: float | None) -> TelemetryFrame:

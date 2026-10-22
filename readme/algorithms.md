@@ -1,6 +1,6 @@
 # Algorithms
 
-This page describes the algorithm implementations in TrackmaniaRL 1.2.14 with
+This page describes the algorithm implementations in TrackmaniaRL 1.2.15 with
 RunSpec 2.0. It is a support contract, not a claim that a class reproduces every
 detail, hyperparameter, benchmark, or result from the paper whose name it uses.
 The paper links identify the closest primary reference.

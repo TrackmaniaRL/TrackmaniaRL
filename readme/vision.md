@@ -1,6 +1,6 @@
 # Camera vision with every RL algorithm
 
-This guide applies to TrackmaniaRL 1.2.14 with RunSpec 2.0.
+This guide applies to TrackmaniaRL 1.2.15 with RunSpec 2.0.
 
 Camera observations are independent of the RL algorithm. All public RL learners
 support image models: Q/DQN, QR-DQN, IQN, FQF, SAC, REDQ, TQC, stable discrete SAC

@@ -164,7 +164,7 @@ def test_environment_waits_for_race_timer_restart() -> None:
     environment = object.__new__(OpenPlanetEnvironment)
     environment.client = _RestartClient()
     environment.config = SimpleNamespace(
-        start_timeout_s=1.0, start_poll_s=0.0, start_race_time_ms=0.0
+        countdown_throttle=False, start_timeout_s=1.0, start_poll_s=0.0, start_race_time_ms=0.0
     )
     frame = environment._wait_for_active_run(500.0)
     assert float(frame.values[3]) == 50.0
@@ -175,7 +175,7 @@ def test_environment_can_align_first_observation_to_race_clock() -> None:
     environment.client = _RestartClient()
     environment.client.race_times_ms = iter((1000.0, 0.0, 10.0, 50.0, 100.0))
     environment.config = SimpleNamespace(
-        start_timeout_s=1.0, start_poll_s=0.0, start_race_time_ms=100.0
+        countdown_throttle=False, start_timeout_s=1.0, start_poll_s=0.0, start_race_time_ms=100.0
     )
     frame = environment._wait_for_active_run(500.0)
     assert float(frame.values[3]) == 100.0
@@ -188,7 +188,7 @@ def test_environment_confirms_ready_after_observing_timer_restart() -> None:
     environment.controller = SimpleNamespace(reset=lambda: calls.append("reset"))
     environment._session = SimpleNamespace(confirm_ready=lambda _: calls.append("ready"))
     environment.config = SimpleNamespace(
-        start_timeout_s=1.0, start_poll_s=0.0, start_race_time_ms=0.0
+        countdown_throttle=False, start_timeout_s=1.0, start_poll_s=0.0, start_race_time_ms=0.0
     )
     environment._expected_map_uid = "map"
     environment._last_race_time_ms = 500.0
@@ -207,7 +207,7 @@ def test_environment_recovers_reset_timeout_with_finish_confirmation(
     environment = object.__new__(OpenPlanetEnvironment)
     environment.client = _RecoveryClient(calls)
     environment.controller = _RecoveryController(calls)
-    environment.config = SimpleNamespace(confirm_finish_before_reset=True)
+    environment.config = SimpleNamespace(confirm_finish_before_reset=True, countdown_throttle=False)
     environment._finish_confirmation_pending = True
     monkeypatch.setattr("trackmaniarl.trackmania.environment.sleep", lambda _: None)
     environment._recover_reset_timeout()
@@ -239,6 +239,7 @@ def test_first_reset_recovers_a_missing_finish_screen_frame(
     environment._session = SimpleNamespace(confirm_ready=lambda _: calls.append("ready"))
     environment.config = SimpleNamespace(
         confirm_finish_before_reset=True,
+        countdown_throttle=False,
         start_timeout_s=1.0,
         start_poll_s=0.0,
         start_race_time_ms=0.0,
@@ -278,6 +279,7 @@ def test_first_reset_starts_telemetry_before_waiting_for_a_frame() -> None:
     environment._session = SimpleNamespace(confirm_ready=lambda _: calls.append("ready"))
     environment.config = SimpleNamespace(
         confirm_finish_before_reset=True,
+        countdown_throttle=False,
         start_timeout_s=1.0,
         start_poll_s=0.0,
         start_race_time_ms=0.0,
@@ -298,7 +300,7 @@ def test_first_reset_ignores_a_finished_frame() -> None:
     frames = iter((TelemetryFrame(values), TelemetryFrame(active)))
     environment.client = SimpleNamespace(read=lambda: next(frames))
     environment.config = SimpleNamespace(
-        start_timeout_s=1.0, start_poll_s=0.0, start_race_time_ms=0.0
+        countdown_throttle=False, start_timeout_s=1.0, start_poll_s=0.0, start_race_time_ms=0.0
     )
     assert float(environment._wait_for_active_run(None).values[3]) == 50.0
 
@@ -324,7 +326,9 @@ def test_environment_recovery_skips_finish_confirmation_for_editor_validation(
     environment = object.__new__(OpenPlanetEnvironment)
     environment.client = _RecoveryClient(calls)
     environment.controller = _RecoveryController(calls)
-    environment.config = SimpleNamespace(confirm_finish_before_reset=False)
+    environment.config = SimpleNamespace(
+        confirm_finish_before_reset=False, countdown_throttle=False
+    )
     environment._finish_confirmation_pending = True
     monkeypatch.setattr("trackmaniarl.trackmania.environment.sleep", lambda _: None)
 
