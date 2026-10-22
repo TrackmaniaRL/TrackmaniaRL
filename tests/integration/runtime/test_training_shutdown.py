@@ -1,4 +1,5 @@
 import logging
+import multiprocessing
 import threading
 from pathlib import Path
 from types import SimpleNamespace
@@ -6,15 +7,30 @@ from typing import cast
 
 import pytest
 
+from tests.integration.runtime.distributed_evaluation_support import (
+    _stopped_coordinator,
+)
+from tests.integration.runtime.distributed_runtime_support import (
+    _crash_submit_request,
+    _transition,
+    _TransitionSpec,
+)
 from trackmaniarl.commands.training import (
     _LocalProcesses,
+    _shutdown_local_processes,
     _stop_file_requested,
     _stop_local_processes_with_notice,
     _wait_for_processes,
 )
 from trackmaniarl.distributed.coordinator import Coordinator
-from trackmaniarl.distributed.coordinator_runtime import _run_offline_pretraining, close_runtime
+from trackmaniarl.distributed.coordinator_runtime import (
+    _run_learning,
+    _run_offline_pretraining,
+    close_runtime,
+)
 from trackmaniarl.distributed.coordinator_support import _AsyncCheckpointWriter
+from trackmaniarl.distributed.protocol import transition_to_wire
+from trackmaniarl.distributed.stop_signal import ProcessStopSignal
 
 
 def test_stop_file_requests_shutdown_without_console_signal(tmp_path: Path) -> None:
@@ -27,6 +43,125 @@ def test_stop_file_requests_shutdown_without_console_signal(tmp_path: Path) -> N
     flag.touch()
     _wait_for_processes(processes)
     assert event.is_set()
+
+
+def test_stop_file_stops_only_collection_until_actor_has_closed(tmp_path: Path) -> None:
+    flag = tmp_path / "stop"
+    flag.touch()
+    learner_stop, actor_stop = threading.Event(), threading.Event()
+    process = SimpleNamespace(is_alive=lambda: True)
+    processes = _LocalProcesses(process, process, learner_stop, "unused", flag, actor_stop)
+    assert _wait_for_processes(processes)
+    assert actor_stop.is_set()
+    assert not learner_stop.is_set()
+
+
+def test_graceful_stop_drains_journal_and_credit_before_partial_budget_save(tmp_path: Path) -> None:
+    events: list[str] = []
+    coordinator = _stopped_coordinator(tmp_path, events)
+    stop = ProcessStopSignal(multiprocessing.get_context("spawn"))
+    stop.request_drain()
+    coordinator.external_stop = stop
+    coordinator._prepare_training()
+    for index in range(3):
+        payload = dict(coordinator.codec.decode(_crash_submit_request(coordinator).value))
+        payload["sequence"] = index
+        payload["transitions"] = [
+            transition_to_wire(_transition(_TransitionSpec("actor", index, 1.0)))
+        ]
+        row, _ = coordinator.journal.append(
+            "crashed-session", index, coordinator.codec.encode(payload)
+        )
+        coordinator._rollouts.put((row, 0.0))
+    try:
+        result = _run_learning(coordinator)
+    finally:
+        close_runtime(coordinator)
+    assert coordinator.counters.transitions < coordinator.run.spec.training.total_transitions
+    assert coordinator.counters.transitions == 3
+    assert coordinator.counters.updates == 2
+    assert coordinator.counters.update_credit == 0
+    checkpoint = coordinator.run.checkpoint_codec.load(result.checkpoints[-1])
+    assert checkpoint["distributed"]["updates"] == 2
+    assert checkpoint["distributed"]["update_credit"] == 0
+    assert checkpoint["distributed"]["journal_applied_frontier"] == 3
+
+
+def test_actor_closes_before_drain_is_requested() -> None:
+    events: list[str] = []
+    learner_stop = ProcessStopSignal(multiprocessing.get_context("spawn"))
+    actor_stop = threading.Event()
+
+    class Actor(_ShutdownProcess):
+        def join(self, *, timeout: float) -> None:
+            assert actor_stop.is_set()
+            assert not learner_stop.drain_requested()
+            events.append("actor_closed")
+            super().join(timeout=timeout)
+
+    class Learner(_ShutdownProcess):
+        def join(self, *, timeout: float) -> None:
+            assert learner_stop.drain_requested()
+            assert not learner_stop.is_set()
+            events.append("learner_drained_and_saved")
+            super().join(timeout=timeout)
+
+    processes = _LocalProcesses(
+        Learner(), Actor(), learner_stop, "unused", actor_shutdown=actor_stop
+    )
+    assert not _shutdown_local_processes(processes, drain=True)
+    assert events == ["actor_closed", "learner_drained_and_saved"]
+
+
+def test_failed_actor_requests_emergency_save_instead_of_drain() -> None:
+    stop = ProcessStopSignal(multiprocessing.get_context("spawn"))
+    actor = _ShutdownProcess()
+    actor.exitcode = 7
+    processes = _LocalProcesses(
+        _ShutdownProcess(), actor, stop, "unused", actor_shutdown=threading.Event()
+    )
+    assert not _shutdown_local_processes(processes, drain=True)
+    assert stop.is_set()
+    assert not stop.drain_requested()
+
+
+def test_shutdown_timeout_is_not_reported_as_a_successful_save(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = iter(range(1000))
+    monkeypatch.setattr("trackmaniarl.commands.training.monotonic", lambda: float(next(clock)))
+
+    class StuckLearner(_ShutdownProcess):
+        def join(self, *, timeout: float) -> None:
+            del timeout
+
+    processes = _LocalProcesses(
+        StuckLearner(),
+        _ShutdownProcess(),
+        ProcessStopSignal(multiprocessing.get_context("spawn")),
+        "unused",
+        actor_shutdown=threading.Event(),
+    )
+    with pytest.raises(RuntimeError, match="did not confirm a clean final checkpoint"):
+        _stop_local_processes_with_notice(processes)
+    assert not processes.learner.is_alive()
+
+
+def test_actor_failure_during_stop_is_not_reported_as_success(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    actor = _ShutdownProcess()
+    actor.exitcode = 7
+    processes = _LocalProcesses(
+        _ShutdownProcess(),
+        actor,
+        ProcessStopSignal(multiprocessing.get_context("spawn")),
+        "unused",
+        actor_shutdown=threading.Event(),
+    )
+    with pytest.raises(RuntimeError, match="actor process exited with code 7"):
+        _stop_local_processes_with_notice(processes)
+    assert "Safe shutdown complete" not in capsys.readouterr().out
 
 
 class _ShutdownProcess:

@@ -7,11 +7,15 @@ the Torch default. Actor threads remain controlled separately by
 `distributed.actor_execution.torch_threads`.
 
 Local `train` and `resume` accept `--stop-file PATH`. Creating that file requests
-normal shutdown and a final checkpoint without sending a console interrupt.
+normal shutdown without sending a console interrupt. Local asynchronous runs
+stop the actor first, then drain accepted journal rows and earned learner
+updates before saving the final checkpoint. Actor shutdown is bounded to 10s;
+learner drain/save is bounded to 120s. An actor failure or timeout requests an
+immediate emergency save instead, and an unclean shutdown returns an error.
 An existing stop file is rejected before starting child processes; remove it
 before resuming. Check final checkpoint completion before closing the launcher.
 
-A RunSpec YAML file is the public runtime configuration boundary in 1.2.15.
+A RunSpec YAML file is the public runtime configuration boundary in 1.2.16.
 The generated choices are `run.yaml`, `run-sac.yaml`, `run-redq.yaml`,
 `run-tqc.yaml`, `run-sd-sac.yaml`, `run-ppo.yaml` and `run-ppo-vision.yaml`.
 Each is parsed by
@@ -310,11 +314,14 @@ custom batch producer for `policy_anchor_q_values`.
 | REDQ: `policy_update_interval` | `20` | Positive critic updates between actor updates. |
 | TQC: `top_quantiles_to_drop_per_critic` | `2` | Non-negative global upper-quantile truncation per critic, cannot remove every target quantile. |
 | SD-SAC: `q_clip_epsilon` | `0.5` | Finite positive critic-target clipping width. Zero freezes the clipped target branch; it does not disable clipping and is rejected. |
+| SD-SAC: `priority_td_error` | `mean_absolute` | Replay priority is the mean of the absolute residuals of the two critics, so opposite errors cannot cancel. Historical checkpoints require explicit `mean_value` for exact continuation of their old absolute mean-Q residual. The rule is checkpoint-bound; switching is rejected before loading weights. Uniform sampling ignores this priority feedback. |
 | SD-SAC: `entropy_penalty_coefficient` | `0.5` | Non-negative entropy-change penalty weight. |
 | SD-SAC: `actor_learning_rate` | null | Actor optimizer rate; null inherits `learning_rate`. Preserved in evaluated-policy checkpoints. |
 | SD-SAC: `entropy_learning_rate` | null | Independent log-alpha optimizer rate; null inherits `learning_rate`. |
 | SD-SAC: `entropy_coefficient_min`, `entropy_coefficient_max` | null | Optional positive alpha bounds; initial alpha must be inside them. Temperatures must remain finite and positive in float32, including learned log/exp round trips. Learned log-alpha is projected after each update. No bounds are imposed by default. |
 | SD-SAC: `actor_objective` | `sac` | Canonical objective, or explicit experimental `soft_q_forward_kl` (detached soft-Q cross-entropy). The variant requires `actor.log_probabilities`. It does not establish critic accuracy or useful driving. |
+| SD-SAC: `actor_temperature` | `learned` | `learned` builds the actor target with the scalar alpha. Explicit experimental `entropy_matched` solves a per-state temperature so the detached soft-Q target has exactly `target_entropy`; the target is then invariant to the scale and offset of Q. States whose exact ties at the maximum already exceed the target are reported, not solved. Requires `actor_objective: soft_q_forward_kl`, a `target_entropy` below `log(action_count)`, `learn_entropy_coefficient: false` and an explicit `backup_entropy_coefficient`. The actor's own entropy can differ from the target's. This changes the original SD-SAC objective; it does not establish critic accuracy or useful driving. |
+| SD-SAC: `backup_entropy_coefficient` | null | Fixed non-negative entropy coefficient in the critic's soft backup; null uses the update alpha. `0` backs up the expected Q under the current policy. Independent of `actor_temperature`; evaluate the two separately. |
 | SD-SAC: `entropy_penalty_reference` | `target_policy` | Entropy anchor uses target actor, or `behavior` for stored replay entropies. Historical behavior entropy may differ greatly from the current target. |
 | SD-SAC: `terminal_value_loss_coefficient` | `0` | Explicit experimental regression to known true-terminal rewards, normalized over terminal samples. This reweights sparse terminals; coefficient 1 adds about 256 times the ordinary per-row gradient when one terminal occurs in a batch of 256. It is not a proven driving correction. Truncations are excluded. |
 | all: `execution` | null | Torch device, precision and determinism policy described below. |

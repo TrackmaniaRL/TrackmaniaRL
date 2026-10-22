@@ -17,6 +17,14 @@ class ProcessStopSignal:
 
     def __init__(self, context: BaseContext) -> None:
         self._flag = context.RawValue("b", 0)
+        self._drain = context.RawValue("b", 0)
+
+    def request_drain(self) -> None:
+        """Finish already accepted work after the launcher has stopped the actor."""
+        self._drain.value = 1
+
+    def drain_requested(self) -> bool:
+        return bool(self._drain.value)
 
     def set(self) -> None:
         self._flag.value = 1

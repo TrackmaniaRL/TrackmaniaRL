@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.16 - 2026-10-22
+
+- Local asynchronous STOP/Ctrl+C now stops the actor first, then drains accepted
+  journal rows and earned update credit before the final checkpoint. Emergency
+  stops still save immediately; bounded shutdown failures return an error.
+- Add experimental SD-SAC `actor_temperature: entropy_matched`, which solves a per-state
+  temperature so the forward-KL actor target has exactly `target_entropy`, and
+  `backup_entropy_coefficient`, which fixes the entropy term of the critic backup.
+  These options preserve their existing defaults and are pinned in new checkpoints.
+- Fix experimental SD-SAC replay priorities so opposing twin-critic errors cannot
+  cancel. The new default is `priority_td_error: mean_absolute`; exact continuation
+  of historical checkpoints requires explicit `mean_value`, preserving the old rule.
+  Reject an unrequested switch before loading model weights.
+- Add twin residual and centered action-disagreement diagnostics. Avoid redundant
+  temperature-bracket searches once every row brackets the requested entropy.
+
 ## 1.2.15 - 2026-10-21
 
 - Hold throttle during Trackmania's countdown instead of waiting for a positive

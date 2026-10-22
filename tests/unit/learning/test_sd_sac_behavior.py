@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import replace
 from unittest.mock import patch
 
@@ -207,3 +208,73 @@ def test_sd_sac_learns_to_advance_to_a_delayed_goal(objective: str) -> None:
     # Wait has a bootstrapped value; the goal action has only its known reward.
     assert float(model.q1(torch.eye(2))[0, 0].detach()) > 0.6
     assert float(model.q1(torch.eye(2))[1, 1].detach()) == pytest.approx(1.0, abs=0.01)
+
+
+def test_entropy_matched_variant_jointly_learns_critics_and_actor() -> None:
+    """Exercise full updates, not actor fitting against an assumed-correct critic."""
+    model = nn.Module()
+    model.actor = CategoricalActor(nn.Identity(), 2, 2)
+    model.q1, model.q2 = nn.Linear(2, 2, bias=False), nn.Linear(2, 2, bias=False)
+    for parameter in model.parameters():
+        nn.init.zeros_(parameter)
+    learner = StableDiscreteSoftActorCritic(
+        model,
+        execution=TorchExecutionConfig(device="cpu", torch_threads=1),
+        learning_rate=0.03,
+        target_tau=0.1,
+        actor_objective="soft_q_forward_kl",
+        actor_temperature="entropy_matched",
+        target_entropy=0.1,
+        learn_entropy_coefficient=False,
+        backup_entropy_coefficient=0.0,
+        entropy_penalty_coefficient=0,
+    )
+    learner.setup({"seed": 17})
+    states = torch.eye(2)
+    next_states = states[torch.tensor([0, 1, 1, 0])]
+    batch = replace(
+        _batch(BatchKind.DISCRETE),
+        observations=states.repeat_interleave(2, dim=0),
+        actions=torch.tensor([0, 1, 0, 1]),
+        rewards=torch.tensor([-0.1, -0.01, -0.1, 1.0]),
+        next_observations=next_states,
+        terminated=torch.tensor([False, False, False, True]),
+        truncated=torch.tensor([True, False, False, False]),
+        bootstrap_discounts=torch.tensor([0.9, 0.9, 0.9, 0.0]),
+        transition_ids=list(range(4)),
+    )
+    for _ in range(500):
+        learner.update(batch)
+    with torch.no_grad():
+        logs = model.actor.log_probabilities(next_states)
+        next_values = (
+            logs.exp() * (0.5 * model.q1(next_states) + 0.5 * model.q2(next_states))
+        ).sum(1)
+        bellman = batch.rewards + batch.bootstrap_discounts * next_values
+        for critic in (model.q1, model.q2):
+            actual = critic(batch.observations).gather(1, batch.actions[:, None]).flatten()
+            torch.testing.assert_close(actual, bellman, atol=0.025, rtol=0)
+    policy = learner.policy()
+    assert [policy.act(state, PolicyMode.EVALUATION) for state in states] == [1, 1]
+    restored = StableDiscreteSoftActorCritic(
+        deepcopy(model),
+        **{
+            "execution": TorchExecutionConfig(device="cpu", torch_threads=1),
+            "learning_rate": 0.03,
+            "target_tau": 0.1,
+            "actor_objective": "soft_q_forward_kl",
+            "actor_temperature": "entropy_matched",
+            "target_entropy": 0.1,
+            "learn_entropy_coefficient": False,
+            "backup_entropy_coefficient": 0.0,
+            "entropy_penalty_coefficient": 0,
+        },
+    )
+    restored.setup({"seed": 17})
+    restored.load_state_dict(deepcopy(learner.state_dict()))
+    expected_metrics, expected_priorities = learner.update(batch)
+    actual_metrics, actual_priorities = restored.update(batch)
+    assert actual_metrics == pytest.approx(expected_metrics)
+    assert actual_priorities.priorities == pytest.approx(expected_priorities.priorities)
+    for name, value in learner.model.state_dict().items():
+        torch.testing.assert_close(restored.model.state_dict()[name], value, rtol=0, atol=0)
