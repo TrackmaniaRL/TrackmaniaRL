@@ -4,6 +4,12 @@ Status: przygotowana, nieuruchomiona. Plan wymaga biblioteki 1.2.16 i tagu
 `v1.2.16` w historii checkoutu przed jakimkolwiek użyciem gry. Nie aktualizuje
 rozpoczętych prób ani checkpointów poprzednich kampanii.
 
+Bibliotekę scalono w PR #61 wraz z poprawkami z PR #54 i #60. Tag `v1.2.16`
+wskazuje scalony commit `dd8cc1f1b81c46f9ed9e823f52da17382046878d` i należy
+do historii tej gałęzi. Wszystkie cztery kontrole CI wydania przeszły: pełne
+zestawy Windows i Linux po 1283 testy PASS i jednym pominiętym, kontrola kodu
+oraz budowanie paczek. Lokalny pełny zestaw biblioteki: 1279 PASS, 5 pominiętych.
+
 - 15 konfiguracji: QR, IQN, SAC, TQC i PPO; seedy 17, 29, 43.
 - Wspólny budżet 7 168 000 kroków na seed, 12,5% mniej od 8 192 000.
 - Końcowa ocena: 30 prób na ostatnim poprawnie zapisanym checkpointcie.
