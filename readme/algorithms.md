@@ -579,6 +579,22 @@ Trackmania baseline with the full 78-action environment table.
 Successful synthetic tests do not establish driving quality or readiness for
 long training. Treat this learner as a research option.
 
+Prioritized replay uses `priority_td_error: mean_absolute`: for target `y`, the
+priority is `(|Q1-y| + |Q2-y|)/2`. The old `|mean(Q1,Q2)-y|` could assign zero
+priority when both critics were wrong in opposite directions. Historical
+checkpoints require explicit `priority_td_error: mean_value` to retain their
+original sampling trajectory; the loader rejects silent switches. This change
+does not affect uniform sampling. `critic/twin_td_mae`, `critic/twin_td_rmse` and
+`critic/priority_cancellation_fraction` expose residuals hidden by a mean critic.
+Existing `critic/td_rmse` remains the mean-value residual for continuity.
+
+`critic/centered_action_disagreement` removes each critic's shared action-value
+baseline before comparing action preferences. `critic/mean_greedy_twin_agreement`
+reports how often both critics select the mean critic's best action. High actor
+agreement with the mean critic alone does not establish correct action values.
+See [the October 21 follow-up](../docs/reviews/2026-10-21-sd-sac-followup.md) for
+the held-episode diagnostic and its limitations.
+
 **Contract.** The custom model exposes `actor`, `q1` and `q2`. The actor must
 provide `probabilities(observation)` and categorical sampling, while each critic
 returns `[batch, action_count]`. The policy returns the sampled/argmax index
@@ -606,6 +622,21 @@ Optional `actor_learning_rate` and `entropy_learning_rate` inherit the critic's
 `learning_rate`. Temperature bounds and `actor_objective: soft_q_forward_kl`
 are research options, not part of the standard campaign. New checkpoints bind
 these options; mismatches are rejected before loading weights.
+
+`actor_temperature: entropy_matched` is a further research option for the
+forward-KL objective. It solves each state's temperature so that the detached
+`softmax((Q - max(Q))/alpha_s)` target has exactly `target_entropy`, which makes
+the target invariant to Q scale and offset and removes the learned alpha from the
+actor target. The learned actor's entropy can still differ from the target's.
+Exact ties at the maximum keep `log(ties)` nats at any temperature; such states
+are reported in `policy/matched_unreachable_fraction` and receive the tie-uniform
+target. `policy/matched_alpha_mean` and `policy/matched_entropy_error_max` report
+the solved temperatures and the solver residual. The mode requires
+`learn_entropy_coefficient: false` and an explicit `backup_entropy_coefficient`,
+the fixed entropy coefficient of the critic backup (`0` backs up the expected Q
+under the policy). The two options are independent interventions and should be
+evaluated separately. Matched temperatures change the actor objective of the
+original [SD-SAC](https://arxiv.org/abs/2209.10081); report results as a variant.
 
 Diagnostics separate missing Q measurements from measured zero through nulls
 and sample counts. Categorical behavior entropy is reported in nats; action
