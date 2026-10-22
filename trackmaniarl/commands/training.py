@@ -36,6 +36,7 @@ class _LocalProcesses:
     shutdown: Any
     endpoint: str
     stop_file: Path | None = None
+    actor_shutdown: Any | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,18 +132,19 @@ def _spawn_local_processes(
             raise ValueError(f"Stop file already exists; remove it before starting: {stop_file}")
     context = _spawn_context()
     shutdown = ProcessStopSignal(context)
+    actor_shutdown = ProcessStopSignal(context)
     endpoint = f"127.0.0.1:{spec.distributed.port}"
     token = secrets.token_urlsafe(32)
     runtime = _LocalRuntime(config, endpoint, token, shutdown)
     learner_request = _local_learner_request(runtime, args)
-    actor_request = ActorProcessRequest(str(config), endpoint, "local-actor", token, shutdown)
+    actor_request = ActorProcessRequest(str(config), endpoint, "local-actor", token, actor_shutdown)
     learner = context.Process(
         target=_learner_process, args=(learner_request,), name="trackmaniarl-learner"
     )
     actor = context.Process(
         target=_actor_process, args=(actor_request,), name="trackmaniarl-local-actor"
     )
-    return _LocalProcesses(learner, actor, shutdown, endpoint, stop_file)
+    return _LocalProcesses(learner, actor, shutdown, endpoint, stop_file, actor_shutdown)
 
 
 def _local_learner_request(
@@ -170,7 +172,7 @@ def _supervise_local_processes(processes: _LocalProcesses) -> bool:
     processes.actor.start()
     _print_process_launch(processes)
     try:
-        _wait_for_processes(processes)
+        return _wait_for_processes(processes)
     except KeyboardInterrupt:
         print("Ctrl+C received. Graceful training shutdown requested.", flush=True)
         print(
@@ -179,7 +181,6 @@ def _supervise_local_processes(processes: _LocalProcesses) -> bool:
             flush=True,
         )
         return True
-    return False
 
 
 def _print_process_launch(processes: _LocalProcesses) -> None:
@@ -192,22 +193,23 @@ def _print_process_launch(processes: _LocalProcesses) -> None:
     print(f"  endpoint={processes.endpoint}  gRPC; actor connects here", flush=True)
 
 
-def _wait_for_processes(processes: _LocalProcesses) -> None:
+def _wait_for_processes(processes: _LocalProcesses) -> bool:
     while processes.learner.is_alive() and processes.actor.is_alive():
         if _stop_file_requested(processes):
-            return
+            return True
         sleep(0.25)
     if processes.actor.is_alive() or not processes.learner.is_alive():
-        return
+        return False
     if processes.actor.exitcode == 0:
         _wait_for_learner_drain(processes)
-        return
+        return processes.stop_file is not None and processes.stop_file.exists()
     print(
         f"Actor process (pid={processes.actor.pid}) exited first with "
         f"code={processes.actor.exitcode}; stopping learner "
         f"(pid={processes.learner.pid}) gracefully...",
         flush=True,
     )
+    return False
 
 
 def _wait_for_learner_drain(processes: _LocalProcesses) -> None:
@@ -225,8 +227,9 @@ def _wait_for_learner_drain(processes: _LocalProcesses) -> None:
 def _stop_file_requested(processes: _LocalProcesses) -> bool:
     if processes.stop_file is None or not processes.stop_file.exists():
         return False
-    print("Stop file received. Saving the final checkpoint and stopping training...", flush=True)
-    processes.shutdown.set()
+    print("Stop file received. Stopping collection before draining learner updates...", flush=True)
+    signal = processes.actor_shutdown or processes.shutdown
+    signal.set()
     return True
 
 
@@ -234,17 +237,18 @@ def _stop_local_processes_with_notice(processes: _LocalProcesses) -> None:
     running = any(process.is_alive() for process in (processes.actor, processes.learner))
     if running:
         print(
-            "Stopping the actor and waiting up to 120s for the learner's final checkpoint...",
+            "Stopping the actor, then waiting up to 120s to drain updates and save...",
             flush=True,
         )
-    forced = _shutdown_local_processes(processes)
+    forced = _shutdown_local_processes(processes, drain=True)
     if forced or processes.learner.exitcode not in (0, None):
         print(
             "The learner did not confirm a clean exit; the final checkpoint may be incomplete. "
             "Check the last checkpoint log before resuming.",
             flush=True,
         )
-        return
+        raise RuntimeError("Training shutdown did not confirm a clean final checkpoint")
+    _raise_process_failures(processes)
     print("Safe shutdown complete. The terminal may now be closed.", flush=True)
 
 
@@ -252,9 +256,17 @@ def _stop_local_processes(processes: _LocalProcesses) -> None:
     _shutdown_local_processes(processes)
 
 
-def _shutdown_local_processes(processes: _LocalProcesses) -> bool:
-    _signal_shutdown(processes.shutdown, processes.learner, processes.actor)
+def _shutdown_local_processes(processes: _LocalProcesses, *, drain: bool = False) -> bool:
+    if processes.actor_shutdown is not None:
+        processes.actor_shutdown.set()
+    if not drain or processes.actor_shutdown is None:
+        _signal_shutdown(processes.shutdown, processes.learner, processes.actor)
     _join_during_shutdown(processes.actor, timeout=10)
+    if drain and processes.actor_shutdown is not None:
+        if processes.actor.is_alive() or processes.actor.exitcode not in (0, None):
+            processes.shutdown.set()
+        elif processes.learner.is_alive():
+            processes.shutdown.request_drain()
     _join_during_shutdown(processes.learner, timeout=120)
     forced = any(process.is_alive() for process in (processes.actor, processes.learner))
     for process in (processes.actor, processes.learner):

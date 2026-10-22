@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Local asynchronous STOP/Ctrl+C now stops the actor first, then drains accepted
+  journal rows and earned update credit before the final checkpoint. Emergency
+  stops still save immediately; bounded shutdown failures return an error.
+
 ## 1.2.15 - 2026-10-21
 
 - Hold throttle during Trackmania's countdown instead of waiting for a positive

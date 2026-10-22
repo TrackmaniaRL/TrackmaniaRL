@@ -7,7 +7,11 @@ the Torch default. Actor threads remain controlled separately by
 `distributed.actor_execution.torch_threads`.
 
 Local `train` and `resume` accept `--stop-file PATH`. Creating that file requests
-normal shutdown and a final checkpoint without sending a console interrupt.
+normal shutdown without sending a console interrupt. Local asynchronous runs
+stop the actor first, then drain accepted journal rows and earned learner
+updates before saving the final checkpoint. Actor shutdown is bounded to 10s;
+learner drain/save is bounded to 120s. An actor failure or timeout requests an
+immediate emergency save instead, and an unclean shutdown returns an error.
 An existing stop file is rejected before starting child processes; remove it
 before resuming. Check final checkpoint completion before closing the launcher.
 
