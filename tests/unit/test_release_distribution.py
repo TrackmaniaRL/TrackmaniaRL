@@ -19,6 +19,7 @@ CPU_TORCH_ENV = {
     "TORCH_CPU_INDEX": "https://download.pytorch.org/whl/cpu",
     "TORCH_CPU_VERSION": "2.11.0+cpu",
 }
+CPU_THREAD_ENV = {"OMP_NUM_THREADS": "2", "MKL_NUM_THREADS": "2"}
 LOCKED_DEV_EXPORT = "uv export --quiet --locked --group dev --prune torch"
 CPU_REQUIREMENTS = "--with-requirements .ci-dev-requirements.txt"
 
@@ -198,7 +199,7 @@ def _assert_ci_workflow_uses_least_privilege_and_pinned_actions() -> None:
         (REPOSITORY / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
     )
     assert workflow["permissions"] == {"contents": "read"}
-    assert workflow["env"] == CPU_TORCH_ENV | {"UV_VERSION": "0.12.5"}
+    assert workflow["env"] == CPU_TORCH_ENV | CPU_THREAD_ENV | {"UV_VERSION": "0.12.5"}
     commands = "\n".join(_commands(job) for job in workflow["jobs"].values())
     assert "uv sync" not in commands
     assert "uv pip" not in commands
@@ -208,6 +209,7 @@ def _assert_ci_workflow_uses_least_privilege_and_pinned_actions() -> None:
 
 
 def test_release_workflow_secures_and_publishes_canonical_artifacts() -> None:
+    assert _workflow()["env"] == CPU_TORCH_ENV | CPU_THREAD_ENV | {"UV_VERSION": "0.12.5"}
     _assert_release_workflow_uploads_archives_and_spdx_sbom()
     _assert_release_workflow_attests_archives_and_sbom()
     _assert_release_workflow_publishes_without_rebuilding()
