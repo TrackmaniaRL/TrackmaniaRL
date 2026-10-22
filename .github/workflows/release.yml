@@ -12,6 +12,8 @@ concurrency:
 permissions: {}
 
 env:
+  OMP_NUM_THREADS: "2"
+  MKL_NUM_THREADS: "2"
   TORCH_CPU_INDEX: https://download.pytorch.org/whl/cpu
   TORCH_CPU_VERSION: 2.11.0+cpu
   UV_VERSION: "0.12.5"
