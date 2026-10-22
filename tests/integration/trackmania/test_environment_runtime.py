@@ -361,27 +361,32 @@ def test_openplanet_client_counts_only_complete_skipped_frames() -> None:
 
 
 def _serve_after_disconnect(server: socket.socket, payload: bytes) -> None:
-    first, _ = server.accept()
-    first.close()
-    second, _ = server.accept()
-    with second:
-        second.sendall(payload)
-    server.close()
+    try:
+        first, _ = server.accept()
+        first.close()
+        second, _ = server.accept()
+        with second:
+            second.sendall(payload)
+    finally:
+        server.close()
 
 
 def _read_after_disconnect(payload: bytes) -> np.ndarray:
     server = socket.socket()
+    server.settimeout(5.0)
     server.bind(("127.0.0.1", 0))
     server.listen(2)
     host, port = server.getsockname()
-    thread = threading.Thread(target=_serve_after_disconnect, args=(server, payload))
+    thread = threading.Thread(target=_serve_after_disconnect, args=(server, payload), daemon=True)
     thread.start()
-    client = OpenPlanetClient(OpenPlanetClientConfig(host, port, 1.0))
+    client = OpenPlanetClient(OpenPlanetClientConfig(host, port, 5.0))
     try:
         return client.read().values
     finally:
         client.close()
-        thread.join(timeout=1)
+        server.close()
+        thread.join(timeout=6)
+        assert not thread.is_alive(), "Test telemetry producer did not close"
 
 
 def test_openplanet_client_reconnects_after_the_producer_closes() -> None:
