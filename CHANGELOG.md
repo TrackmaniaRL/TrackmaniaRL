@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.16 - 2026-10-22
 
 - Local asynchronous STOP/Ctrl+C now stops the actor first, then drains accepted
   journal rows and earned update credit before the final checkpoint. Emergency
