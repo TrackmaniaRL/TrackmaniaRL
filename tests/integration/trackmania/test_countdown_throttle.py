@@ -43,7 +43,7 @@ def _environment(*, enabled: bool = True) -> OpenPlanetEnvironment:
     environment._expected_map_uid = "map"
     environment._last_race_time_ms = 500.0
     environment._finish_confirmation_pending = False
-    times = iter((0.0, 0.0, 10.0, 60.0))
+    times = iter((0.0, 0.0, 10.0, 60.0, 110.0))
 
     def read() -> TelemetryFrame:
         values = np.zeros(33, dtype=np.float32)
@@ -74,12 +74,15 @@ def test_throttle_is_held_during_countdown_and_first_policy_action_takes_over(
 ) -> None:
     environment = _environment(enabled=enabled)
     observation, info = environment.reset()
-    assert observation[3] == 10
+    assert observation[3] == 60
     assert info["reset/countdown_throttle"] is enabled
-    assert info["reset/race_time_ms"] == 10
+    assert info["reset/race_time_ms"] == 60
+    assert info["reset_confirmation_race_time_ms"] == 10
+    assert info["reset_observation_race_time_ms"] == 60
     np.testing.assert_array_equal(environment.controller.current, [float(enabled), 0, 0])
     # ID 36 is neutral: there is no hidden forced throttle after reset.
     _, _, _, _, step_info = environment.step(36)
+    assert environment._last_race_time_ms == 110
     np.testing.assert_array_equal(environment.controller.current, [0, 0, 0])
     assert step_info["control_gas"] == 0
 

@@ -1,0 +1,357 @@
+{
+  "origin": "39 original Windows frequency-leaf executions on literal actual445 visual inputs; actual input-port453 setting1. No production/interpolation/queue timing qualification.",
+  "original_sha256": "f8ea92be78071897ed87332ef773eb8fd547e837343b384e07939170f2fce9c8",
+  "cases": [
+    {
+      "sample_index": 367,
+      "amp": 0.08673522621393204,
+      "freq": 8.553034782409668,
+      "original_hex": "bd11be3a3da2b13d",
+      "input_clock": 19662310,
+      "minimum_duration": 7,
+      "expiry": 19662390
+    },
+    {
+      "sample_index": 368,
+      "amp": 0.6071465611457825,
+      "freq": 8.253034591674805,
+      "original_hex": "9b56133cf56d1b3f",
+      "input_clock": 19662316,
+      "minimum_duration": 6,
+      "expiry": 19662396
+    },
+    {
+      "sample_index": 369,
+      "amp": 0.8473522663116455,
+      "freq": 7.9030351638793945,
+      "original_hex": "78bf303c14ec583f",
+      "input_clock": 19662323,
+      "minimum_duration": 7,
+      "expiry": 19662403
+    },
+    {
+      "sample_index": 370,
+      "amp": 0.8173522353172302,
+      "freq": 7.603034973144531,
+      "original_hex": "8845143cff3d513f",
+      "input_clock": 19662329,
+      "minimum_duration": 6,
+      "expiry": 19662409
+    },
+    {
+      "sample_index": 371,
+      "amp": 0.8173522353172302,
+      "freq": 7.603034973144531,
+      "original_hex": "8845143cff3d513f",
+      "input_clock": 19662337,
+      "minimum_duration": 8,
+      "expiry": 19662417
+    },
+    {
+      "sample_index": 372,
+      "amp": 0.7773522138595581,
+      "freq": 7.2030348777771,
+      "original_hex": "da37e63b8e00473f",
+      "input_clock": 19662337,
+      "minimum_duration": 8,
+      "expiry": 19662417
+    },
+    {
+      "sample_index": 373,
+      "amp": 0.7473522424697876,
+      "freq": 6.9030351638793945,
+      "original_hex": "b73fbb3b7a523f3f",
+      "input_clock": 19662343,
+      "minimum_duration": 6,
+      "expiry": 19662423
+    },
+    {
+      "sample_index": 374,
+      "amp": 0.7473522424697876,
+      "freq": 6.9030351638793945,
+      "original_hex": "b73fbb3b7a523f3f",
+      "input_clock": 19662343,
+      "minimum_duration": 6,
+      "expiry": 19662423
+    },
+    {
+      "sample_index": 375,
+      "amp": 0.7173522114753723,
+      "freq": 6.603034973144531,
+      "original_hex": "22b7953b65a4373f",
+      "input_clock": 19662349,
+      "minimum_duration": 6,
+      "expiry": 19662429
+    },
+    {
+      "sample_index": 376,
+      "amp": 0.7173522114753723,
+      "freq": 6.603034973144531,
+      "original_hex": "22b7953b65a4373f",
+      "input_clock": 19662356,
+      "minimum_duration": 7,
+      "expiry": 19662436
+    },
+    {
+      "sample_index": 377,
+      "amp": 0.6823521852493286,
+      "freq": 6.253034591674805,
+      "original_hex": "5fb4603ba2ae2e3f",
+      "input_clock": 19662356,
+      "minimum_duration": 7,
+      "expiry": 19662436
+    },
+    {
+      "sample_index": 378,
+      "amp": 0.6473522186279297,
+      "freq": 5.9030351638793945,
+      "original_hex": "64d0223be0b8253f",
+      "input_clock": 19662363,
+      "minimum_duration": 7,
+      "expiry": 19662443
+    },
+    {
+      "sample_index": 379,
+      "amp": 0.6473522186279297,
+      "freq": 5.9030351638793945,
+      "original_hex": "64d0223be0b8253f",
+      "input_clock": 19662370,
+      "minimum_duration": 7,
+      "expiry": 19662450
+    },
+    {
+      "sample_index": 380,
+      "amp": 0.5823521614074707,
+      "freq": 5.253035068511963,
+      "original_hex": "bea79c3a0815153f",
+      "input_clock": 19662376,
+      "minimum_duration": 6,
+      "expiry": 19662456
+    },
+    {
+      "sample_index": 381,
+      "amp": 0.5823521614074707,
+      "freq": 5.253035068511963,
+      "original_hex": "bea79c3a0815153f",
+      "input_clock": 19662385,
+      "minimum_duration": 9,
+      "expiry": 19662465
+    },
+    {
+      "sample_index": 382,
+      "amp": 0.5373521447181702,
+      "freq": 4.803034782409668,
+      "original_hex": "7550203ae98f093f",
+      "input_clock": 19662390,
+      "minimum_duration": 5,
+      "expiry": 19662470
+    },
+    {
+      "sample_index": 383,
+      "amp": 0.5123521685600281,
+      "freq": 4.553034782409668,
+      "original_hex": "f415c8398329033f",
+      "input_clock": 19662390,
+      "minimum_duration": 5,
+      "expiry": 19662470
+    },
+    {
+      "sample_index": 384,
+      "amp": 0.4823521375656128,
+      "freq": 4.253035068511963,
+      "original_hex": "632c4139dcf6f63e",
+      "input_clock": 19662396,
+      "minimum_duration": 6,
+      "expiry": 19662476
+    },
+    {
+      "sample_index": 385,
+      "amp": 0.4823521375656128,
+      "freq": 4.253035068511963,
+      "original_hex": "632c4139dcf6f63e",
+      "input_clock": 19662396,
+      "minimum_duration": 6,
+      "expiry": 19662476
+    },
+    {
+      "sample_index": 386,
+      "amp": 0.44735217094421387,
+      "freq": 3.9030351638793945,
+      "original_hex": "4ef34d38580be53e",
+      "input_clock": 19662403,
+      "minimum_duration": 7,
+      "expiry": 19662483
+    },
+    {
+      "sample_index": 387,
+      "amp": 0.44735217094421387,
+      "freq": 3.9030351638793945,
+      "original_hex": "4ef34d38580be53e",
+      "input_clock": 19662410,
+      "minimum_duration": 7,
+      "expiry": 19662490
+    },
+    {
+      "sample_index": 388,
+      "amp": 0.4123521149158478,
+      "freq": 3.553034782409668,
+      "original_hex": "42185335d11fd33e",
+      "input_clock": 19662417,
+      "minimum_duration": 7,
+      "expiry": 19662497
+    },
+    {
+      "sample_index": 389,
+      "amp": 0.37735214829444885,
+      "freq": 3.2030348777770996,
+      "original_hex": "000000004d34c13e",
+      "input_clock": 19662423,
+      "minimum_duration": 6,
+      "expiry": 19662503
+    },
+    {
+      "sample_index": 390,
+      "amp": 0.34735214710235596,
+      "freq": 2.9030351638793945,
+      "original_hex": "0000000024d8b13e",
+      "input_clock": 19662423,
+      "minimum_duration": 6,
+      "expiry": 19662503
+    },
+    {
+      "sample_index": 391,
+      "amp": 0.31235212087631226,
+      "freq": 2.553035020828247,
+      "original_hex": "000000009eec9f3e",
+      "input_clock": 19662430,
+      "minimum_duration": 7,
+      "expiry": 19662510
+    },
+    {
+      "sample_index": 392,
+      "amp": 0.27735209465026855,
+      "freq": 2.2030348777770996,
+      "original_hex": "0000000018018e3e",
+      "input_clock": 19662437,
+      "minimum_duration": 7,
+      "expiry": 19662517
+    },
+    {
+      "sample_index": 393,
+      "amp": 0.27735209465026855,
+      "freq": 2.2030348777770996,
+      "original_hex": "0000000018018e3e",
+      "input_clock": 19662437,
+      "minimum_duration": 7,
+      "expiry": 19662517
+    },
+    {
+      "sample_index": 394,
+      "amp": 0.24735212326049805,
+      "freq": 1.903035044670105,
+      "original_hex": "00000000e0497d3e",
+      "input_clock": 19662443,
+      "minimum_duration": 6,
+      "expiry": 19662523
+    },
+    {
+      "sample_index": 395,
+      "amp": 0.21235209703445435,
+      "freq": 1.5530349016189575,
+      "original_hex": "00000000d472593e",
+      "input_clock": 19662450,
+      "minimum_duration": 7,
+      "expiry": 19662530
+    },
+    {
+      "sample_index": 396,
+      "amp": 0.17735210061073303,
+      "freq": 1.2030349969863892,
+      "original_hex": "00000000ca9b353e",
+      "input_clock": 19662457,
+      "minimum_duration": 7,
+      "expiry": 19662537
+    },
+    {
+      "sample_index": 397,
+      "amp": 0.17735210061073303,
+      "freq": 1.2030349969863892,
+      "original_hex": "00000000ca9b353e",
+      "input_clock": 19662457,
+      "minimum_duration": 7,
+      "expiry": 19662537
+    },
+    {
+      "sample_index": 398,
+      "amp": 0.14735211431980133,
+      "freq": 0.9030349850654602,
+      "original_hex": "0000000079e3163e",
+      "input_clock": 19662463,
+      "minimum_duration": 6,
+      "expiry": 19662543
+    },
+    {
+      "sample_index": 399,
+      "amp": 0.14735211431980133,
+      "freq": 0.9030349850654602,
+      "original_hex": "0000000079e3163e",
+      "input_clock": 19662470,
+      "minimum_duration": 7,
+      "expiry": 19662550
+    },
+    {
+      "sample_index": 400,
+      "amp": 0.11235211044549942,
+      "freq": 0.5592734217643738,
+      "original_hex": "00000000dd18e63d",
+      "input_clock": 19662470,
+      "minimum_duration": 7,
+      "expiry": 19662550
+    },
+    {
+      "sample_index": 401,
+      "amp": 0.0773521140217781,
+      "freq": 0.2529427707195282,
+      "original_hex": "00000000c96a9e3d",
+      "input_clock": 19662483,
+      "minimum_duration": 6,
+      "expiry": 19662563
+    },
+    {
+      "sample_index": 402,
+      "amp": 0.04735211655497551,
+      "freq": 0.16684842109680176,
+      "original_hex": "000000004bf4413d",
+      "input_clock": 19662483,
+      "minimum_duration": 6,
+      "expiry": 19662563
+    },
+    {
+      "sample_index": 403,
+      "amp": 0.04735211655497551,
+      "freq": 0.16684842109680176,
+      "original_hex": "000000004bf4413d",
+      "input_clock": 19662490,
+      "minimum_duration": 7,
+      "expiry": 19662570
+    },
+    {
+      "sample_index": 404,
+      "amp": 0.015616903081536293,
+      "freq": 0.16941680014133453,
+      "original_hex": "000000000ade7f3c",
+      "input_clock": 19662490,
+      "minimum_duration": 7,
+      "expiry": 19662570
+    },
+    {
+      "sample_index": 405,
+      "amp": 0.015616903081536293,
+      "freq": 0.16941680014133453,
+      "original_hex": "000000000ade7f3c",
+      "input_clock": 19662497,
+      "minimum_duration": 7,
+      "expiry": 19662577
+    }
+  ]
+}

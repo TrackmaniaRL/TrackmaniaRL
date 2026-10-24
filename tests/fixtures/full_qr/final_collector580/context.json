@@ -1,0 +1,81 @@
+{
+  "pid": 391,
+  "meta": {
+    "clock_locator_calls": 0,
+    "clock_source": "NativeSimClock = exact sim+0x48; not old Gclock or race time",
+    "controller": 101152313087248,
+    "descriptor_getter": 101151710157168,
+    "getid": 101151710163344,
+    "getter_instruction_proofs": [
+      {
+        "bytesHex": "554889e5b80080002d5dc3cccccccccc",
+        "rva": 18993552
+      },
+      {
+        "bytesHex": "554889e5488b05dd05b8005dc3cccccc",
+        "rva": 18987376
+      }
+    ],
+    "host_data_memory_writes": false,
+    "input_base": 101152354932420,
+    "input_count": 16152,
+    "late_fallback": false,
+    "module_slide": 101151691169792,
+    "native_sim_clock": 2020,
+    "native_sim_clock_address": 101152345143688,
+    "normalstart_reset_verified": false,
+    "parent_pid": 389,
+    "participant": 101152354866688,
+    "participant_vptr": 101151720741176,
+    "physical_address": 101152354313048,
+    "players": 101152334607088,
+    "playground": 101152351500160,
+    "probe_calls": 0,
+    "qnorm": 1.0,
+    "qualify_calls": 0,
+    "ready_lroundf": 1001,
+    "requested_lroundf_checkpoint": 1000,
+    "same_owned_chain_clock_physical_two_reads": true,
+    "sampler": "NativeSimState52: u64hook/u32NativeSimClock/physical40",
+    "schema": "tmre.early-owned-bootstrap/v2",
+    "segments": [
+      [
+        101152345143688,
+        4
+      ],
+      [
+        101152354313048,
+        40
+      ]
+    ],
+    "server_pid": 391,
+    "shim_action_capability": true,
+    "sim": 101152345143616,
+    "snapshot_scope": "partial readonly 44B clock/physical; NOT full snapshot/endtick/reset",
+    "start_offset_ms": -1510,
+    "state_f32": [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      496.0,
+      10.0,
+      624.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "stdout_start": 0,
+    "vehicle": 101152354308216
+  },
+  "source_archive": "/mnt/f/AITrackmania/reports/headless-full-qr-20261022-r11/terminal-capture-diagnostic579/closed-source-trace.tar.gz",
+  "source_archive_sha256": "63875416b585d92f11b034ef747105d053f264d28a4855776b34cd775ac3a829",
+  "files": {
+    "adherence.bin": "fa27e60e9673fb21fb5390e1f28747a7c41f0cb8677d03ca92bb67306e4bcaa6",
+    "collector.bin": "14c40a8da6174ecdfb55c596bd441211b622f3dd64bcbfce3f39396f33d859b0",
+    "contact-receipt.bin": "79132c54cf7f76dc4c3cd0ef350b31b3627b92b2a31cfb07dbd8e080e3121cb1",
+    "goal-receipt.bin": "6d5a05792eee88874cd6a0b326a750d293163af8977e7367fdeb68fb9a43389e",
+    "goals.bin": "e109ebdd4c0f498d0c2ffea766eacbfc5fd56d2b02641457a8d78828beabe0fe",
+    "vehicle.bin": "b37dd219db5cf2944624c05ff52a49dce9eb873192367a6932f8a4bd14484121"
+  }
+}

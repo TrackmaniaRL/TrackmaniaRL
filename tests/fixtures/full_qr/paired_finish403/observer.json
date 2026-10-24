@@ -1,0 +1,110 @@
+{
+  "scope": "Actual Windows PB same inputs through full original validator plus source-pinned read-only goal379 writer/map observer; no control writes, changed timestamps or validator logic, no training. Must match plain395 IsValid/Time.",
+  "training_started": false,
+  "identity": {
+    "name": "plain-validator",
+    "worker": {
+      "pid": 448,
+      "state": "R",
+      "ppid": 447,
+      "pgid": 448,
+      "sid": 448,
+      "birth": 3040,
+      "uid": 0
+    },
+    "supervisor": {
+      "pid": 447,
+      "state": "R",
+      "ppid": 419,
+      "pgid": 447,
+      "sid": 447,
+      "birth": 3037,
+      "uid": 0
+    }
+  },
+  "exits": {
+    "plain-validator": 0
+  },
+  "cleanup": {
+    "schema": "tmrl.campaign-process-cohort/v1",
+    "children": {
+      "plain-validator": {
+        "kind": "exited",
+        "schema": "tmrl.native-headless.supervisor/v1",
+        "reason": "driver-exited",
+        "driverIdentity": {
+          "pid": 448,
+          "state": "R",
+          "ppid": 447,
+          "pgid": 448,
+          "sid": 448,
+          "birth": 3040,
+          "uid": 0
+        },
+        "supervisorIdentity": {
+          "pid": 447,
+          "state": "R",
+          "ppid": 419,
+          "pgid": 447,
+          "sid": 447,
+          "birth": 3037,
+          "uid": 0
+        },
+        "supervisorError": null,
+        "cleanupPidfdSignals": [],
+        "cleanupErrors": [],
+        "remainingOwned": [],
+        "returncode": 0,
+        "capturedOwned": [
+          {
+            "pid": 448,
+            "state": "R",
+            "ppid": 447,
+            "pgid": 448,
+            "sid": 448,
+            "birth": 3040,
+            "uid": 0
+          }
+        ]
+      }
+    },
+    "forced": [],
+    "cleanupErrors": [],
+    "remainingOwned": [],
+    "final_checkpoint_verified": false,
+    "training_completed": false
+  },
+  "validation": [
+    {
+      "file": "actual-window-pb.Ghost.Gbx",
+      "IsValid": true,
+      "ValidatedResult": {
+        "NbCheckpoints": 1,
+        "NbRespawns": 0,
+        "Time": 34268,
+        "Score": 0
+      },
+      "DeclaredResult": {
+        "NbCheckpoints": 1,
+        "NbRespawns": 0,
+        "Time": 34268,
+        "Score": 0
+      },
+      "MapUid": "oqIJ5rQDRrNwLPTh9H2p_W4tLof"
+    }
+  ],
+  "status": "PASS_ACTUAL_WINDOWS_PB_WITH_NATIVE_GOAL_OBSERVER",
+  "native_goal": {
+    "callback_native_t": 36450,
+    "raw_event_native_t": 36468,
+    "dispatch_frame_time": 36460,
+    "actual_race_base_words": [
+      2200,
+      2200
+    ],
+    "native_event_minus_validated_time": 2200,
+    "map_entry": "Goal",
+    "endpoint_requested": true,
+    "same_real_windows_ghost_sha256": "70b02bffe795a1d3665670463aaffdc9cfa45ead6d3fa781c63956e55943642a"
+  }
+}

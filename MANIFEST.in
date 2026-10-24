@@ -13,8 +13,10 @@ include docs/*.md
 recursive-include docs/benchmarks *.md *.json
 recursive-include experiments/sub37 *.py *.md
 recursive-include experiments/activation_film *.py
+recursive-include experiments/full_qr *.py *.md *.c *.rs *.as *.toml
 recursive-include docs/reviews *.md
 recursive-include tests *.py
+recursive-include tests *.json *.bin
 recursive-include trackmaniarl/project/openplanet *.as *.md *.toml
 include .env-example
 global-exclude .env .env.* *.pem *.key *.pt *.pth *.ckpt *.safetensors
@@ -24,3 +26,4 @@ prune wandb
 prune .venv
 
 recursive-include examples *.py *.md
+exclude trackmaniarl/trackmania/native_headless/_runtime/native_input_v7/build-receipt.json

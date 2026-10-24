@@ -1,0 +1,20 @@
+{
+  "origin": "Actual403/405/406; client trace literal subset, validator fields not consumed by qualification omitted (including account identifiers). Full primary files remain SHA-pinned on F.",
+  "selected_client_indices": [
+    255,
+    12746,
+    12747
+  ],
+  "asset_pins": {
+    "server": "3b6107824feea402bd32c888e994dcd6df4a10afc8676a2647ac9560ccf0d779",
+    "map": "ed61a14dcfed9d4b3e3e961b1f1655deef6ac3f5ad05b6875f7722c1440004cc",
+    "shim": "2adf0397f6bd0fb9f0a6222da007baa5e5363bee7d5da0154c618c1cd9c34524"
+  },
+  "files": {
+    "client.json": "6d205bfefe63163c650dd27f748e1577824342c8f1dc4738ac43e4846c7e4c81",
+    "goal.bin": "21d258efee83e7b624f7596cb8db39de5e91e80a2d31556343825c57680553a5",
+    "observed.json": "b9cf109e86979061bec30cabbd5ae27cbbe12ff11011f7dbe89ece33e7b5eeda",
+    "observer.json": "77fb16e2e5b0452413b1ed2ea1456937bd41689e66454291f682b9e2e90a7544",
+    "plain.json": "147a9ce37106ba8aa218d7de6a93547f179b64a8060ce4ed50101762cbb0e71e"
+  }
+}

@@ -1,0 +1,8 @@
+[meta]
+name = "Headless Physical Probe 005"
+author = "AITrackmania"
+category = "Utilities"
+version = "0.0.5"
+
+[script]
+dependencies = []

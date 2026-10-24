@@ -1,0 +1,7 @@
+{
+  "pid": 458,
+  "module_base": 97498939846656,
+  "native_time": 2190,
+  "sha256": "3f7ffc88a4993c6638b99bbcd1dc5e736bef03af488cb958ea452a066b746d82",
+  "scope": "Explicit synthetic inputs to actual native converter on own receiver. Not physical collision authority."
+}

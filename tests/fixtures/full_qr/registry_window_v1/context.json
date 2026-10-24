@@ -1,0 +1,21 @@
+{
+  "context": {
+    "pid": 452,
+    "sim": 110074886070784,
+    "module_base": 110074701901824,
+    "manager": 110074885995408
+  },
+  "bounds": [
+    19900,
+    19950
+  ],
+  "expected": {
+    "start_native_ms": 19900,
+    "end_native_ms": 19950,
+    "intervals": 5,
+    "contact_batches": 4,
+    "waypoint_batches": 0
+  },
+  "provenance": "coverage-probe002 finish-tail held at19950, before EOF. Actual conversion exists despite waypoint_count0 at earlier consumer entry; no UI finish classification.",
+  "sha256": "1cf31fbcfb0215f883e77c1153be07fd0353b7505dba07f8d3326051eb404cd3"
+}

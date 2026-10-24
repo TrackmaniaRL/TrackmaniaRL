@@ -1,0 +1,41 @@
+{
+  "context": {
+    "pid": 383,
+    "tid": 383,
+    "module_base": 101333107306496,
+    "vehicle": 101333757382504,
+    "participant": 101333757940544,
+    "sim": 101333748237600,
+    "controller": 101333716157648,
+    "normalization_owner": 101333732417328,
+    "normalization_header": "384da575295c0000101d548f427600000200000000000000a0172099295c0000",
+    "normalization_thresholds": "6666e642ccccac41ccccac4100001043",
+    "wheel_models": [
+      101333732411120,
+      101333732411164,
+      101333732411208,
+      101333732411252
+    ],
+    "wheel_headers": [
+      "0100000001000000355eba3e355e3a3e",
+      "0100000001000000355eba3e355e3a3e",
+      "0100000000000000355eba3e355e3a3e",
+      "0100000000000000355eba3e355e3a3e"
+    ]
+  },
+  "final_native_t": 3800,
+  "contacts": 652,
+  "files": [
+    {
+      "name": "receipts.bin",
+      "bytes": 15552,
+      "sha256": "bdeaf2f488d04ebf49373132a9e79a94ba22f5f4c2429cc5a957955a76f10448"
+    },
+    {
+      "name": "contacts.bin",
+      "bytes": 333824,
+      "sha256": "4526727d0bf773af2a4767482bcbfc4de438deebadd468b79a930663cb7ff2fd"
+    }
+  ],
+  "scope": "Literal independently bound actual361 prefix through3800. No generated source bytes or motor/negative-coverage qualification."
+}

@@ -1,0 +1,32 @@
+{
+  "context": {
+    "pid": 414,
+    "birth": 1218,
+    "module_base": 105762450542592,
+    "vehicle": 105762701362760,
+    "world": 105762696173840,
+    "physical_state": 105762696303632,
+    "tracer_tid": 415,
+    "wheel_count": 4
+  },
+  "wheel_models": [
+    105762676395872,
+    105762676395916,
+    105762676395960,
+    105762676396004
+  ],
+  "vehicle_model": 105762677109456,
+  "normalization_owner": 105762676401072,
+  "normalization_owner_header_hex": "386d13bf3060000010adb01e667c000002000000000000001020c2ca30600000",
+  "sha256": "e44aaf900ac4ba735bbc1bbd20808632d56691729f39b1e87b3aea942af4fb2a",
+  "records": 23,
+  "source": "owned native wheel-source-probe120; external report, reset metadata and tracer thread identity",
+  "expected_categories": [
+    1,
+    1,
+    0,
+    0
+  ],
+  "expected_thresholds_hex": "6666e642ccccac41ccccac4100001043",
+  "training_qualified": false
+}

@@ -83,6 +83,11 @@ to install Openplanet, connect the game, build map geometry and run training and
 evaluation. The generated project includes configurations for IQN, SAC, REDQ,
 TQC, discrete SAC, PPO and camera-based variants.
 
+For the separately qualified Linux native backend, see the
+[full QR headless profile](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/headless-full-qr.md).
+It requires caller-supplied native assets and source references and runs without
+the Windows game client. See the guide for its strict clock and map limits.
+
 ## Neural inference in motion
 
 ![Full drive alongside road, car and context branches, residual blocks, action values and changing steering and pedal controls](https://raw.githubusercontent.com/TrackmaniaRL/TrackmaniaRL/main/docs/assets/trackmaniarl-neural-flow.gif)

@@ -1,0 +1,85 @@
+{
+  "pid": 21945,
+  "meta": {
+    "clock_locator_calls": 0,
+    "clock_source": "NativeSimClock = exact sim+0x48; not old Gclock or race time",
+    "controller": 100587105765744,
+    "descriptor_getter": 100586903296368,
+    "getid": 100586903302544,
+    "getter_instruction_proofs": [
+      {
+        "bytesHex": "554889e5b80080002d5dc3cccccccccc",
+        "rva": 18993552
+      },
+      {
+        "bytesHex": "554889e5488b05dd05b8005dc3cccccc",
+        "rva": 18987376
+      }
+    ],
+    "host_data_memory_writes": false,
+    "input_base": 100587147612516,
+    "input_count": 16152,
+    "late_fallback": false,
+    "module_slide": 100586884308992,
+    "native_sim_clock": 2020,
+    "native_sim_clock_address": 100587137824712,
+    "normalstart_reset_verified": false,
+    "parent_pid": 21941,
+    "participant": 100587147546784,
+    "participant_vptr": 100586913880376,
+    "physical_address": 100587146993048,
+    "players": 100587127284912,
+    "playground": 100587144176544,
+    "probe_calls": 0,
+    "qnorm": 1.0,
+    "qualify_calls": 0,
+    "ready_lroundf": 1001,
+    "requested_lroundf_checkpoint": 1000,
+    "same_owned_chain_clock_physical_two_reads": true,
+    "sampler": "NativeSimState52: u64hook/u32NativeSimClock/physical40",
+    "schema": "tmre.early-owned-bootstrap/v2",
+    "segments": [
+      [
+        100587137824712,
+        4
+      ],
+      [
+        100587146993048,
+        40
+      ]
+    ],
+    "server_pid": 21945,
+    "shim_action_capability": true,
+    "sim": 100587137824640,
+    "snapshot_scope": "partial readonly 44B clock/physical; NOT full snapshot/endtick/reset",
+    "start_offset_ms": -1510,
+    "state_f32": [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      496.0,
+      10.0,
+      624.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "stdout_start": 0,
+    "vehicle": 100587146988216
+  },
+  "previous_native_t": 71950,
+  "held_native_t": 71990,
+  "asset_pins": {
+    "server": "3b6107824feea402bd32c888e994dcd6df4a10afc8676a2647ac9560ccf0d779",
+    "map": "ed61a14dcfed9d4b3e3e961b1f1655deef6ac3f5ad05b6875f7722c1440004cc",
+    "shim": "2adf0397f6bd0fb9f0a6222da007baa5e5363bee7d5da0154c618c1cd9c34524"
+  },
+  "source_archive_sha256": "e501d68fc3cb88a70621a5fd98f7b9fddbf158061b3f453a0b14bbd24ead876c",
+  "files": {
+    "goal-receipt.bin": "99b2311144e479c7f37c54da18033e9a3bf63508df67d0a302a7e5dcf05fd3ae",
+    "goals.bin": "1f301a56430cd51653d6ce4a76564c12c3d7f0a3986d762ce817d677948d08da",
+    "vehicle.bin": "62864a91e0cff8676c63621c1800fcf32e9313228d2f775d52c8e472ceaa75c8"
+  },
+  "scope": "Actual partial final physical state, NOT a complete50ms transition or IsValid acceptance"
+}

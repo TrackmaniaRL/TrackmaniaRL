@@ -80,7 +80,9 @@ def validate_journal_payload(
     coordinator: Coordinator, value: Mapping[str, Any], operation: str
 ) -> None:
     try:
-        _validate_submit_payload(value, coordinator.codec)
+        _validate_submit_payload(
+            value, coordinator.codec, pipeline=getattr(coordinator.run, "feature_pipeline", None)
+        )
     except Exception as exc:
         coordinator._log_wal_error(operation, exc)
         raise
@@ -112,9 +114,13 @@ def _ingest_batch(coordinator: Coordinator, value: Mapping[str, Any], row_id: in
 
 
 def _append_transitions(batch: _IngestBatch) -> None:
-    for transition in batch.transitions:
-        replay_info = replay_info_for_transition(transition.info)
-        batch.coordinator.run.replay_store.append(replace(transition, info=replay_info))
+    pipeline = getattr(batch.coordinator.run, "feature_pipeline", None)
+    prepared = [
+        replace(row, info=replay_info_for_transition(row.info, pipeline=pipeline))
+        for row in batch.transitions
+    ]
+    for transition in prepared:
+        batch.coordinator.run.replay_store.append(transition)
     batch.coordinator.counters.transitions += len(batch.transitions)
 
 
@@ -237,7 +243,9 @@ def _ingest_payload(batch: _IngestBatch) -> dict[str, Any]:
     }
 
 
-def replay_info_for_transition(info: Mapping[str, Any]) -> dict[str, Any]:
+def replay_info_for_transition(
+    info: Mapping[str, Any], *, pipeline: object | None = None
+) -> dict[str, Any]:
     replay_info: dict[str, Any] = {}
     # SD-SAC's behavior entropy is part of its learning target, rather than
     # episode diagnostics that can be discarded to keep replay compact.
@@ -248,6 +256,14 @@ def replay_info_for_transition(info: Mapping[str, Any]) -> dict[str, Any]:
         replay_info["is_demo"] = bool(info["is_demo"])
     if "sampling/projected_lap_time_s" in info:
         replay_info["sampling/projected_lap_time_s"] = float(info["sampling/projected_lap_time_s"])
+    extend = getattr(pipeline, "replay_info", None)
+    if callable(extend):
+        extra = extend(info)
+        if not isinstance(extra, Mapping):
+            raise TypeError("pipeline replay_info must return a mapping")
+        if replay_info.keys() & extra.keys():
+            raise ValueError("pipeline replay_info cannot replace standard replay fields")
+        replay_info.update(snapshot_value(extra))
     return replay_info
 
 
@@ -320,14 +336,35 @@ def _remember_wakeup(coordinator: Coordinator, wake: tuple[int, float]) -> None:
 
 
 def _drain_journal_rows(coordinator: Coordinator, limit: int) -> None:
+    if _strict_learner_has_work(coordinator):
+        return
     frontier = coordinator.counters.journal_applied_frontier
     rows = coordinator._journal_rows(frontier, "drain")
     for applied, (row_id, payload) in enumerate(rows, start=1):
         value = coordinator._decode_journal_payload(payload, "drain_decode")
         materialized = _materialized_ingest(coordinator, row_id, value)
         coordinator._ingest(materialized, row_id)
-        if applied >= limit:
+        if applied >= limit or _strict_learner_has_work(coordinator):
             return
+
+
+def _strict_learner_has_work(coordinator: Coordinator) -> bool:
+    """Keep a burst of durable rollouts from starving already owed updates.
+
+    Wakeups are still drained before this check, so submitters can finish and
+    heartbeats stay live. Rows remain in the WAL until credit is consumed;
+    neither accepted transitions nor update credit are discarded.
+    """
+    if coordinator.run.spec.distributed.strict_update_budget is not True:
+        return False
+    if coordinator.counters.update_credit < 1 or coordinator._evaluation_stop_reason is not None:
+        return False
+    training = coordinator.run.spec.training
+    ready = max(
+        training.warmup_transitions,
+        training.batch_size * training.sequence_length + training.n_step - 1,
+    )
+    return len(coordinator.run.replay_store) >= ready and coordinator._can_update()
 
 
 def _materialized_ingest(

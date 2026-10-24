@@ -134,10 +134,10 @@ def _materialized_transition(context: _StoredHorizon, result: _StoredReturn) -> 
     assert store._actions is not None
     final_slot = result.final_id % store.capacity
     return Transition(
-        observation=tree_snapshot(store._observations.read(context.first_slot)),
-        action=tree_snapshot(store._actions.read(context.first_slot)),
+        observation=store._observations.read_owned(context.first_slot),
+        action=store._actions.read_owned(context.first_slot),
         reward=result.reward,
-        next_observation=tree_snapshot(store._next_observation(result.final_id, final_slot)),
+        next_observation=_owned_next_observation(store, result.final_id, final_slot),
         terminated=result.terminated,
         truncated=result.truncated,
         info=store._info.get(context.transition_id, {}),
@@ -165,10 +165,26 @@ def _transition(store: InMemoryReplayStore, transition_id: TransitionId) -> Tran
     )
 
 
+def _owned_next_observation(
+    store: InMemoryReplayStore, transition_id: TransitionId, slot: int
+) -> Any:
+    assert store._observations is not None
+    if transition_id in store._next_overrides:
+        return tree_snapshot(_next_observation(store, transition_id, slot))
+    next_id = int(store._next_ids[slot])
+    if not store.contains(next_id):
+        raise RuntimeError(f"Transition {transition_id} has no next observation")
+    return store._observations.read_owned(next_id % store.capacity)
+
+
 def _next_observation(store: InMemoryReplayStore, transition_id: TransitionId, slot: int) -> Any:
     assert store._observations is not None
-    next_observation = store._next_overrides.get(transition_id)
-    if next_observation is not None:
+    if transition_id in store._next_overrides:
+        next_observation = store._next_overrides[transition_id]
+        if next_observation is None and not bool(store._terminated[slot]):
+            raise RuntimeError(
+                f"Transition {transition_id} requires a nonterminal next observation"
+            )
         return next_observation
     next_id = int(store._next_ids[slot])
     if not store.contains(next_id):

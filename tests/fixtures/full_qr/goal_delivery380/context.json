@@ -1,0 +1,38 @@
+{
+  "pid": 462,
+  "meta": {
+    "participant": 105666891024224,
+    "vehicle": 105666890466280,
+    "sim": 105666881321344,
+    "controller": 105666849240336,
+    "module_slide": 105666637672448
+  },
+  "files": [
+    {
+      "name": "facts.bin",
+      "bytes": 1536,
+      "sha256": "41009ac7e576ca5527762c5c0882ac810cc69e49de785bc713f270588432c106"
+    },
+    {
+      "name": "initial.bin",
+      "bytes": 96,
+      "sha256": "7f969ae051c7152b6ba8341f7434e582422aefbe34b9f02a7b414470cdb64248"
+    },
+    {
+      "name": "pending.bin",
+      "bytes": 96,
+      "sha256": "b4dcb8074f2331914ca07c7b76fdf9ee89fb7db685446ea5b88d9f21224d5b35"
+    },
+    {
+      "name": "active.bin",
+      "bytes": 96,
+      "sha256": "3d0c973704a77647d01584f76a48cf7d7db997da465d91c0b38ec4e08977db3c"
+    },
+    {
+      "name": "receipts.bin",
+      "bytes": 329952,
+      "sha256": "383480ab6e1ca4c37e5adb44aea0a5aa65a8b174b8793e2e6defcda56d8f72a3"
+    }
+  ],
+  "scope": "Literal new380 fullV8 fullV6 measured-adherence nativeGoal, current map entry and writer pairs. NativeGoal only; no clientUIequivalence or vendorvalidationacceptance."
+}

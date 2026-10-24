@@ -1,0 +1,8 @@
+[meta]
+name = "Headless Input Profile 004"
+author = "AITrackmania"
+category = "Utilities"
+version = "0.0.4"
+
+[script]
+dependencies = []

@@ -1,0 +1,139 @@
+{
+  "scope": "Actual original pinned native leaf getters executed on owned copies of all real414 visual observations. No synthetic physical fields, live memory writes or arithmetic grids.",
+  "pid": 424,
+  "context": {
+    "pid": 424,
+    "tid": 424,
+    "module_base": 109551836729344,
+    "vehicle": 109552290672984,
+    "participant": 109552291231024,
+    "sim": 109552281528080,
+    "controller": 109552249448352,
+    "normalization_owner": 109552265707616,
+    "normalization_header": "38ed1708a3630000105da1589c7b00000200000000000000d0f8e11fa3630000",
+    "normalization_thresholds": "6666e642ccccac41ccccac4100001043",
+    "wheel_models": [
+      109552265701408,
+      109552265701452,
+      109552265701496,
+      109552265701540
+    ],
+    "wheel_headers": [
+      "0100000001000000355eba3e355e3a3e",
+      "0100000001000000355eba3e355e3a3e",
+      "0100000000000000355eba3e355e3a3e",
+      "0100000000000000355eba3e355e3a3e"
+    ]
+  },
+  "records": 15002,
+  "native_original_calls": 60008,
+  "material_counts": {
+    "80": 18,
+    "16": 32031,
+    "9": 27959
+  },
+  "distinct_material_tuples": 7,
+  "selected_literal_captures": [
+    {
+      "name": "capture-00.bin",
+      "sha256": "b965b4e2741955a440b24b1de33987d084aa8bc08be8488beecab5fb7c893e3d",
+      "native_t": 2190,
+      "original_getter_results": [
+        80,
+        80,
+        80,
+        80
+      ]
+    },
+    {
+      "name": "capture-01.bin",
+      "sha256": "2c280fe17052d6a3fbdfb66612ee5c23d66ee5d26c5da2fab3a7b4ade0e5607e",
+      "native_t": 2200,
+      "original_getter_results": [
+        16,
+        16,
+        16,
+        16
+      ]
+    },
+    {
+      "name": "capture-02.bin",
+      "sha256": "caab7e1e3d473acaea2dcfd20b1705f0f3b38c2106bd8a9063467d574fc4e93f",
+      "native_t": 3770,
+      "original_getter_results": [
+        9,
+        9,
+        16,
+        16
+      ]
+    },
+    {
+      "name": "capture-03.bin",
+      "sha256": "8d33b51da01d560075d8d3ddbd1feea09b09f0df718f2a382889a020a74747a4",
+      "native_t": 3800,
+      "original_getter_results": [
+        16,
+        16,
+        80,
+        80
+      ]
+    },
+    {
+      "name": "capture-04.bin",
+      "sha256": "6ffecc255b4bf24093c3f4596f5faed5d4b9ec8c4f94f91621ec2af2e76af231",
+      "native_t": 3810,
+      "original_getter_results": [
+        9,
+        16,
+        80,
+        80
+      ]
+    },
+    {
+      "name": "capture-05.bin",
+      "sha256": "592be2e433cc2758704fe7ea9b60a0f20ddc89245c7d2fa56191cf6b9f4e4fa2",
+      "native_t": 3870,
+      "original_getter_results": [
+        9,
+        16,
+        16,
+        16
+      ]
+    },
+    {
+      "name": "capture-06.bin",
+      "sha256": "d0aa83540551a8bb357d8cc3f597f94aa5c94a8739387564a076f355fadc99ce",
+      "native_t": 5060,
+      "original_getter_results": [
+        16,
+        9,
+        16,
+        16
+      ]
+    }
+  ],
+  "original_getter_signatures": [
+    {
+      "rva": "0x9de9e0",
+      "bytes": 35,
+      "sha256": "13ad92132b8f65eb4ec2f6af70a4fa23898306e36d716a19d45d49727fd68a9c"
+    },
+    {
+      "rva": "0x9dea10",
+      "bytes": 35,
+      "sha256": "9606246d969282c679d5f8632e7705c6992778c12b36b6abf256acacb0f53830"
+    },
+    {
+      "rva": "0x9dea40",
+      "bytes": 35,
+      "sha256": "1899ca48ee328edb8d52260da56d86a26d18cac3eaab3a8c438140004d663a8f"
+    },
+    {
+      "rva": "0x9dea70",
+      "bytes": 35,
+      "sha256": "803e1b9f19f408e08b2749457132af69edfd72eed6045b099794ac8cfa2e58ef"
+    }
+  ],
+  "owned_executable_memory_released": true,
+  "training_started": false
+}

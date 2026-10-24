@@ -25,6 +25,21 @@ def pytest_configure() -> None:
     (Path(__file__).resolve().parents[1] / ".pytest-cache").mkdir(exist_ok=True)
 
 
+@pytest.fixture
+def symlink_support(tmp_path: Path) -> None:
+    """Skip link-dependent cases only when this Windows account lacks the capability."""
+    target = tmp_path / "symlink-capability-target"
+    target.mkdir()
+    try:
+        (tmp_path / "symlink-capability-link").symlink_to(target, target_is_directory=True)
+    except NotImplementedError:
+        pytest.skip("this filesystem cannot create symbolic links")
+    except OSError as error:
+        if getattr(error, "winerror", None) == 1314:
+            pytest.skip("Windows symbolic links require Developer Mode or an elevated test account")
+        raise
+
+
 def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
     """Label the small, release-blocking regression suite kept in the default run."""
     for item in items:

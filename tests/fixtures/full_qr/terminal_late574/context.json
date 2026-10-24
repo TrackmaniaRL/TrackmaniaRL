@@ -1,0 +1,86 @@
+{
+  "pid": 5826,
+  "meta": {
+    "clock_locator_calls": 0,
+    "clock_source": "NativeSimClock = exact sim+0x48; not old Gclock or race time",
+    "controller": 110850302056720,
+    "descriptor_getter": 110849442417008,
+    "getid": 110849442423184,
+    "getter_instruction_proofs": [
+      {
+        "bytesHex": "554889e5b80080002d5dc3cccccccccc",
+        "rva": 18993552
+      },
+      {
+        "bytesHex": "554889e5488b05dd05b8005dc3cccccc",
+        "rva": 18987376
+      }
+    ],
+    "host_data_memory_writes": false,
+    "input_base": 110850343904468,
+    "input_count": 16152,
+    "late_fallback": false,
+    "module_slide": 110849423429632,
+    "native_sim_clock": 2020,
+    "native_sim_clock_address": 110850334131912,
+    "normalstart_reset_verified": false,
+    "parent_pid": 5823,
+    "participant": 110850343838736,
+    "participant_vptr": 110849453001016,
+    "physical_address": 110850343286024,
+    "players": 110850323575952,
+    "playground": 110850340473136,
+    "probe_calls": 0,
+    "qnorm": 1.0,
+    "qualify_calls": 0,
+    "ready_lroundf": 1001,
+    "requested_lroundf_checkpoint": 1000,
+    "same_owned_chain_clock_physical_two_reads": true,
+    "sampler": "NativeSimState52: u64hook/u32NativeSimClock/physical40",
+    "schema": "tmre.early-owned-bootstrap/v2",
+    "segments": [
+      [
+        110850334131912,
+        4
+      ],
+      [
+        110850343286024,
+        40
+      ]
+    ],
+    "server_pid": 5826,
+    "shim_action_capability": true,
+    "sim": 110850334131840,
+    "snapshot_scope": "partial readonly 44B clock/physical; NOT full snapshot/endtick/reset",
+    "start_offset_ms": -1510,
+    "state_f32": [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      496.0,
+      10.0,
+      624.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "stdout_start": 0,
+    "vehicle": 110850343281192
+  },
+  "previous_native_t": 54950,
+  "last_held_native_t": 54990,
+  "actual_collector_native_t": 55000,
+  "committed_score_native_t": 55007,
+  "goal_callback_native_t": 54990,
+  "goal_dispatch_native_t": 55000,
+  "source_archive": "F:\\AITrackmania\\reports\\headless-full-qr-20261022-r11\\pilot-full-qr564\\native-traces\\full-qr-4ec67f190a064e86a96711ba80bc9ad3\\session-00000132.tar.gz",
+  "source_archive_sha256": "8f5e23a5d3daeb473dd1aa83e089823e8c28727a0d01e63a4b14b417d28b137a",
+  "files": {
+    "adherence.bin": "b1898d13ebb9945237f79ef27b5eefa9d9355796a547ed37e2356124fe926ee3",
+    "goal-receipt.bin": "4dea5f91b2eaca0fc6d989ed68e8efccd3a69fdabe505156294ea513d03ee99f",
+    "goals.bin": "413a6183f205f95aec8628204f8bba3f5a19a3ca57f80b902186d30ba6979c0b",
+    "result.bin": "6e60d1811002c851458990a0561456c2503c472f5f4ec69c3ea3aa40ae9e84a4",
+    "vehicle.bin": "b81d5dee77530adf49b20e915d60368a9149d336e795606744ebd23d1d7a36d3"
+  }
+}

@@ -138,7 +138,9 @@ def _checkpoint_safe_globals() -> list[Any]:
 
     reconstruct = cast(Any, numpy)._core.multiarray._reconstruct
     dtype_classes = [value for value in vars(numpy.dtypes).values() if isinstance(value, type)]
-    return [bytes, reconstruct, numpy.ndarray, numpy.dtype, *dtype_classes]
+    from trackmaniarl.core.checkpoint_pickle import restore_numpy_array
+
+    return [bytes, reconstruct, numpy.ndarray, numpy.dtype, restore_numpy_array, *dtype_classes]
 
 
 def _load_torch_checkpoint(path: Path) -> Mapping[str, Any]:
@@ -157,13 +159,15 @@ def _write_zstd_checkpoint(state: Mapping[str, Any], temporary: Path) -> None:
     import torch
     import zstandard
 
+    from trackmaniarl.core import checkpoint_pickle
+
     with temporary.open("wb") as destination:
         with zstandard.ZstdCompressor(level=3).stream_writer(
             destination, closefd=False
         ) as compressed:
             # The weights-only unpickler cannot parse pickle protocol >= 4;
             # torch's default protocol keeps checkpoints loadable safely.
-            torch.save(dict(state), compressed)
+            torch.save(dict(state), compressed, pickle_module=checkpoint_pickle)
         destination.flush()
         os.fsync(destination.fileno())
 

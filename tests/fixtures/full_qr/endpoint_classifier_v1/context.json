@@ -1,0 +1,84 @@
+{
+  "schema": "tmrl.actual-classifier-fixture/v1",
+  "pid": 373,
+  "birth": 12967,
+  "meta": {
+    "clock_locator_calls": 0,
+    "clock_source": "NativeSimClock = exact sim+0x48; not old Gclock or race time",
+    "controller": 106923193325584,
+    "descriptor_getter": 106922780850544,
+    "getid": 106922780856720,
+    "getter_instruction_proofs": [
+      {
+        "bytesHex": "554889e5b80080002d5dc3cccccccccc",
+        "rva": 18993552
+      },
+      {
+        "bytesHex": "554889e5488b05dd05b8005dc3cccccc",
+        "rva": 18987376
+      }
+    ],
+    "host_data_memory_writes": false,
+    "input_base": 106923235174132,
+    "input_count": 16152,
+    "late_fallback": false,
+    "module_slide": 106922761863168,
+    "native_sim_clock": 2020,
+    "native_sim_clock_address": 106923225384584,
+    "normalstart_reset_verified": false,
+    "parent_pid": 371,
+    "participant": 106923235108400,
+    "participant_vptr": 106922791434552,
+    "physical_address": 106923234555640,
+    "players": 106923214844848,
+    "playground": 106923231742752,
+    "probe_calls": 0,
+    "qnorm": 1.0,
+    "qualify_calls": 0,
+    "ready_lroundf": 1001,
+    "requested_lroundf_checkpoint": 1000,
+    "same_owned_chain_clock_physical_two_reads": true,
+    "sampler": "NativeSimState52: u64hook/u32NativeSimClock/physical40",
+    "schema": "tmre.early-owned-bootstrap/v2",
+    "segments": [
+      [
+        106923225384584,
+        4
+      ],
+      [
+        106923234555640,
+        40
+      ]
+    ],
+    "server_pid": 373,
+    "shim_action_capability": true,
+    "sim": 106923225384512,
+    "snapshot_scope": "partial readonly 44B clock/physical; NOT full snapshot/endtick/reset",
+    "start_offset_ms": -1510,
+    "state_f32": [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      496.0,
+      10.0,
+      624.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "stdout_start": 0,
+    "vehicle": 106923234550808
+  },
+  "files": [
+    {
+      "name": "classifier.bin",
+      "sha256": "27e2c5eee6757458c695b6cf14e0e6b785375b9b4a9c6d5171231b0255cef674"
+    },
+    {
+      "name": "writer.bin",
+      "sha256": "db68568a6821c806a81726a3a5013cd1a130536ad067fe80ed476ff31863ed39"
+    }
+  ],
+  "scope": "Actual native classifier execution at configured Goal. Offline decoder regression only; not client UI parity or live training authority."
+}

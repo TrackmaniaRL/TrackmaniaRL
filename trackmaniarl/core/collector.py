@@ -10,6 +10,7 @@ from typing import Any, Protocol
 from trackmaniarl.core.collection_timing import defer_rollout_gc
 from trackmaniarl.core.contracts import FeaturePipeline, Policy, ReplayStore
 from trackmaniarl.core.data import EpisodeArtifact, Transition
+from trackmaniarl.core.observation_endpoints import prepare_bootstrap_observation
 
 
 class Environment(Protocol):
@@ -128,7 +129,9 @@ class EpisodeCollector:
         action, policy_info, latency_ms = self._timed_act(prepared)
         outcome = self._episode_outcome(context, action)
         next_observation, reward, terminated, truncated, info = outcome
-        next_prepared = self.pipeline.transform_observation(next_observation)
+        next_prepared = prepare_bootstrap_observation(
+            self.pipeline, next_observation, flags=(terminated, truncated)
+        )
         transition = self._transition(
             _EpisodeTransition(
                 context,
@@ -146,11 +149,14 @@ class EpisodeCollector:
         action, policy_info = self._act(observation)
         return action, policy_info, (perf_counter() - started) * 1000.0
 
-    @staticmethod
-    def _episode_outcome(context: _EpisodeStep, action: Any) -> tuple[Any, ...]:
+    def _episode_outcome(self, context: _EpisodeStep, action: Any) -> tuple[Any, ...]:
         next_observation, reward, terminated, truncated, info = context.environment.step(action)
         reached_limit = context.step + 1 == context.max_steps
         if reached_limit and not terminated and not truncated:
+            if getattr(self.pipeline, "requires_environment_endpoint", False) is True:
+                raise ValueError(
+                    "environment endpoint required; collector limit is not a transition"
+                )
             return (
                 next_observation,
                 reward,
@@ -228,6 +234,10 @@ class FixedStepRolloutCollector:
     def __init__(
         self, store: ReplayStore, pipeline: FeaturePipeline, config: RolloutCollectionConfig
     ) -> None:
+        if getattr(pipeline, "requires_environment_endpoint", False) is True:
+            raise ValueError(
+                "native endpoint pipeline requires episode collection and ragged replay"
+            )
         self.store = store
         self.pipeline = pipeline
         self.policy = config.policy
@@ -331,7 +341,9 @@ class FixedStepRolloutCollector:
                 False, True, {**end_state.info, "termination_reason": "rollout_boundary"}
             )
         truncated, info = end_state.truncated, end_state.info
-        next_prepared = self.pipeline.transform_observation(next_observation)
+        next_prepared = prepare_bootstrap_observation(
+            self.pipeline, next_observation, flags=(terminated, truncated)
+        )
         transition = self._rollout_transition(
             action, next_prepared, (reward, terminated, truncated, info, policy_info)
         )

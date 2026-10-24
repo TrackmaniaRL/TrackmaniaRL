@@ -139,7 +139,17 @@ include = ["trackmaniarl*"]
 exclude = ["tests*"]
 
 [tool.setuptools.package-data]
-trackmaniarl = ["py.typed", "project/openplanet/*.as", "project/openplanet/*.toml"]
+trackmaniarl = ["py.typed", "project/openplanet/*.as", "project/openplanet/*.toml",
+               "project/openplanet/Headless*/*.as", "project/openplanet/Headless*/*.toml",
+               "project/openplanet/Headless*/README.md",
+               "trackmania/native_headless/_runtime/portable_profile.json",
+               "trackmania/native_headless/_runtime/immediate_profile.json",
+               "trackmania/native_headless/_runtime/native_input_v7/*.json",
+               "trackmania/native_headless/_runtime/native_input_v7/*.patch",
+               "trackmania/native_headless/_runtime/native_input_v7/README.md"]
+
+[tool.setuptools.exclude-package-data]
+trackmaniarl = ["trackmania/native_headless/_runtime/native_input_v7/build-receipt.json"]
 
 [tool.ruff]
 target-version = "py312"

@@ -128,21 +128,25 @@ class ActorRuntime:
         )
 
     def run_forever(self) -> None:
-        senders: list[threading.Thread] = []
+        workers: list[threading.Thread] = []
         try:
             pipeline, environment_factory = self._components()
             initial = self._register()
             self._initialize_policy(initial)
-            senders = actor_background.start_background_workers(self)
+            workers = actor_background.start_background_workers(self)
             environment = environment_factory.create(seed=self._actor_seed())
             self._collect_environment(environment, pipeline)
             self._raise_background_failure()
         finally:
             self.stop.set()
             try:
-                self._join_senders(senders)
+                self._join_senders(workers)
             finally:
-                self.client.close()
+                try:
+                    # End pending RPCs after the bounded spool-drain grace.
+                    self.client.close()
+                finally:
+                    self._join_workers(workers)
                 logger.info("Actor %s stopped: %s", self.actor_id, self.stop_reason)
 
     def _initialize_policy(self, initial: Mapping[str, Any]) -> None:
@@ -177,6 +181,16 @@ class ActorRuntime:
         deadline = monotonic() + 10.0
         for sender in senders:
             sender.join(timeout=max(0.0, deadline - monotonic()))
+
+    @staticmethod
+    def _join_workers(workers: list[threading.Thread]) -> None:
+        """Never report a stopped actor while an owned Torch worker is alive."""
+        deadline = monotonic() + 10.0
+        for worker in workers:
+            worker.join(timeout=max(0.0, deadline - monotonic()))
+        remaining = [worker.name for worker in workers if worker.is_alive()]
+        if remaining:
+            raise RuntimeError(f"actor background workers did not stop: {remaining}")
 
     def _components(self) -> tuple[Any, Any]:
         _configure_actor_threads(self.spec.distributed.actor_execution)

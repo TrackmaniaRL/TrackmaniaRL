@@ -1,0 +1,198 @@
+{
+  "context": {
+    "pid": 401,
+    "birth": 15599,
+    "module_base": 103260225339392,
+    "vehicle": 103260985386008,
+    "physical_state": 103260980318576,
+    "tracer_tid": 402,
+    "normalization_owner": 103260960419792,
+    "normalization_header": "38ddd426ea5d0000105dc133eb760000020000000000000040a8dd50ea5d0000",
+    "normalization_thresholds": "6666e642ccccac41ccccac4100001043",
+    "wheel_models": [
+      103260960413584,
+      103260960413628,
+      103260960413672,
+      103260960413716
+    ]
+  },
+  "sha256": "b569fe64ebc707d7ae501bfc224728d1df34e77caee2ef0c594d7806f91d9c76",
+  "expected": [
+    {
+      "sequence": 1,
+      "native_time": 26800,
+      "event_time": 26810,
+      "wheel_index": 1,
+      "wheel_category": 1,
+      "material": 16,
+      "normal": [
+        0.04322557523846626,
+        0.9990634322166443,
+        0.0019706629682332277
+      ],
+      "point": [
+        -0.8669611215591431,
+        -0.014746800065040588,
+        1.7813466787338257
+      ],
+      "contact_velocity": [
+        0.8046989440917969,
+        -0.2582348585128784,
+        85.74116516113281
+      ],
+      "normalization_thresholds": [
+        115.19999694824219,
+        21.599998474121094,
+        21.599998474121094,
+        144.0
+      ]
+    },
+    {
+      "sequence": 2,
+      "native_time": 26800,
+      "event_time": 26810,
+      "wheel_index": 0,
+      "wheel_category": 1,
+      "material": 16,
+      "normal": [
+        0.04322582483291626,
+        0.9990634322166443,
+        0.0019699910189956427
+      ],
+      "point": [
+        0.8590689897537231,
+        -0.08467309176921844,
+        1.7813714742660522
+      ],
+      "contact_velocity": [
+        0.804962158203125,
+        -0.22766649723052979,
+        84.73855590820312
+      ],
+      "normalization_thresholds": [
+        115.19999694824219,
+        21.599998474121094,
+        21.599998474121094,
+        144.0
+      ]
+    },
+    {
+      "sequence": 3,
+      "native_time": 26800,
+      "event_time": 26810,
+      "wheel_index": 2,
+      "wheel_category": 0,
+      "material": 16,
+      "normal": [
+        0.04322588071227074,
+        0.9990634322166443,
+        0.0019700778648257256
+      ],
+      "point": [
+        -0.8889359831809998,
+        -0.014747723937034607,
+        -1.2062360048294067
+      ],
+      "contact_velocity": [
+        -0.9309425354003906,
+        -0.20888614654541016,
+        85.75465393066406
+      ],
+      "normalization_thresholds": [
+        115.19999694824219,
+        21.599998474121094,
+        21.599998474121094,
+        144.0
+      ]
+    },
+    {
+      "sequence": 4,
+      "native_time": 26800,
+      "event_time": 26810,
+      "wheel_index": 3,
+      "wheel_category": 0,
+      "material": 16,
+      "normal": [
+        0.043225549161434174,
+        0.9990634322166443,
+        0.0019707640167325735
+      ],
+      "point": [
+        0.8810593485832214,
+        -0.07989994436502457,
+        -1.2062169313430786
+      ],
+      "contact_velocity": [
+        -0.9312973022460938,
+        -0.17957961559295654,
+        84.72483825683594
+      ],
+      "normalization_thresholds": [
+        115.19999694824219,
+        21.599998474121094,
+        21.599998474121094,
+        144.0
+      ]
+    },
+    {
+      "sequence": 817,
+      "native_time": 27460,
+      "event_time": 27477,
+      "wheel_index": 1,
+      "wheel_category": 1,
+      "material": 9,
+      "normal": [
+        0.4904789924621582,
+        0.02118712291121483,
+        -0.8711954355239868
+      ],
+      "point": [
+        -0.9123207926750183,
+        0.2769327759742737,
+        2.1323585510253906
+      ],
+      "contact_velocity": [
+        -1.1596527099609375,
+        -0.5147138833999634,
+        88.64322662353516
+      ],
+      "normalization_thresholds": [
+        115.19999694824219,
+        21.599998474121094,
+        21.599998474121094,
+        144.0
+      ]
+    },
+    {
+      "sequence": 822,
+      "native_time": 27470,
+      "event_time": 27480,
+      "wheel_index": -1,
+      "wheel_category": null,
+      "material": 9,
+      "normal": [
+        0.47036466002464294,
+        0.018246717751026154,
+        -0.8822835683822632
+      ],
+      "point": [
+        -0.7233628034591675,
+        0.36056047677993774,
+        1.9934757947921753
+      ],
+      "contact_velocity": [
+        5.793708801269531,
+        -1.1239315271377563,
+        75.2933349609375
+      ],
+      "normalization_thresholds": [
+        115.19999694824219,
+        21.599998474121094,
+        21.599998474121094,
+        144.0
+      ]
+    }
+  ],
+  "source": "Actual native delivery stub9ce390/calleraacc92, impact-policy142 with independent bound vehicle/wheel/owner and external tracer identity",
+  "scope": "Prepared arguments only; R9 is scratch and is NOT contact flags; no physical notification source qualification"
+}

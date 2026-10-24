@@ -1,0 +1,81 @@
+{
+  "pid": 4649,
+  "meta": {
+    "clock_locator_calls": 0,
+    "clock_source": "NativeSimClock = exact sim+0x48; not old Gclock or race time",
+    "controller": 94404943767888,
+    "descriptor_getter": 94404141201776,
+    "getid": 94404141207952,
+    "getter_instruction_proofs": [
+      {
+        "bytesHex": "554889e5b80080002d5dc3cccccccccc",
+        "rva": 18993552
+      },
+      {
+        "bytesHex": "554889e5488b05dd05b8005dc3cccccc",
+        "rva": 18987376
+      }
+    ],
+    "host_data_memory_writes": false,
+    "input_base": 94404985616932,
+    "input_count": 16152,
+    "late_fallback": false,
+    "module_slide": 94404122214400,
+    "native_sim_clock": 2020,
+    "native_sim_clock_address": 94404975848024,
+    "normalstart_reset_verified": false,
+    "parent_pid": 4646,
+    "participant": 94404985550896,
+    "participant_vptr": 94404151785784,
+    "physical_address": 94404984997688,
+    "players": 94404965288080,
+    "playground": 94404982184800,
+    "probe_calls": 0,
+    "qnorm": 1.0,
+    "qualify_calls": 0,
+    "ready_lroundf": 1001,
+    "requested_lroundf_checkpoint": 1000,
+    "same_owned_chain_clock_physical_two_reads": true,
+    "sampler": "NativeSimState52: u64hook/u32NativeSimClock/physical40",
+    "schema": "tmre.early-owned-bootstrap/v2",
+    "segments": [
+      [
+        94404975848024,
+        4
+      ],
+      [
+        94404984997688,
+        40
+      ]
+    ],
+    "server_pid": 4649,
+    "shim_action_capability": true,
+    "sim": 94404975847952,
+    "snapshot_scope": "partial readonly 44B clock/physical; NOT full snapshot/endtick/reset",
+    "start_offset_ms": -1510,
+    "state_f32": [
+      1.0,
+      0.0,
+      0.0,
+      0.0,
+      496.0,
+      10.0,
+      624.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "stdout_start": 0,
+    "vehicle": 94404984992856
+  },
+  "previous_native_t": 54950,
+  "held_native_t": 54990,
+  "source_archive": "F:\\AITrackmania\\reports\\headless-full-qr-20261022-r11\\pilot-full-qr547\\native-traces\\full-qr-9170ce32996741bba3fc1a62a180c242\\session-00000125.tar.gz",
+  "source_archive_sha256": "c170374b3dc9848cbf4bba41cc45fa29796497ba51ccaaa316b65933b842ae07",
+  "files": {
+    "goal-receipt.bin": "6a712d8830328ca7f771effc86d21f1cd860a3441c0c59d35778c3eac341e8ff",
+    "goals.bin": "4933065b377324f1b992bae049de4ca42f7462716bcf2231cca6b4a671ffd92b",
+    "vehicle.bin": "4cf2746093ecb342f5db409cc16ec8705eccca3cf50893d1fec13f5a881799d8",
+    "adherence.bin": "311aa9e07dc2e4c325f9a17b29a53565752deb90f31248f44a702c9f03f3c531"
+  }
+}

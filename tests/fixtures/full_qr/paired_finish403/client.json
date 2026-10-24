@@ -1,0 +1,56 @@
+{
+  "status": "PASS_ACTUAL_FULL_V6_REFERENCE_UI_FINISH",
+  "training_started": false,
+  "learner_updates": 0,
+  "owned_controller_closed_under_mutex": true,
+  "actual_finish_snapshot": {
+    "app": 2225030543648,
+    "playground": 2234086410464,
+    "terminal": 2234756513568,
+    "player": 2235557118112,
+    "script_api": 2234452530592,
+    "root_map": 2233175243280,
+    "map_info": 2232286624464,
+    "map_identifier": 1073767819,
+    "resolved_map_identifier": "oqIJ5rQDRrNwLPTh9H2p_W4tLof",
+    "ui_sequence": 11,
+    "ui_change_human_ms": 14168890,
+    "ui_sequence_number": 3
+  },
+  "actual_reset_start_time": 13916500,
+  "ui_timing_observations": [
+    {
+      "host_before_ns": 582530636942800,
+      "host_after_ns": 582530638351800,
+      "game_time_ms": 13916504,
+      "start_time_ms": 13916500,
+      "race_ms": 4,
+      "ui_sequence": 1,
+      "ui_sequence_number": 14,
+      "ui_change_human_ms": 9056277,
+      "player": 2235557118112
+    },
+    {
+      "host_before_ns": 582564901766200,
+      "host_after_ns": 582564902451100,
+      "game_time_ms": 13950768,
+      "start_time_ms": 13916500,
+      "race_ms": 34268,
+      "ui_sequence": 1,
+      "ui_sequence_number": 14,
+      "ui_change_human_ms": 9056277,
+      "player": 2235557118112
+    },
+    {
+      "host_before_ns": 582564902966800,
+      "host_after_ns": 582564903504900,
+      "game_time_ms": 13950768,
+      "start_time_ms": 13916500,
+      "race_ms": 34268,
+      "ui_sequence": 11,
+      "ui_sequence_number": 3,
+      "ui_change_human_ms": 14168890,
+      "player": 2235557118112
+    }
+  ]
+}

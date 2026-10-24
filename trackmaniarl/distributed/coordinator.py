@@ -66,6 +66,7 @@ class Coordinator:
 
     def _initialize_transport(self) -> None:
         self._lock = RLock()
+        self._submission_decode_lock = RLock()
         self._policy_payload = b""
         self._last_policy_publish = 0.0
         self._last_policy_update = -1

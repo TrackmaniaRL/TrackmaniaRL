@@ -15,6 +15,7 @@ import trackmaniarl.distributed.actor_watchdog as actor_watchdog
 from trackmaniarl.core.contracts import PolicyMode, ReplicablePolicy
 from trackmaniarl.core.data import Transition
 from trackmaniarl.core.environment_errors import EnvironmentPausedError
+from trackmaniarl.core.observation_endpoints import prepare_bootstrap_observation
 from trackmaniarl.core.pytree import tree_map
 from trackmaniarl.distributed.actor_errors import ActorEnvironmentError
 from trackmaniarl.distributed.actor_metrics import EpisodeMetrics, summarize_episode
@@ -184,6 +185,13 @@ def _take_training_step(
     next_observation, reward, terminated, truncated, info = _step_environment(context, action)
     environment_s = monotonic() - started
     final_step = step_index == context.runtime.spec.training.max_episode_steps - 1
+    if (
+        final_step
+        and not terminated
+        and not truncated
+        and getattr(context.pipeline, "requires_environment_endpoint", False) is True
+    ):
+        raise ActorEnvironmentError("environment endpoint required before actor step limit")
     return PolicyStep(
         step_index,
         action,
@@ -223,7 +231,9 @@ def _record_training_step(
     metrics.record_diagnostics(step.action, state.policy, step.info, policy_info=step.policy_info)
     metrics.record_phase("diagnostics", monotonic() - started)
     started = monotonic()
-    next_prepared = context.pipeline.transform_observation(step.next_observation)
+    next_prepared = prepare_bootstrap_observation(
+        context.pipeline, step.next_observation, flags=(step.terminated, step.truncated)
+    )
     metrics.record_phase("preprocessing", monotonic() - started)
     started = monotonic()
     context.buffers.transitions.append(_transition(state, step, next_prepared))
