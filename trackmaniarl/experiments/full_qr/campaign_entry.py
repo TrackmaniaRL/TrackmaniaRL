@@ -24,6 +24,7 @@ from trackmaniarl.experiments.full_qr.campaign_worker import (
 )
 from trackmaniarl.trackmania.native_headless._runtime.posix_api import linux_os
 
+
 def load_worker_request(path: Path, sha256: str) -> WorkerSettings:
     if sys.platform != "linux":
         raise RuntimeError("full headless campaign workers require Linux")
