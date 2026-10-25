@@ -251,6 +251,7 @@ def test_fifo_receipt_without_writer_is_rejected_without_blocking(tmp_path: Path
     wrapper.write_text(
         "import signal, sys\n"
         "from pathlib import Path\n"
+        f"sys.path.insert(0, {str(Path(__file__).resolve().parents[3])!r})\n"
         "from trackmaniarl.trackmania.native_headless._runtime.supervisor "
         "import SupervisedProcess\n"
         "proc = SupervisedProcess.__new__(SupervisedProcess)\n"

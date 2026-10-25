@@ -331,7 +331,11 @@ def test_failed_round_preserves_raw_success_and_never_admits_peer_rows(
     saved = torch.load(opts.output / "latest.pt", weights_only=False)
     assert saved["budget"]["transitions"] == 0
     assert saved["completed_rounds"] == 0
-    assert next((opts.output / "native").rglob("raw-*.jsonl")).stat().st_size > 0
+    success = next(row for row in factory.instances[0].cleanup if row["actor_id"] == 0)
+    raw_success = Path(success["trace_dir"]) / "raw-1.jsonl"
+    raw_rows = [json.loads(line) for line in raw_success.read_text().splitlines()]
+    assert len(raw_rows) == 1
+    assert raw_rows[0]["actualIterations"] == opts.native_iterations
     assert factory.instances[0].closed
     if failure == "peer":
         assert result["pool_failure_evidence"]["accepted_rows"] == 0
