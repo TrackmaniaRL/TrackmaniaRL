@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from trackmaniarl.trackmania.actions import BRAKE_TAP_DURATION_S, BRAKE_TAP_SENTINEL
+from trackmaniarl.trackmania.reward_info import reward_result_info
 from trackmaniarl.trackmania.reward_types import RewardResult, TransitionInput
 from trackmaniarl.trackmania.telemetry import TelemetryFrame
 
@@ -220,37 +221,5 @@ def _reward_info(environment: OpenPlanetEnvironment, outcome: _RewardedStep) -> 
     return {
         "progress_m": environment.reward.progress_m,
         "progress_pct": environment.reward.progress_pct,
-        **_reward_component_info(outcome.result),
-        **_reward_progress_info(outcome.result),
-    }
-
-
-def _reward_component_info(result: RewardResult) -> dict[str, Any]:
-    return {
-        "reward_time": result.time_reward,
-        "reward_pbrs": result.pbrs_reward,
-        "reward_progress": result.progress_reward,
-        "reward_projected_velocity": result.projected_velocity_reward,
-        "reward_projected_speed": result.projected_speed_reward,
-        "reward_steering_delta": result.steering_delta_reward,
-        "reward_time_attack_terminal": result.time_attack_terminal_reward,
-        "reward_pace": result.pace_reward,
-        "reward_collision": result.collision_reward,
-        "collision": result.collided,
-        "collision_detected": result.collision_detected,
-        "reward_terminal": result.terminal_reward,
-    }
-
-
-def _reward_progress_info(result: RewardResult) -> dict[str, Any]:
-    return {
-        "potential_progress": result.potential_progress,
-        "reference_time_s": result.reference_time_s,
-        "time_debt_s": result.time_debt_s,
-        "nearest_distance_m": result.nearest_distance_m,
-        "accepted_progress_delta_m": result.accepted_progress_delta_m,
-        "window_progress_m": result.window_progress_m,
-        "steps_since_progress": result.steps_since_progress,
-        "projected_velocity_mps": result.projected_velocity_mps,
-        "projected_velocity_ratio": result.projected_velocity_ratio,
+        **reward_result_info(outcome.result),
     }

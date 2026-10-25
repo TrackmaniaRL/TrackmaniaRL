@@ -30,6 +30,7 @@ from trackmaniarl.trackmania.native_headless.full_qr.reward_events import (
 )
 from trackmaniarl.trackmania.native_headless.protocols import NativeLifecycleError
 from trackmaniarl.trackmania.reward_config import RewardConfig
+from trackmaniarl.trackmania.reward_info import reward_result_info
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,8 +198,7 @@ class FullQrEnvironment:
                     "termination_reason": result.reason,
                     "progress_m": self._reward.progress_m,
                     "progress_pct": self._reward.progress_pct,
-                    "collision_detected": result.collision_detected,
-                    "reward_collision": result.collision_reward,
+                    **reward_result_info(result),
                     "control_steer": step.issued_steering,
                 },
             )

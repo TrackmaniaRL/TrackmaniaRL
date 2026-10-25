@@ -5,6 +5,15 @@ rewards and 50 ms/150 s native contract. They are local measurements, not promis
 for other hardware/maps. The learner used CUDA float32 on an RTX 4090; CPU actors
 and the learner used two Torch threads each.
 
+Subsequent PR review found that the per-tick provider restarted brake taps on
+each of the five physical ticks. In these recorded runs, the 26 tap action IDs
+therefore behaved as full-brake actions. The provider now preserves a single
+10 ms pulse per 50 ms decision, but the measurements below predate that fix.
+They remain measurements of the preserved deployment, not qualification or
+performance evidence for the corrected 78-action behavior. The same review
+also fixed omitted reward components and charged-collision counts in actor
+metrics; historical component logs must not be interpreted as measured zeros.
+
 | Measurement | Actors | Useful simulation rate |
 |---|---:|---:|
 | Earlier baseline, two-seed short trials | 2 | about 3.56x real time |

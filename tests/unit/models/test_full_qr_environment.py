@@ -1,8 +1,12 @@
 """Synthetic SDK integration, never native source qualification."""
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 
+from trackmaniarl.distributed.actor_metrics import EpisodeMetrics
+from trackmaniarl.trackmania.diagnostics import ProgressBinDiagnostics
 from trackmaniarl.trackmania.native_headless.full_qr.environment import (
     FullQrEnvironment,
     FullQrEnvironmentSettings,
@@ -42,6 +46,7 @@ class Provider:
         self.foreign = False
         self.eof = False
         self.reuse = False
+        self.finish = False
 
     def reset(self, *, seed: int | None = None) -> FullQrReset:
         if not self.reuse:
@@ -60,7 +65,9 @@ class Provider:
         self.events.record_motor(
             self.identity, sequence=self.clock // 50, race_time_ms=self.clock, large_motor=255
         )
-        self.events.record_ui_boundary(self.identity, race_time_ms=self.clock, finish_active=False)
+        self.events.record_ui_boundary(
+            self.identity, race_time_ms=self.clock, finish_active=self.finish
+        )
         if self.coverage:
             self.events.seal_motor_through(self.identity, self.clock)
         return FullQrStep(frame(self.clock), 0.0)
@@ -106,6 +113,39 @@ def test_sdk_mapping_collision_delivery_and_fresh_reset_history() -> None:
     environment.close()
     environment.close()
     assert provider.closed == 1
+
+
+@pytest.mark.parametrize("finish", [False, True])
+def test_actor_metrics_retain_actual_reward_components_and_collisions(*, finish: bool) -> None:
+    environment, provider, _ = setup()
+    # Let this short synthetic trace exercise the actual Finish reward path.
+    environment.reward_config = replace(
+        environment.reward_config, minimum_finish_steps=1, finish_progress=0.0001
+    )
+    metrics = EpisodeMetrics(ProgressBinDiagnostics(78, bin_count=20))
+    try:
+        environment.reset()
+        provider.finish = finish
+        _, reward, terminated, _, info = environment.step(41)
+        metrics.record_reward(reward, info)
+        components = {
+            key: value
+            for key, value in metrics._reward_totals().items()
+            if key.startswith("reward_")
+        }
+        assert sum(components.values()) == pytest.approx(reward)
+        assert components["reward_time"] < 0
+        assert bool(components["reward_pbrs"]) is (not finish)
+        assert components["reward_progress"] > 0
+        assert components["reward_terminal"] == (30 if finish else 0)
+        assert terminated is finish
+        assert info["collision"] is True
+        assert info["collision_detected"] is True
+        assert metrics.collision_count == metrics.collision_detected_count == 1
+        assert info["accepted_progress_delta_m"] > 0
+        assert info["projected_velocity_mps"] > 0
+    finally:
+        environment.close()
 
 
 @pytest.mark.parametrize("fault", ["coverage", "eof"])

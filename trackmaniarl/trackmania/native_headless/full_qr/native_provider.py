@@ -191,8 +191,11 @@ class NativeFullQrProvider:
             observe = getattr(self.events, "observe_physics", None)
             if stride == 1 and not callable(observe):
                 raise ValueError("per-tick event source must expose its held observation hook")
-            for _ in range(5 // stride):
-                packet = self._session.advance(action, stride)
+            for offset in range(0, 5, stride):
+                # A decision's tap is one pressed tick followed by four released
+                # ticks. Per-tick observation must not restart that pulse.
+                tick_action = action - 2 if offset > 0 and action % 3 == 2 else action
+                packet = self._session.advance(tick_action, stride)
                 if packet["eof"]:
                     final_step = getattr(self.events, "final_step", None)
                     issued = unpack("<f", pack("<f", (action // 6 - 6) / 6))[0]
@@ -223,7 +226,7 @@ class NativeFullQrProvider:
                         issued = unpack("<f", pack("<f", (action // 6 - 6) / 6))[0]
                         return FullQrTerminalStep(frame, issued)
                     raise NativeInconclusiveError(packet)
-                qualify_immediate(packet, self._before, action, stride)
+                qualify_immediate(packet, self._before, tick_action, stride)
                 self._before = physical_state(packet)
                 if stride == 1:
                     assert callable(observe)
