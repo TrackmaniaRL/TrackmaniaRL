@@ -24,9 +24,6 @@ from trackmaniarl.experiments.full_qr.campaign_worker import (
 )
 from trackmaniarl.trackmania.native_headless._runtime.posix_api import linux_os
 
-_PATH_FIELDS = frozenset(("directory", "config_path", "token_path", "stop_path", "artifact_root"))
-
-
 def load_worker_request(path: Path, sha256: str) -> WorkerSettings:
     if sys.platform != "linux":
         raise RuntimeError("full headless campaign workers require Linux")
@@ -67,7 +64,14 @@ def load_worker_request(path: Path, sha256: str) -> WorkerSettings:
     ):
         raise ValueError("exact explicitly typed worker settings fields required")
     settings = WorkerSettings(
-        **{key: Path(value) if key in _PATH_FIELDS else value for key, value in request.items()}
+        directory=Path(request["directory"]),
+        config_path=Path(request["config_path"]),
+        config_sha256=request["config_sha256"],
+        token_path=Path(request["token_path"]),
+        stop_path=Path(request["stop_path"]),
+        endpoint=request["endpoint"],
+        worker_name=request["worker_name"],
+        artifact_root=Path(request["artifact_root"]),
     )
     if settings.directory != path.parent:
         raise ValueError("worker request must belong to its campaign directory")

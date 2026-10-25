@@ -1,0 +1,2 @@
+# Captured fixtures and their SHA pins must retain the committed bytes on every OS.
+/tests/fixtures/** -text
