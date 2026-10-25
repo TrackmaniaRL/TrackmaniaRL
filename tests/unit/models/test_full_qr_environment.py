@@ -1,25 +1,166 @@
 """Synthetic SDK integration, never native source qualification."""
 
 from dataclasses import replace
+from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
+import torch
 
+from tests.unit.experiments.test_graph_iqn_v5 import _geometry
+from trackmaniarl.algorithms import DiscreteValueLearner, StableDiscreteSoftActorCritic
+from trackmaniarl.core.contracts import PolicyMode
+from trackmaniarl.core.data import TrainingBatch
 from trackmaniarl.distributed.actor_metrics import EpisodeMetrics, summarize_episode
+from trackmaniarl.models.encoders import StructuredMlpSensorEncoder
+from trackmaniarl.models.factory import CompositeValueModelFactory
+from trackmaniarl.models.sensor_actor_critic import SensorActorCriticModelFactory
 from trackmaniarl.trackmania.diagnostics import ProgressBinDiagnostics
+from trackmaniarl.trackmania.native_headless import NativeTelemetryEnvironment
 from trackmaniarl.trackmania.native_headless.full_qr.environment import (
     FullQrEnvironment,
     FullQrEnvironmentSettings,
     FullQrReset,
     FullQrStep,
 )
-from trackmaniarl.trackmania.native_headless.full_qr.native_features import NativeGraphFrame
+from trackmaniarl.trackmania.native_headless.full_qr.native_features import (
+    NativeGraphFeaturePipeline,
+    NativeGraphFrame,
+)
 from trackmaniarl.trackmania.native_headless.full_qr.reward_events import (
     EventStreamIdentity,
     RewardEventCollector,
 )
 from trackmaniarl.trackmania.native_headless.protocols import NativeLifecycleError
 from trackmaniarl.trackmania.reward_config import RewardConfig
+
+
+@pytest.mark.parametrize("leading", [(), (2,), (2, 3)])
+def test_structured_mlp_preserves_axes_and_uses_canonical_sensor_order(
+    leading: tuple[int, ...],
+) -> None:
+    encoder = StructuredMlpSensorEncoder({"b": [3], "a": [2, 2]}, 8, hidden_dim=16)
+    observation = {"a": torch.randn(*leading, 2, 2), "b": torch.randn(*leading, 3)}
+    actual = encoder(observation)
+    assert actual.shape == (*leading, 8)
+    assert torch.isfinite(actual).all()
+    torch.testing.assert_close(
+        actual, encoder(dict(reversed(list(observation.items())))), rtol=0, atol=0
+    )
+    actual.sum().backward()
+    assert all(parameter.grad is not None for parameter in encoder.parameters())
+    with pytest.raises(ValueError, match="exactly"):
+        encoder({"a": observation["a"]})
+    with pytest.raises(ValueError, match="shape differs"):
+        encoder({**observation, "b": torch.zeros(*leading, 4)})
+
+
+def test_custom_features_fail_before_reward_consumption(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    environment, provider, pipeline = setup()
+    environment.reset()
+    monkeypatch.setattr(
+        pipeline, "transform_observation", lambda _: {"bad": np.array([float("nan")])}
+    )
+    with pytest.raises(NativeLifecycleError, match="no transition"):
+        environment.step(39)
+    assert provider.closed == 1
+    assert provider.events.consumed_through_ms == 0
+
+
+def _native_learner(algorithm: str, encoder: str) -> tuple[Any, torch.nn.Module]:
+    shapes = {"physics": [60], "track": [3, 88], "context": [29], "recovery": [8]}
+    dimension = 192 if encoder == "graph" else 32
+    component = (
+        {"class_path": "trackmaniarl.experiments.full_qr.components:BatchedIncidentEncoder"}
+        if encoder == "graph"
+        else {
+            "class_path": "trackmaniarl.models.encoders:StructuredMlpSensorEncoder",
+            "kwargs": {"input_shapes": shapes, "output_dim": dimension, "hidden_dim": 32},
+        }
+    )
+    if algorithm == "sd-sac":
+        model = SensorActorCriticModelFactory(
+            algorithm, component, {"feature_dim": dimension, "action_count": 78}
+        ).build()
+        learner = StableDiscreteSoftActorCritic(model, execution={"device": "cpu"})
+    else:
+        heads = {"dqn": "ScalarQHead", "qr": "FixedQuantileHead", "iqn": "ImplicitQuantileHead"}
+        strategies = {
+            "dqn": "ScalarValueStrategy",
+            "qr": "FixedQuantileStrategy",
+            "iqn": "RandomQuantileStrategy",
+        }
+        head_config = {"feature_dim": dimension, "action_count": 78}
+        strategy_config = {}
+        if algorithm == "qr":
+            head_config["quantile_count"] = 8
+            strategy_config = {"quantile_count": 8}
+        elif algorithm == "iqn":
+            strategy_config = {"train_quantile_count": 8, "target_quantile_count": 8}
+        model = CompositeValueModelFactory(
+            encoder=component,
+            temporal={
+                "class_path": "trackmaniarl.models.temporal:IdentityTemporalCore",
+                "kwargs": {"input_dim": dimension},
+            },
+            head={
+                "class_path": f"trackmaniarl.models.heads:{heads[algorithm]}",
+                "kwargs": head_config if algorithm == "dqn" else {"config": head_config},
+            },
+            strategy={
+                "class_path": f"trackmaniarl.models.strategies:{strategies[algorithm]}",
+                "kwargs": strategy_config,
+            },
+        ).build()
+        learner = DiscreteValueLearner(model, execution={"device": "cpu"})
+    return learner, model
+
+
+@pytest.mark.parametrize("algorithm", ["dqn", "qr", "iqn", "sd-sac"])
+@pytest.mark.parametrize("encoder", ["graph", "mlp"])
+def test_native_observations_support_discrete_learners_and_encoders(
+    algorithm: str, encoder: str, tmp_path: Path
+) -> None:
+    """Synthetic SDK transitions test model interchange, not native qualification."""
+    environment, _, _ = setup()
+    assert isinstance(environment, NativeTelemetryEnvironment)
+    environment.pipeline = NativeGraphFeaturePipeline(_geometry(tmp_path / "g.npz"), "test-map")
+    learner, model = _native_learner(algorithm, encoder)
+    learner.setup({"seed": 17})
+    try:
+        observation, _ = environment.reset(seed=17)
+        next_observation, reward, terminated, truncated, _ = environment.step(39)
+
+        def stack(values: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+            return {name: torch.stack([value] * 4) for name, value in values.items()}
+
+        batch = TrainingBatch(
+            data={},
+            observations=stack(observation),
+            next_observations=stack(next_observation),
+            actions=torch.full((4,), 39),
+            rewards=torch.full((4,), reward),
+            terminated=torch.full((4,), terminated),
+            truncated=torch.full((4,), truncated),
+            bootstrap_discounts=torch.full((4,), 0.995),
+            transition_ids=list(range(4)),
+        )
+        before = [parameter.detach().clone() for parameter in model.parameters()]
+        metrics, _ = learner.update(batch)
+        assert metrics
+        assert all(np.isfinite(value) for value in metrics.values())
+        assert any(
+            not torch.equal(old, current)
+            for old, current in zip(before, model.parameters(), strict=True)
+        )
+        action = int(learner.policy().act(next_observation, PolicyMode.EVALUATION))
+        assert 0 <= action < 78
+        environment.step(action)
+    finally:
+        environment.close()
 
 
 def frame(clock: int) -> NativeGraphFrame:

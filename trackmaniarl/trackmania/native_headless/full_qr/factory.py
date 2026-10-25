@@ -12,10 +12,11 @@ from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from trackmaniarl.core.runtime import import_symbol
+from trackmaniarl.core.spec import ComponentSpec
 from trackmaniarl.trackmania.geometry import BoundaryGeometry
 from trackmaniarl.trackmania.native_headless.assets import (
     VerifiedAssets,
@@ -26,6 +27,7 @@ from trackmaniarl.trackmania.native_headless.config import NativeRuntimeConfig
 from trackmaniarl.trackmania.native_headless.full_qr.environment import (
     FullQrEnvironment,
     FullQrEnvironmentSettings,
+    NativeObservationPipeline,
 )
 from trackmaniarl.trackmania.native_headless.full_qr.native_features import (
     NativeGraphFeaturePipeline,
@@ -96,6 +98,8 @@ class FullQrEnvironmentFactory:
             raise ValueError("a separately qualified motor/UI event-source component is required")
         self._source_class = import_symbol(source["class_path"])
         self._source_kwargs = dict(source.get("kwargs", {}))
+        pipeline = config.get("observation_pipeline")
+        self._pipeline_spec = None if pipeline is None else ComponentSpec.model_validate(pipeline)
         self._runtime = NativeRuntimeConfig.from_mapping(config["runtime"])
         if self._runtime.protocol_profile != PROTOCOL or not self._runtime.allow_native:
             raise ValueError("explicit separately deployed full QR V8 runtime required")
@@ -142,7 +146,7 @@ class FullQrEnvironmentFactory:
         )
         assets = verify_bound_assets(settings, self._manifest_sha)
         geometry.validate_map(assets.paths["map"])
-        pipeline = NativeGraphFeaturePipeline(self._geometry_path, self._map_uid)
+        pipeline = self._create_pipeline()
         retention = ClosedTraceRetention(
             TraceRetentionSettings(
                 trace_parent=settings.trace_dir,
@@ -168,3 +172,17 @@ class FullQrEnvironmentFactory:
             pipeline,
             FullQrEnvironmentSettings(geometry.reward_center, self._reward, lease),
         )
+
+    def _create_pipeline(self) -> NativeObservationPipeline:
+        if self._pipeline_spec is None:
+            return NativeGraphFeaturePipeline(self._geometry_path, self._map_uid)
+        component = import_symbol(self._pipeline_spec.class_path)(**self._pipeline_spec.kwargs)
+        methods = (
+            "reset_episode",
+            "transform_observation",
+            "transform_terminal",
+            "transform_committed_terminal",
+        )
+        if not all(callable(getattr(component, name, None)) for name in methods):
+            raise TypeError("native observation pipeline must handle reset and all frame forms")
+        return cast(NativeObservationPipeline, component)

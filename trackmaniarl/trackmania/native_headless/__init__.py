@@ -16,6 +16,15 @@ from trackmaniarl.trackmania.native_headless.environment import (
     NativeHeadlessEnvironment,
     NativeHeadlessEnvironmentFactory,
 )
+from trackmaniarl.trackmania.native_headless.full_qr.environment import (
+    FullQrEnvironment as NativeTelemetryEnvironment,
+)
+from trackmaniarl.trackmania.native_headless.full_qr.environment import (
+    NativeObservationPipeline,
+)
+from trackmaniarl.trackmania.native_headless.full_qr.factory import (
+    FullQrEnvironmentFactory as NativeTelemetryEnvironmentFactory,
+)
 from trackmaniarl.trackmania.native_headless.immediate_environment import (
     NativeImmediateEnvironment,
     NativeImmediateEnvironmentFactory,
@@ -44,8 +53,11 @@ __all__ = [
     "NativeImmediateEnvironmentFactory",
     "NativeInconclusiveError",
     "NativeLifecycleError",
+    "NativeObservationPipeline",
     "NativeObservationUnavailableError",
     "NativeRuntimeConfig",
+    "NativeTelemetryEnvironment",
+    "NativeTelemetryEnvironmentFactory",
     "RawResult",
     "RawState",
     "VerifiedAssets",

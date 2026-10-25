@@ -14,13 +14,14 @@ from time import monotonic
 from typing import Any, Protocol, cast
 
 import numpy as np
+import torch
 
+from trackmaniarl.core.pytree import tree_map
 from trackmaniarl.trackmania.native_headless.full_qr.committed_terminal import (
     NativeCommittedGoalFrame,
 )
 from trackmaniarl.trackmania.native_headless.full_qr.native_features import (
     NativeGoalTerminalFrame,
-    NativeGraphFeaturePipeline,
     NativeGraphFrame,
 )
 from trackmaniarl.trackmania.native_headless.full_qr.reward_episode import NativeRewardEpisode
@@ -32,6 +33,26 @@ from trackmaniarl.trackmania.native_headless.protocols import NativeLifecycleErr
 from trackmaniarl.trackmania.reward_config import RewardConfig
 from trackmaniarl.trackmania.reward_info import reward_result_info
 from trackmaniarl.trackmania.reward_types import RewardResult
+
+
+def _checked_observation(value: dict[str, Any]) -> dict[str, Any]:
+    """Reject invalid custom features before consuming reward events."""
+    if not isinstance(value, dict) or not value:
+        raise TypeError("native observation pipeline must return a nonempty sensor mapping")
+
+    def check(leaf: Any) -> Any:
+        if isinstance(leaf, torch.Tensor):
+            finite = bool(torch.isfinite(leaf).all())
+        elif isinstance(leaf, (np.ndarray, int, float)):
+            finite = bool(np.isfinite(leaf).all())
+        else:
+            raise TypeError("native observation sensors must be numeric tensors or arrays")
+        if not finite:
+            raise ValueError("native observation sensors must be finite")
+        return leaf
+
+    tree_map(check, value)
+    return value
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +100,24 @@ class FullQrProvider(Protocol):
     def close(self) -> None: ...
 
 
+class NativeObservationPipeline(Protocol):
+    """Prepare model observations without taking ownership of physics or rewards.
+
+    Each environment receives its own causal history. Implementations must handle
+    all three qualified frame forms; EOF or absent telemetry is never an input.
+    """
+
+    def reset_episode(self) -> None: ...
+
+    def transform_observation(self, observation: NativeGraphFrame) -> dict[str, Any]: ...
+
+    def transform_terminal(self, observation: NativeGoalTerminalFrame) -> dict[str, Any]: ...
+
+    def transform_committed_terminal(
+        self, observation: NativeCommittedGoalFrame
+    ) -> dict[str, Any]: ...
+
+
 class FullQrEnvironment:
     """Join full features, per-episode delivery and unchanged historical reward.
 
@@ -90,7 +129,7 @@ class FullQrEnvironment:
     def __init__(
         self,
         provider: FullQrProvider,
-        pipeline: NativeGraphFeaturePipeline,
+        pipeline: NativeObservationPipeline,
         settings: FullQrEnvironmentSettings,
     ) -> None:
         self.provider, self.pipeline = provider, pipeline
@@ -126,7 +165,7 @@ class FullQrEnvironment:
             )
             reward.reset(reset.frame)
             self.pipeline.reset_episode()
-            observation = self.pipeline.transform_observation(reset.frame)
+            observation = _checked_observation(self.pipeline.transform_observation(reset.frame))
             self._events, self._reward = reset.events, reward
             self._seen.add(identity)
             self._ended = False
@@ -166,19 +205,21 @@ class FullQrEnvironment:
         assert self._events is not None
         if type(step) is FullQrTerminalStep and type(step.frame) is NativeCommittedGoalFrame:
             committed = step.frame
-            observation = self.pipeline.transform_committed_terminal(committed)
+            observation = _checked_observation(
+                self.pipeline.transform_committed_terminal(committed)
+            )
             result = self._reward.step_committed_from_event_stream(
                 committed, collector=self._events, issued_steering=step.issued_steering
             )
         elif type(step) is FullQrTerminalStep:
             terminal = cast(NativeGoalTerminalFrame, step.frame)
-            observation = self.pipeline.transform_terminal(terminal)
+            observation = _checked_observation(self.pipeline.transform_terminal(terminal))
             result = self._reward.step_terminal_from_event_stream(
                 terminal, collector=self._events, issued_steering=step.issued_steering
             )
         else:
             regular = cast(NativeGraphFrame, step.frame)
-            observation = self.pipeline.transform_observation(regular)
+            observation = _checked_observation(self.pipeline.transform_observation(regular))
             result = self._reward.step_from_event_stream(
                 regular, collector=self._events, issued_steering=step.issued_steering
             )

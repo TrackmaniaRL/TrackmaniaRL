@@ -84,7 +84,7 @@ evaluation. The generated project includes configurations for IQN, SAC, REDQ,
 TQC, discrete SAC, PPO and camera-based variants.
 
 For the separately qualified Linux native backend, see the
-[full QR headless profile](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/headless-full-qr.md).
+[native headless environment and QR reference profile](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/headless-full-qr.md).
 It requires caller-supplied native assets and source references and runs without
 the Windows game client. See the guide for its strict clock and map limits.
 

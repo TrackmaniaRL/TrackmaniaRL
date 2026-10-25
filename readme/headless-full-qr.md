@@ -1,4 +1,72 @@
-# Full QR headless profile
+# Native headless environment and the full QR profile
+
+The native environment is independent of QR-DQN. Its current qualified action
+contract is 78 discrete actions; models and learners are selected separately.
+The historical QR preset below is one measured configuration, not a requirement
+of the environment.
+
+Use the neutral factory path in a new configuration:
+
+```yaml
+class_path: trackmaniarl.trackmania.native_headless:NativeTelemetryEnvironmentFactory
+kwargs:
+  config: # supply the qualified deployment configuration described below
+    # runtime, assets, geometry, reward and event_source bindings
+```
+
+`NativeTelemetryEnvironment` and `NativeTelemetryEnvironmentFactory` export the
+existing implementation. Historical `full_qr` import paths remain valid, so a
+renamed factory path is an explicit new run configuration, not a checkpoint
+migration. The V8 wire profile and native source pins keep their original names.
+
+## Model and observation choices
+
+The default observations retain V5 preprocessing. Choose their encoder, temporal
+core, head and algorithm independently. `StructuredMlpSensorEncoder` accepts
+explicit named sensor shapes instead of requiring the V6 graph encoder:
+
+```yaml
+encoder:
+  class_path: trackmaniarl.models.encoders:StructuredMlpSensorEncoder
+  kwargs:
+    input_shapes:
+      physics: [60]
+      track: [3, 88]
+      context: [29]
+      recovery: [8]
+    output_dim: 192
+    hidden_dim: 256
+```
+
+It flattens each sensor's event dimensions, uses sorted sensor names and preserves
+batch/sequence axes. It does not rescale or replace measured input values.
+
+For project-specific preprocessing, set `config.observation_pipeline` to a
+`ComponentSpec` (`class_path` and `kwargs`). Each environment constructs a fresh
+instance implementing `NativeObservationPipeline`: `reset_episode`,
+`transform_observation`, `transform_terminal` and `transform_committed_terminal`.
+Outputs must be a nonempty mapping of finite numeric sensors. Invalid features
+close the provider before reward-event consumption. Changing preprocessing does
+not change native action execution, source coverage or reward semantics; the
+project must qualify the new representation for its task.
+
+The run's separate `components.feature_pipeline` must accept that prepared mapping
+and collate it for the selected learner. The default V5 component expects the four
+sensors above. A custom representation needs a matching SDK pipeline; Torch
+policies require tensor leaves at the policy boundary. The environment factory
+does not silently replace this run component or its checkpoint fingerprint.
+Use the ordinary `DiscreteValueLearner` for DQN/QR/IQN and
+`StableDiscreteSoftActorCritic` for discrete SAC. The optional compiled QR learner
+remains specific to its qualified QR profile.
+
+| Choice | Current support and evidence |
+| --- | --- |
+| DQN, QR-DQN, IQN, discrete SAC | SDK update/action tests with both V6 graph and structured MLP encoders; these are synthetic compatibility tests, not four native training benchmarks |
+| Recurrent models | The MLP preserves sequence axes; select a compatible SDK temporal core and replay schedule separately |
+| Continuous SAC, REDQ, TQC, current Gaussian PPO | Their continuous actions do not satisfy this native 78-ID contract; an independently qualified actuator adapter is required |
+| CNN/vision models | This profile supplies telemetry, not rendered images; a real image source and its timing contract are required |
+
+## Historical full QR training profile
 
 The full profile keeps the historical V5 feature pipeline and incident-gated V6
 graph encoder: 192 features, 78 actions, 64 fixed quantiles, a dueling head,

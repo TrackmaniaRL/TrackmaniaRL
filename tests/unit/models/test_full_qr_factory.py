@@ -4,9 +4,12 @@ import hashlib
 import json
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
+import numpy as np
 import pytest
 
+from trackmaniarl.core.spec import ComponentSpec
 from trackmaniarl.experiments.full_qr.runtime_profile import ASSET_SCHEMA, PROFILE, PROTOCOL
 from trackmaniarl.trackmania.native_headless.full_qr.factory import (
     FullQrEnvironmentFactory,
@@ -45,6 +48,36 @@ def assets(tmp_path: Path) -> tuple[SimpleNamespace, dict, Path]:
 def test_missing_event_source_is_rejected_before_any_runtime_or_path_access() -> None:
     with pytest.raises(ValueError, match="event-source"):
         FullQrEnvironmentFactory({})
+
+
+def test_custom_pipeline_is_fresh_per_environment_and_requires_all_terminal_methods() -> None:
+    from trackmaniarl.trackmania.native_headless import NativeTelemetryEnvironmentFactory
+
+    assert NativeTelemetryEnvironmentFactory is FullQrEnvironmentFactory
+    # Exercise component creation independently of asset deployment. No fake
+    # asset or stub is treated as permission to start the engine.
+    factory = object.__new__(NativeTelemetryEnvironmentFactory)
+    factory._pipeline_spec = ComponentSpec(
+        class_path="tests.unit.models.test_full_qr_factory:CustomPipeline"
+    )
+    assert factory._create_pipeline() is not factory._create_pipeline()
+    factory._pipeline_spec = ComponentSpec(class_path="builtins:dict")
+    with pytest.raises(TypeError, match="all frame forms"):
+        factory._create_pipeline()
+
+
+class CustomPipeline:
+    def reset_episode(self) -> None:
+        pass
+
+    def transform_observation(self, observation: Any) -> dict[str, np.ndarray]:
+        return {"telemetry": np.asarray(observation.channels, dtype=np.float32)}
+
+    def transform_terminal(self, observation: Any) -> dict[str, np.ndarray]:
+        return self.transform_observation(observation)
+
+    def transform_committed_terminal(self, observation: Any) -> dict[str, np.ndarray]:
+        return self.transform_observation(observation)
 
 
 def test_manifest_pin_and_actual_asset_bytes_both_remain_required(tmp_path: Path) -> None:
