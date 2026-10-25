@@ -31,6 +31,7 @@ from trackmaniarl.trackmania.native_headless.full_qr.reward_events import (
 from trackmaniarl.trackmania.native_headless.protocols import NativeLifecycleError
 from trackmaniarl.trackmania.reward_config import RewardConfig
 from trackmaniarl.trackmania.reward_info import reward_result_info
+from trackmaniarl.trackmania.reward_types import RewardResult
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,66 +148,71 @@ class FullQrEnvironment:
             step = self.provider.advance(action)
             if type(step) not in (FullQrStep, FullQrTerminalStep):
                 raise TypeError("EOF or missing native data is not a full QR step")
-            # Validate causal features before consuming event coverage. A failed
-            # feature computation invalidates the whole adapter, never replay.
-            committed = (
-                type(step) is FullQrTerminalStep and type(step.frame) is NativeCommittedGoalFrame
-            )
-            if committed:
-                committed_frame = cast(NativeCommittedGoalFrame, step.frame)
-                observation = self.pipeline.transform_committed_terminal(committed_frame)
-                result = self._reward.step_committed_from_event_stream(
-                    committed_frame, collector=self._events, issued_steering=step.issued_steering
-                )
-            elif type(step) is FullQrTerminalStep:
-                terminal_frame = cast(NativeGoalTerminalFrame, step.frame)
-                observation = self.pipeline.transform_terminal(terminal_frame)
-                result = self._reward.step_terminal_from_event_stream(
-                    terminal_frame, collector=self._events, issued_steering=step.issued_steering
-                )
-            else:
-                regular_frame = cast(NativeGraphFrame, step.frame)
-                observation = self.pipeline.transform_observation(regular_frame)
-                result = self._reward.step_from_event_stream(
-                    regular_frame, collector=self._events, issued_steering=step.issued_steering
-                )
+            observation, result = self._observe_and_reward(step)
             self._ended = result.terminated
-            physics_time_ms = float(step.frame.channels[0])
-            step_race_ms = physics_time_ms - self._last_physics_time_ms
-            self._last_physics_time_ms = physics_time_ms
-            episode_observed_monotonic = monotonic()
-            return (
-                observation,
-                result.reward,
-                result.terminated,
-                False,
-                {
-                    "actor": self.actor,
-                    "episode": self._events.identity.episode,
-                    "race_time_ms": (
-                        cast(NativeCommittedGoalFrame, step.frame).score_race_time_ms
-                        if committed
-                        else step.frame.channels[0]
-                    ),
-                    "observed_physics_time_ms": step.frame.channels[0],
-                    "step_race_time_ms": step_race_ms,
-                    "episode_elapsed_s": (
-                        episode_observed_monotonic - self._episode_started_monotonic
-                    ),
-                    "episode_started_monotonic": self._episode_started_monotonic,
-                    "episode_observed_monotonic": episode_observed_monotonic,
-                    "termination_reason": result.reason,
-                    "progress_m": self._reward.progress_m,
-                    "progress_pct": self._reward.progress_pct,
-                    **reward_result_info(result),
-                    "control_steer": step.issued_steering,
-                },
-            )
+            info = self._record_step_info(step, result)
+            return observation, result.reward, result.terminated, False, info
         except BaseException as error:
             self._fail(error)
             if isinstance(error, (KeyboardInterrupt, SystemExit)):
                 raise
             raise NativeLifecycleError("full QR step failed; no transition returned") from error
+
+    def _observe_and_reward(
+        self, step: FullQrStep | FullQrTerminalStep
+    ) -> tuple[dict[str, Any], RewardResult]:
+        # Features must succeed before reward consumes the causal event stream.
+        assert self._reward is not None
+        assert self._events is not None
+        if type(step) is FullQrTerminalStep and type(step.frame) is NativeCommittedGoalFrame:
+            committed = step.frame
+            observation = self.pipeline.transform_committed_terminal(committed)
+            result = self._reward.step_committed_from_event_stream(
+                committed, collector=self._events, issued_steering=step.issued_steering
+            )
+        elif type(step) is FullQrTerminalStep:
+            terminal = cast(NativeGoalTerminalFrame, step.frame)
+            observation = self.pipeline.transform_terminal(terminal)
+            result = self._reward.step_terminal_from_event_stream(
+                terminal, collector=self._events, issued_steering=step.issued_steering
+            )
+        else:
+            regular = cast(NativeGraphFrame, step.frame)
+            observation = self.pipeline.transform_observation(regular)
+            result = self._reward.step_from_event_stream(
+                regular, collector=self._events, issued_steering=step.issued_steering
+            )
+        return observation, result
+
+    def _record_step_info(
+        self, step: FullQrStep | FullQrTerminalStep, result: RewardResult
+    ) -> dict[str, Any]:
+        assert self._reward is not None
+        assert self._events is not None
+        frame = step.frame
+        physics_time_ms = float(frame.channels[0])
+        step_race_ms = physics_time_ms - self._last_physics_time_ms
+        self._last_physics_time_ms = physics_time_ms
+        observed_monotonic = monotonic()
+        return {
+            "actor": self.actor,
+            "episode": self._events.identity.episode,
+            "race_time_ms": (
+                frame.score_race_time_ms
+                if type(frame) is NativeCommittedGoalFrame
+                else frame.channels[0]
+            ),
+            "observed_physics_time_ms": frame.channels[0],
+            "step_race_time_ms": step_race_ms,
+            "episode_elapsed_s": observed_monotonic - self._episode_started_monotonic,
+            "episode_started_monotonic": self._episode_started_monotonic,
+            "episode_observed_monotonic": observed_monotonic,
+            "termination_reason": result.reason,
+            "progress_m": self._reward.progress_m,
+            "progress_pct": self._reward.progress_pct,
+            **reward_result_info(result),
+            "control_steer": step.issued_steering,
+        }
 
     def close(self) -> None:
         if not self._closed:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from struct import pack, unpack
 from typing import Any, Protocol, cast
@@ -33,6 +34,20 @@ from trackmaniarl.trackmania.native_headless.protocols import (
     NativeInconclusiveError,
     NativeLifecycleError,
 )
+
+
+def _action_for_tick(action: int, offset: int) -> int:
+    """Release a decision's brake tap after its first native tick."""
+    brake_mode_count, tap_mode = 3, 2
+    is_tap = action % brake_mode_count == tap_mode
+    return action - tap_mode if is_tap and offset > 0 else action
+
+
+def _issued_steering(action: int) -> float:
+    """Keep the historical float32 command distinct from measured calibration."""
+    variants_per_steering, center_bin = 6, 6
+    nominal = (action // variants_per_steering - center_bin) / center_bin
+    return float(unpack("<f", pack("<f", nominal))[0])
 
 
 class FullQrEventSource(Protocol):
@@ -182,65 +197,77 @@ class NativeFullQrProvider:
         ):
             raise NativeLifecycleError("an active native full QR reset is required")
         try:
-            previous_native_t = self._before["nativeT"]
-            if self._before["nativeT"] >= 152200:
-                raise NativeLifecycleError("full150s domain ended; reset is required")
-            stride = getattr(self.events, "physics_stride", 5)
-            if type(stride) is not int or stride not in (1, 5):
-                raise ValueError("event source must require one or five native ticks")
-            observe = getattr(self.events, "observe_physics", None)
-            if stride == 1 and not callable(observe):
-                raise ValueError("per-tick event source must expose its held observation hook")
-            for offset in range(0, 5, stride):
-                # A decision's tap is one pressed tick followed by four released
-                # ticks. Per-tick observation must not restart that pulse.
-                tick_action = action - 2 if offset > 0 and action % 3 == 2 else action
-                packet = self._session.advance(tick_action, stride)
-                if packet["eof"]:
-                    final_step = getattr(self.events, "final_step", None)
-                    issued = unpack("<f", pack("<f", (action // 6 - 6) / 6))[0]
-                    if stride == 1 and callable(final_step) and self._adherence_reader is not None:
-                        final = final_step(
-                            self._session, previous_native_t, self._adherence_reader, issued
-                        )
-                        if final is not None:
-                            if type(final) not in (FullQrStep, FullQrTerminalStep):
-                                raise TypeError("an actual sourced final step is required")
-                            return cast(FullQrStep | FullQrTerminalStep, final)
-                    terminal = getattr(self.events, "terminal_frame", None)
-                    native_t = self._before["nativeT"]
-                    if (
-                        stride == 1
-                        and callable(terminal)
-                        and self._adherence_reader is not None
-                        and 0 <= native_t - previous_native_t < 50
-                    ):
-                        # EOF supplies no observation or Finish authority. Use
-                        # only already observed physical ticks and the paired
-                        # positive Goal source, through their actual last time.
-                        frame = terminal(
-                            self._session,
-                            previous_native_t,
-                            self._adherence_reader.read(native_t),
-                        )
-                        issued = unpack("<f", pack("<f", (action // 6 - 6) / 6))[0]
-                        return FullQrTerminalStep(frame, issued)
-                    raise NativeInconclusiveError(packet)
-                qualify_immediate(packet, self._before, tick_action, stride)
-                self._before = physical_state(packet)
-                if stride == 1:
-                    assert callable(observe)
-                    observe(self._session, self._before["nativeT"])
-            frame = self._frame()
-            self.events.deliver(self._session, frame)
-            # Check both actual sources before returning even the typed step.
-            # The reward adapter consumes the stream only after reward success.
-            self._collector.peek(self._identity, int(frame.channels[0]))
-            issued = unpack("<f", pack("<f", (action // 6 - 6) / 6))[0]
-            return FullQrStep(frame, issued)
+            return self._advance_decision(action)
         except BaseException as error:
             self._fail(error)
             raise
+
+    def _physics_delivery(self) -> tuple[int, Callable[[ImmediateSession, int], None] | None]:
+        stride = getattr(self.events, "physics_stride", 5)
+        if type(stride) is not int or stride not in (1, 5):
+            raise ValueError("event source must require one or five native ticks")
+        if stride == 5:
+            return stride, None
+        observe = getattr(self.events, "observe_physics", None)
+        if not callable(observe):
+            raise ValueError("per-tick event source must expose its held observation hook")
+        return stride, observe
+
+    def _advance_decision(self, action: int) -> FullQrStep | FullQrTerminalStep:
+        assert self._session is not None
+        assert self._before is not None
+        previous_native_t = self._before["nativeT"]
+        if previous_native_t >= 152200:
+            raise NativeLifecycleError("full150s domain ended; reset is required")
+        stride, observe = self._physics_delivery()
+        issued = _issued_steering(action)
+        for offset in range(0, 5, stride):
+            tick_action = _action_for_tick(action, offset)
+            packet = self._session.advance(tick_action, stride)
+            if packet["eof"]:
+                final = self._final_step(previous_native_t, issued) if stride == 1 else None
+                if final is not None:
+                    return final
+                raise NativeInconclusiveError(packet)
+            qualify_immediate(packet, self._before, tick_action, stride)
+            self._before = physical_state(packet)
+            if observe is not None:
+                observe(self._session, self._before["nativeT"])
+        return self._complete_step(issued)
+
+    def _final_step(
+        self, previous_native_t: int, issued: float
+    ) -> FullQrStep | FullQrTerminalStep | None:
+        """EOF permits a source read; only actual collector/Goal data can end a step."""
+        assert self._session is not None
+        assert self._before is not None
+        if self._adherence_reader is None:
+            return None
+        collect_final = getattr(self.events, "final_step", None)
+        if callable(collect_final):
+            final = collect_final(self._session, previous_native_t, self._adherence_reader, issued)
+            if final is not None:
+                if type(final) not in (FullQrStep, FullQrTerminalStep):
+                    raise TypeError("an actual sourced final step is required")
+                return cast(FullQrStep | FullQrTerminalStep, final)
+        terminal = getattr(self.events, "terminal_frame", None)
+        native_t = self._before["nativeT"]
+        if callable(terminal) and 0 <= native_t - previous_native_t < 50:
+            frame = terminal(
+                self._session, previous_native_t, self._adherence_reader.read(native_t)
+            )
+            return FullQrTerminalStep(frame, issued)
+        return None
+
+    def _complete_step(self, issued: float) -> FullQrStep:
+        assert self._session is not None
+        assert self._collector is not None
+        assert self._identity is not None
+        frame = self._frame()
+        self.events.deliver(self._session, frame)
+        # Coverage is checked here; reward success owns subsequent consumption.
+        self._collector.peek(self._identity, int(frame.channels[0]))
+        return FullQrStep(frame, issued)
 
     def _fail(self, error: BaseException) -> None:
         try:

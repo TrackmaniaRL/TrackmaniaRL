@@ -5,7 +5,7 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from trackmaniarl.distributed.actor_metrics import EpisodeMetrics
+from trackmaniarl.distributed.actor_metrics import EpisodeMetrics, summarize_episode
 from trackmaniarl.trackmania.diagnostics import ProgressBinDiagnostics
 from trackmaniarl.trackmania.native_headless.full_qr.environment import (
     FullQrEnvironment,
@@ -128,20 +128,19 @@ def test_actor_metrics_retain_actual_reward_components_and_collisions(*, finish:
         provider.finish = finish
         _, reward, terminated, _, info = environment.step(41)
         metrics.record_reward(reward, info)
-        components = {
-            key: value
-            for key, value in metrics._reward_totals().items()
-            if key.startswith("reward_")
-        }
+        summary = summarize_episode(
+            reward, metrics.summary_info(epsilon=0.0, version=0, transitions=1), 1
+        )
+        components = {key: value for key, value in summary.items() if key.startswith("reward/")}
         assert sum(components.values()) == pytest.approx(reward)
-        assert components["reward_time"] < 0
-        assert bool(components["reward_pbrs"]) is (not finish)
-        assert components["reward_progress"] > 0
-        assert components["reward_terminal"] == (30 if finish else 0)
+        assert components["reward/time"] < 0
+        assert bool(components["reward/pbrs"]) is (not finish)
+        assert components["reward/progress"] > 0
+        assert components["reward/terminal"] == (30 if finish else 0)
         assert terminated is finish
         assert info["collision"] is True
         assert info["collision_detected"] is True
-        assert metrics.collision_count == metrics.collision_detected_count == 1
+        assert summary["collision/count"] == summary["collision/detected_count"] == 1
         assert info["accepted_progress_delta_m"] > 0
         assert info["projected_velocity_mps"] > 0
     finally:
