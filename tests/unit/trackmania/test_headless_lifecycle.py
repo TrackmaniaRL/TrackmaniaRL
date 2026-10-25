@@ -111,10 +111,17 @@ def test_stop_reaps_detached_descendant_and_preserves_native_pid(tmp_path: Path)
         assert proc.driver_identity["sid"] == proc.driver_identity["pgid"] == proc.pid
         for pid in (proc.pid, child["pid"]):
             # The driver and its children must never retain either lease end.
-            assert not any(
-                os.readlink(fd).startswith("socket:")
-                for fd in (Path("/proc") / str(pid) / "fd").iterdir()
-            )
+            for fd in (Path("/proc") / str(pid) / "fd").iterdir():
+                try:
+                    target = os.readlink(fd)
+                except FileNotFoundError:
+                    # A descriptor closed after enumeration cannot retain a lease.
+                    continue
+                assert not target.startswith("socket:")
+            current = ownership.process_identity(pid)
+            expected = proc.driver_identity if pid == proc.pid else child
+            assert ownership.same_identity(expected, current)
+            assert current["state"] not in ("Z", "X")
         assert proc.stdout is not None
         assert proc.stdout.readline() == b"native-byte-protocol\n"
         report = proc.stop()
