@@ -25,7 +25,7 @@ from trackmaniarl.experiments.full_qr.campaign_budget import (
     BudgetSettings,
     CampaignBudget,
 )
-from trackmaniarl.experiments.full_qr.campaign_spec import (
+from trackmaniarl.experiments.full_qr.campaign_policy import (
     requested_pilot_clock,
     requested_pilot_seconds,
 )

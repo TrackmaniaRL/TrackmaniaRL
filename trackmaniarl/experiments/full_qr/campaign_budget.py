@@ -1,4 +1,4 @@
-"""Wall-clock/space watchdog for a future qualified full-QR launcher.
+"""Wall-clock and storage watchdog for the full-QR launcher.
 
 This component requests a graceful SDK stop; it does not launch or qualify an
 environment, kill processes, prune checkpoints, or declare training completed.
@@ -18,10 +18,20 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
 
-from trackmaniarl.experiments.full_qr.campaign_clock import clock_seconds, validate_clock_source
+from trackmaniarl.experiments.full_qr.campaign_policy import (
+    PILOT_SECONDS as PILOT_SECONDS,
+)
+from trackmaniarl.experiments.full_qr.campaign_policy import (
+    SUPPORTED_PILOT_SECONDS as SUPPORTED_PILOT_SECONDS,
+)
+from trackmaniarl.experiments.full_qr.campaign_policy import (
+    StorageReserve as StorageReserve,
+)
+from trackmaniarl.experiments.full_qr.campaign_policy import (
+    clock_seconds,
+    validate_clock_source,
+)
 
-PILOT_SECONDS = 14_400
-SUPPORTED_PILOT_SECONDS = (PILOT_SECONDS, 25_200)
 GIB = 1024**3
 
 
@@ -29,16 +39,6 @@ class StopSignal(Protocol):
     """An owned campaign's process-shared, one-way SDK shutdown flag."""
 
     def set(self) -> None: ...
-
-
-@dataclass(frozen=True, slots=True)
-class StorageReserve:
-    path: Path
-    minimum_free_bytes: int
-
-    def __post_init__(self) -> None:
-        if self.minimum_free_bytes <= 0:
-            raise ValueError("storage reserve must be positive")
 
 
 @dataclass(frozen=True, slots=True)

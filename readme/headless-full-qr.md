@@ -32,8 +32,10 @@ Campaign components live under `trackmaniarl.experiments.full_qr`:
   execution choices without changing the objective;
 - `campaign_launcher:LaunchSettings` and `launch` supervise independent actors
   and learner processes with owned identities and pidfds;
-- `campaign_budget:BudgetSettings` and `campaign_clock` keep the budget clock
-  separate from heartbeat and native-session liveness.
+- `campaign_policy` defines the campaign clock, storage reserves and learning
+  schedule checks; `campaign_budget:BudgetSettings` configures the watchdog;
+- `campaign_worker` owns worker startup, shutdown and counter reporting, keeping
+  the budget clock separate from heartbeat and native-session liveness.
 
 These components do not globally change the default learner, runtime, CLI,
 reward or action table.

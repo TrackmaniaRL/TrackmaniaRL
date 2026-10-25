@@ -1,5 +1,6 @@
-"""Different clock rates must not alter the requested real-time budget."""
+"""Campaign policy preserves clock, disk reserves and learning schedules."""
 
+import sys
 import threading
 from dataclasses import replace
 from pathlib import Path
@@ -9,7 +10,8 @@ from typing import cast
 import pytest
 
 from trackmaniarl.core.spec import RunSpec
-from trackmaniarl.experiments.full_qr import campaign_clock as clocks
+from trackmaniarl.distributed.coordinator_rpc import epsilon
+from trackmaniarl.experiments.full_qr import campaign_policy as clocks
 from trackmaniarl.experiments.full_qr.campaign_budget import (
     BudgetSettings,
     CampaignBudget,
@@ -17,7 +19,11 @@ from trackmaniarl.experiments.full_qr.campaign_budget import (
 )
 from trackmaniarl.experiments.full_qr.campaign_coordinator import BudgetedCoordinator
 from trackmaniarl.experiments.full_qr.campaign_launcher import _budget_deadline
-from trackmaniarl.experiments.full_qr.campaign_spec import requested_pilot_clock
+from trackmaniarl.experiments.full_qr.campaign_policy import (
+    campaign_storage_reserves,
+    for_four_hour_budget,
+    requested_pilot_clock,
+)
 
 
 def _raw_clock(monkeypatch: pytest.MonkeyPatch, now: list[float]) -> None:
@@ -146,3 +152,84 @@ def test_real_raw_watchdog_signals_at_its_own_deadline(tmp_path: Path) -> None:
     assert state["clock_source"] == "monotonic_raw"
     assert closed["stop_reason"] == "wall_clock_limit"
     assert 0.05 <= closed["elapsed_seconds"] < 3
+
+
+def test_output_reserves_follow_the_explicit_report_path_on_any_volume(tmp_path: Path) -> None:
+    directory = tmp_path / "private"
+    directory.mkdir()
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    reserves = campaign_storage_reserves(directory, reports / "new-run/artifacts")
+    assert reserves[0].minimum_free_bytes == 10 * 1024**3
+    assert reserves[1].path == directory
+    assert reserves[2].path == reports
+    assert all(reserve.minimum_free_bytes == 4 * 1024**3 for reserve in reserves[1:])
+    assert not (reports / "new-run").exists()
+
+
+def test_noncanonical_output_cannot_redirect_the_report_reserve(tmp_path: Path) -> None:
+    aliased = tmp_path / "unused/../reports"
+    with pytest.raises(ValueError, match="canonical absolute"):
+        campaign_storage_reserves(tmp_path, aliased)
+
+
+def specimen() -> RunSpec:
+    components = {
+        "learner": {"class_path": "trackmaniarl.algorithms.value_based:DiscreteValueLearner"},
+        "replay_store": {"class_path": "trackmaniarl.core.replay:InMemoryReplayStore"},
+        "sampler": {"class_path": "trackmaniarl.core.replay:UniformSampler"},
+        "feature_pipeline": {"class_path": "trackmaniarl.core.builtins:IdentityFeaturePipeline"},
+    }
+    return RunSpec.model_validate(
+        {
+            "api_version": "2.0",
+            "run_id": "fixture-no-model-or-environment",
+            "components": components,
+            "training": {"total_transitions": 8192000},
+            "distributed": {
+                "epsilon_start": 0.3,
+                "epsilon_final": 0.01,
+                "epsilon_decay_transitions": 500000,
+            },
+            "metadata": {"requested_wall_time_seconds": 14400},
+        }
+    )
+
+
+def test_only_transition_stop_changes_and_actual_sdk_epsilon_is_identical() -> None:
+    before = specimen()
+    after = for_four_hour_budget(before)
+    expected = before.model_dump(mode="json")
+    expected["training"]["total_transitions"] = sys.maxsize
+    assert after.model_dump(mode="json") == expected
+    for count in (0, 10000, 250000, 500000, 8192000, 10000000):
+        values = [
+            epsilon(
+                SimpleNamespace(
+                    run=SimpleNamespace(spec=spec),
+                    counters=SimpleNamespace(transitions=count, updates=count // 4),
+                ),
+                0,
+            )
+            for spec in (before, after)
+        ]
+        assert values[0] == values[1]
+        assert before.training.replay_beta(count) == after.training.replay_beta(count)
+
+
+def test_implicit_replay_annealing_cannot_change_with_the_cap() -> None:
+    data = specimen().model_dump(mode="json")
+    data["training"].update(beta=0.4, per_beta_final=1.0)
+    with pytest.raises(ValueError, match="explicit historical schedules"):
+        for_four_hour_budget(RunSpec.model_validate(data))
+
+
+def test_other_exploration_schedule_or_wall_budget_is_rejected() -> None:
+    for section, key, value in (
+        ("distributed", "epsilon_decay_updates", 100),
+        ("metadata", "requested_wall_time_seconds", 28800),
+    ):
+        data = specimen().model_dump(mode="json")
+        data[section][key] = value
+        with pytest.raises(ValueError, match="four-hour"):
+            for_four_hour_budget(RunSpec.model_validate(data))

@@ -9,7 +9,7 @@ from threading import Event
 import pytest
 
 from tests.unit.models.test_full_qr_campaign_launcher import evidence
-from tests.unit.models.test_full_qr_campaign_spec import specimen
+from tests.unit.models.test_full_qr_campaign_policy import specimen
 from trackmaniarl.core.spec import RunSpec
 from trackmaniarl.distributed.coordinator_types import CoordinatorConfig
 from trackmaniarl.experiments.full_qr.campaign_budget import (
@@ -20,7 +20,7 @@ from trackmaniarl.experiments.full_qr.campaign_budget import (
 )
 from trackmaniarl.experiments.full_qr.campaign_coordinator import PilotCoordinatorSettings
 from trackmaniarl.experiments.full_qr.campaign_launcher import _read_ready, verify_campaign_result
-from trackmaniarl.experiments.full_qr.campaign_spec import (
+from trackmaniarl.experiments.full_qr.campaign_policy import (
     for_four_hour_budget,
     for_wall_clock_budget,
     requested_pilot_seconds,

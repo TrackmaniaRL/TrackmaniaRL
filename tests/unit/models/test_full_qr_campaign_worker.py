@@ -1,11 +1,19 @@
 """Reject altered worker requests before resolving a model or opening the SDK."""
 
 import hashlib
+import json
 from pathlib import Path
+from threading import Event
+from time import monotonic, sleep
+from types import SimpleNamespace
 
 import pytest
 
-from trackmaniarl.experiments.full_qr.campaign_worker import WorkerSettings, publish_once
+from trackmaniarl.experiments.full_qr.campaign_worker import (
+    WorkerProgress,
+    WorkerSettings,
+    publish_once,
+)
 
 
 def test_changed_run_spec_is_refused_before_yaml_or_model_setup(tmp_path: Path) -> None:
@@ -37,3 +45,25 @@ def test_worker_ready_is_published_once_and_never_replaces_prior_identity(tmp_pa
     with pytest.raises(FileExistsError):
         publish_once(path, {"pid": 2, "scope": "fixture"})
     assert path.read_bytes() == original
+
+
+def test_real_counter_progress_does_not_depend_on_metric_log_cadence(tmp_path: Path) -> None:
+    counters = SimpleNamespace(transitions=10000, updates=0, episodes=3, update_credit=0.0)
+    signal = Event()
+    path = tmp_path / "progress.json"
+    progress = WorkerProgress(SimpleNamespace(counters=counters), path, signal, interval=0.01)
+    progress.start()
+    try:
+        deadline = monotonic() + 3
+        while not path.exists() and monotonic() < deadline:
+            sleep(0.01)
+        assert json.loads(path.read_text())["updates"] == 0
+        counters.updates = 7
+        while json.loads(path.read_text())["updates"] != 7 and monotonic() < deadline:
+            sleep(0.01)
+        assert json.loads(path.read_text())["updates"] == 7
+        assert not signal.is_set()
+    finally:
+        progress.close()
+    assert not progress.thread.is_alive()
+    assert not path.with_suffix(".stage").exists()
