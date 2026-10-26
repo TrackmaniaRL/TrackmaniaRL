@@ -1,9 +1,10 @@
-// Set the saved theme before the stylesheet loads. First visits use dark mode.
+// Set the saved theme before the stylesheet loads. First visits use the light reading theme.
 (() => {
   const storageKey = 'trackmaniarl-article-theme';
-  let theme = 'dark';
+  let theme = 'light';
   try {
-    if (localStorage.getItem(storageKey) === 'light') theme = 'light';
+    const saved = localStorage.getItem(storageKey);
+    if (saved === 'light' || saved === 'dark') theme = saved;
   } catch {
     // Reading remains available when browser storage is disabled.
   }

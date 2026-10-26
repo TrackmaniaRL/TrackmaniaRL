@@ -1,0 +1,93 @@
+{
+  "result_seconds": 34.098,
+  "result_source": "Video Race Validation screen: 00:34.098; exact capture event matched by timestamp and episode ID",
+  "track": "TMRL Test (identified by user)",
+  "source_file": "Trackmania - PB 34,09 s - 1440p60 - H264 mniejszy.mp4",
+  "source_sha256": "17a69f4c9824d86b08ddf9ff716bbad31072adf110a71996166065d3237171c7",
+  "video_duration_seconds": 37.0,
+  "video_resolution": [
+    2560,
+    1440
+  ],
+  "video_fps": 60,
+  "copied_without_reencoding": true,
+  "scope": "Selected training lap with epsilon-greedy exploration, not a frozen-policy evaluation; trained and tested on the same map",
+  "reviewed": "2026-10-26",
+  "training_log_finish_seconds": 34.09,
+  "recorded_at_utc": "2026-10-21T00:26:27.015668+00:00",
+  "run_id": "tmrl-paper-1212-jakub-qr-s17",
+  "episode_index": 11199,
+  "episode_id": "local-actor/62fe39d249f6461885b5820dae2dc76d/00003229",
+  "policy_version": 1841885,
+  "policy_checkpoint": {
+    "exact_weights_file_recovered": false,
+    "reason": "Only the last three periodic checkpoints are retained; no weights file for policy version 1841885 was found in the available experiment artifacts.",
+    "final_checkpoint_is_not_the_filmed_policy": true
+  },
+  "configuration": {
+    "path": "tmrl-test-qr-s17.yaml",
+    "sha256": "bd4624f81e832b3fe1b4b00e7a86db482846032a35343ccdbc27e799a3c78029",
+    "source_git_revision": "632d57afafe53b43b928bfbc4579e4d56c086736",
+    "library_version": "1.2.12",
+    "algorithm": "QR-DQN / FixedQuantileHead",
+    "quantile_count": 64,
+    "action_count": 78,
+    "seed": 17,
+    "decision_interval_ms": 50,
+    "initialization": "random",
+    "demonstrations": false,
+    "reference_action_filter": false,
+    "racing_line": false,
+    "exploration_epsilon_in_filmed_training_episode": 0.01,
+    "learner_device": "cuda",
+    "actor_device": "cpu",
+    "precision": "float32",
+    "replay_capacity": 1000000,
+    "sampler": "uniform",
+    "learning_rate": 0.0001,
+    "batch_size": 256,
+    "gamma": 0.995,
+    "n_step": 1,
+    "updates_per_transition": 0.25,
+    "checkpoint_interval_updates": 5000,
+    "checkpoint_keep_last": 3,
+    "complete_training_budget_transitions": 8192000
+  },
+  "capture": {
+    "source_width": 1920,
+    "source_height": 1080,
+    "output_width": 2560,
+    "output_height": 1440,
+    "upscaled": true,
+    "container_fps": 60,
+    "duplicate_frames_possible": true,
+    "audio": false,
+    "source_export_sha256": "358325116896b1fe9ff5be7675040aa9ccb2dfdcdc296d558b0526f483efd267",
+    "publication_file_is_shortened_h264_transcode": true
+  },
+  "filmed_episode_metrics": {
+    "steps": 674,
+    "telemetry_skipped_frames_total": 333.0,
+    "maximum_step_race_time_ms": 130.0
+  },
+  "later_final_checkpoint": {
+    "filename": "distributed-update-02045500.pt",
+    "sha256": "c420ca0f8da73d65d305a7090d251a10bd6df052e826be31610b7148866ae66a",
+    "bytes": 1330764666,
+    "training_transitions": 8192000,
+    "updates": 2045500,
+    "verified_file_hash_on": "2026-10-26",
+    "relation": "Later final checkpoint, not the weights used in the 34.098-second training video"
+  },
+  "later_frozen_evaluation": {
+    "date": "2026-10-21",
+    "trials": 30,
+    "finishes": 30,
+    "mean_seconds": 34.32633333333333,
+    "median_seconds": 34.295,
+    "best_seconds": 34.15,
+    "worst_seconds": 34.85,
+    "trial_data": "qr-final-evaluation.json",
+    "original_evaluation_sha256": "1a714fa261e75f6613eee5cf7396440b757d0e86d73e2bf2158840a152b12e38"
+  }
+}

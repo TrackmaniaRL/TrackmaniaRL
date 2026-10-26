@@ -1,0 +1,7 @@
+Mode: built-in GPT Image edit.
+
+Use case: text-localization.
+Edit ONLY the lower panel heading in the supplied infographic.
+Replace "WHY TIMING MATTERS" with the exact text "A NEW DECISION EVERY 50 MS".
+Use the same black condensed bold sans-serif style and position. Make the heading fit on one line by reducing its font size slightly if necessary and shortening the horizontal decorative rule to its right.
+Preserve every other element of the image unchanged: all three upper OBSERVE / CHOOSE / ACT panels, all photos, scores, arrows, timeline ticks and alignments, cars, computation blocks, colors, all other text and notes. Do not redesign or add anything. Preserve 1536 by 1024 landscape composition.

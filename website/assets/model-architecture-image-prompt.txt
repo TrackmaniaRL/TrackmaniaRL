@@ -1,0 +1,44 @@
+Create a beautiful publication-quality editorial architecture infographic for an English engineering article about TrackmaniaRL. Redesign the supplied reference diagram. Reference is authoritative for connectivity, but replace its cramped wall of boxes with a carefully composed, elegant, spacious diagram with restrained illustrations and fewer words. Portrait 2:3, high resolution, flat warm ivory paper #f8f7f2, dark charcoal lettering, forest green main flow, dusty blue car branch, muted amber context, soft lavender recovery. Large legible typography, sophisticated scientific editorial design. No neon, no gradients, no fake 3D dashboards, no decorative random networks. A small fine-line road ribbon with sampled left/center/right points can illustrate the geometry input, a tiny car with velocity arrow can illustrate car motion, a subtle bend preview can illustrate context. These are annotations, not new processing nodes. Generous whitespace. Labels must be sharp and correct.
+
+Title: "From road geometry to a driving decision"
+Subtitle: "The recorded TrackmaniaRL controller"
+
+Accurate top-to-bottom flow, visibly numbered stages:
+01 INPUTS & ENCODERS
+Three parallel columns:
+"Road geometry · 264" / "44 stations × 6 coordinates" flows to "Road GNN" / "2 message-passing steps" then "Road features · 192".
+A smaller parallel side branch from Road geometry goes through "Conv1D correction" and joins Road features at a small + circle using a dashed line. Label that dashed line "Zero in this recorded lap".
+"Car motion · 60" flows to "Car MLP" / "60 → 192".
+"Context · 29" flows to "Context MLP" / "29 → 192 → 192".
+Car MLP and Context MLP feed a + circle (addition, NOT concatenation), then "Car + context · 192".
+
+02 FUSE & REFINE
+Road features 192 and Car + context 192 both feed "Concatenate · 384".
+Then "SimbaV2 input projection" / "384 → 385 → 192" / "Append 1 · normalize · project".
+Then "4 SimbaV2 residual blocks" / "192 → 768 → 192".
+A separate lavender branch "Recovery · 8" flows into "Recovery MLP + gate" / "8 → 64 → 192", then joins the output AFTER the four blocks at a + circle.
+Then "Identity core · 192" / "No GRU".
+
+03 SCORE & SELECT
+Identity core flows into "Dueling IQN" / "32 quantiles × 78 actions" / "Mean over quantiles → 78 scores".
+A small blue side node "Internal quantile levels" / "32 fixed evaluation midpoints" enters Dueling IQN only.
+Dueling IQN flows to "Filter allowed actions" / "Select the highest remaining score".
+An amber side node "Reference-action support" / "15 nearby saved states" enters Filter allowed actions only, after network. Never connect this side node into the IQN.
+Filter flows to final bold green band "STEER · THROTTLE · BRAKE" / "20 decisions per second".
+
+Footer: "Dashed path: zero final Conv1D correction in all 733 recorded decisions."
+Keep every described connection correct with clear arrowheads, no crossing lines through boxes, no missing branch, no invented data, no new performance claims. This is a conceptual summary of the exact recorded architecture, omit the reference's extra micro-details rather than cram tiny text. Use image 1 only for factual architecture reference; substantially improve visual design and reading hierarchy.
+
+FINAL EDIT
+undefined
+
+CORRECTION OF INPUT ILLUSTRATIONS
+Edit the attached technical architecture infographic. Preserve overall layout, colors, typography, ALL processing boxes and ALL connecting arrows and all unrelated text exactly. Correct ONLY the three misleading illustrations specified here. Scientific accuracy over decoration.
+
+1. TOP LEFT Road geometry: remove the existing perspective road sketch, including its left/center/right labels which incorrectly refer to different longitudinal stations. Replace the drawing area only with a compact readable data matrix schematic, not a perspective road. Text above stays "Road geometry · 264" and "44 stations × 6 coordinates". Draw 3 column groups headed "LEFT", "CENTER", "RIGHT". Each group contains two columns labeled "x z". Rows labeled "1", "2", "...", "44", with neutral tiny square cells for each coordinate, not invented numerical values. This represents 44 rows × 6 columns, each row contains left x,z, center x,z, right x,z for the SAME station. Use an ellipsis for omitted rows. Below the matrix in small legible type "Car-local horizontal coordinates". Keep Road GNN, Conv1D and their arrows unchanged.
+
+2. BOTTOM LEFT Internal quantile levels: remove existing row of 13 blue dots. Keep header and "32 fixed evaluation midpoints". Replace illustration with exact readable mathematical specification "τᵢ = (i + ½) / 32" then "i = 0, …, 31". No dots, no curves, no histogram. These are evenly spaced quantile fractions within (0,1), not probability mass or output values. Fit cleanly inside the existing box. Keep its arrow into IQN.
+
+3. BOTTOM RIGHT Reference-action support: remove the winding road and stones illustration entirely. Keep heading. Replace subtitle "15 nearby saved states" with "15 nearest states in feature space". Add a minimal miniature process as two lines "Current state → reference bank" and "Neighbor actions → allowed set". Use legible type, no literal road, no arbitrary scattered circles or geographic distance imagery. Keep outgoing arrow to Filter allowed actions and do not connect to IQN.
+
+No new branding, no new claims, no semicolons, no em dashes. Preserve remaining architecture and data dimensions exactly.

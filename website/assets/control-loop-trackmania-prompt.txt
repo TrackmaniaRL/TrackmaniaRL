@@ -1,0 +1,18 @@
+Mode: built-in GPT Image edit, using the earlier diagram and hero-poster.jpg as references.
+
+Use case: infographic-diagram, style-transfer edit.
+Image 1 is the existing infographic to redesign. Image 2 is an actual Trackmania gameplay reference for the CAR, ROAD SURFACE, CURBS AND STADIUM STYLE.
+Completely restyle Image 1 to feel like a carefully designed Trackmania technical analysis graphic. Preserve its educational facts and workflow. Remove all painterly hills, trees, floating landscape dioramas, glossy green badges, vintage serif headings, ornamental bevels, steering wheels and pedal clipart. Use clean warm off-white background, charcoal condensed sans-serif bold headings, small monospaced labels, flat green and cyan accents, thin precise lines. Restrained motorsport telemetry aesthetic. No grunge or sci-fi glow.
+
+Layout: three stages across the top, timing panel below, landscape 3:2, very legible.
+01 OBSERVE: a compact realistic in-game styled rear view of the colorful stadium car on flat grey Trackmania tarmac, with green/white curbs and white crash barrier as in Image 2. No invented mountain roads. Label "Live telemetry" and "Speed, position, motion". A second small FLAT TOP-DOWN mathematical road diagram with left edge, centerline and right edge sampled by dots, label "Prepared road geometry" and "Road shape relative to the car". Don't overlay fake measured values.
+02 CHOOSE: heading "Score 78 control combinations". Subtitle "13 steering × 2 throttle × 3 brake". Show four simple horizontal solid score bars on a common origin, no faded extension backgrounds or numbers. First blue bar medium, second blue short, third grey longest and crossed out, fourth green second-longest and checked. Green bar MUST be longer than all allowed blue bars. Captions "Apply reference-action filter", "where supported", "Pick the highest allowed score". No decorative controller icons.
+03 ACT: flat three-item text list "Steering", "Throttle", "Brake" next to a second realistic Trackmania road/car crop inspired by Image 2. Text "Send controls to the game". Clear flat arrows Observe → Choose → Act. Thin feedback arrow Act back to Observe labelled "Observe again".
+
+Bottom panel heading "WHY TIMING MATTERS".
+Horizontal shared timeline with exactly three equally spaced request markers "0 ms", "50 ms", "100 ms".
+"Game" lane: flat diagram with three successive small top-down stadium-car silhouettes, light grey motion path and right arrow. Label "The car keeps moving". This is a timing schematic, not an actual measurement of travel distance.
+"Controller" lane: equal short cyan blocks starting EXACTLY at the request markers, each followed immediately by short right arrow and a marker. First block label "Read + compute", following marker "Apply". Same pattern repeated. No long idle gap between computation and apply. All vertical request guides line up with computation starts.
+Footer takeaway: "The action uses a state observed a moment earlier."
+Footnotes: "Model computation averaged 8.5 ms." and "50 ms is the target interval, not computation time." and "Schematic timing and scores".
+No other text, semicolons, em dashes, watermarks or invented logos. Make it sober, technical, game-authentic, beautifully typeset. The reference gameplay image is visual inspiration only, do not claim the resulting image is recorded gameplay.

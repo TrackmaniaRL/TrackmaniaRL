@@ -1,0 +1,20 @@
+{
+  "event": "train/episode",
+  "timestamp_utc": "2026-10-21T00:26:27.015668+00:00",
+  "run_id": "tmrl-paper-1212-jakub-qr-s17",
+  "segment_id": "c1f30eac5ce94a24acffae75ce03fc71",
+  "step": 1842064,
+  "elapsed_s": 118872.417025,
+  "payload": {
+    "episode_id": "local-actor/62fe39d249f6461885b5820dae2dc76d/00003229",
+    "index": 11199,
+    "policy_version": 1841885,
+    "finished": 1.0,
+    "finish_time_s": 34.09,
+    "exploration_epsilon": 0.010000000000000009,
+    "exploration_epsilon_used": true,
+    "steps": 674,
+    "telemetry_skipped_frames_total": 333.0,
+    "timing/step_race_ms_max": 130.0
+  }
+}
