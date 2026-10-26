@@ -89,3 +89,7 @@ with the built-in GPT Image tool. The exact prompts are preserved in
 `scripts/rl-learning-prompts.json`. The original SVG stays available as source
 material. The six connections were checked in both variants before publication.
 The illustrated game scenes and telemetry are not experimental evidence.
+
+## October QR-DQN update
+
+The October section links the matched training episode (policy version 1841885), original QR configuration and all 30 final-checkpoint evaluation times. The filmed policy weights were not retained; distributed-update-02045500.pt is the later final checkpoint and must not be presented as the filmed weights. Recording provenance documents the 1080p source upscaled to a 1440p/60 fps container.
