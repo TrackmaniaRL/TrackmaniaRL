@@ -136,7 +136,7 @@ def _spawn_local_processes(
         if stop_file.exists():
             raise ValueError(f"Stop file already exists; remove it before starting: {stop_file}")
     context = _spawn_context()
-    shutdown = ProcessStopSignal(context)
+    shutdown = ProcessStopSignal(context, wait_for_actor_drain=True)
     actor_shutdown = ProcessStopSignal(context)
     endpoint = f"127.0.0.1:{spec.distributed.port}"
     token = secrets.token_urlsafe(32)
@@ -223,6 +223,12 @@ def _wait_for_learner_drain(processes: _LocalProcesses) -> None:
         f"waiting for learner (pid={processes.learner.pid}) to drain update credit...",
         flush=True,
     )
+    # A successful actor exit confirms its sender threads have closed. Keep the
+    # learner's server available until this point so accepted spools are not
+    # stranded, then drain all journaled work before the final checkpoint.
+    request_drain = getattr(processes.shutdown, "request_drain", None)
+    if callable(request_drain):
+        request_drain()
     while processes.learner.is_alive():
         if _stop_file_requested(processes):
             return

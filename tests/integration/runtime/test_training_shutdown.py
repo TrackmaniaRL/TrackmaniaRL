@@ -45,6 +45,16 @@ def test_stop_file_requests_shutdown_without_console_signal(tmp_path: Path) -> N
     assert event.is_set()
 
 
+def test_actor_clean_exit_requests_final_learner_drain() -> None:
+    stop = ProcessStopSignal(multiprocessing.get_context("spawn"), wait_for_actor_drain=True)
+    actor = SimpleNamespace(is_alive=lambda: False, exitcode=0, pid=1)
+    states = iter((True, True, False))
+    learner = SimpleNamespace(is_alive=lambda: next(states, False), pid=2)
+    processes = _LocalProcesses(learner, actor, stop, "unused", actor_shutdown=threading.Event())
+    assert not _wait_for_processes(processes)
+    assert stop.drain_requested()
+
+
 def test_stop_file_stops_only_collection_until_actor_has_closed(tmp_path: Path) -> None:
     flag = tmp_path / "stop"
     flag.touch()
