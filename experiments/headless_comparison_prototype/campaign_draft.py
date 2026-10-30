@@ -55,6 +55,7 @@ def build(deployment: Path, output: Path, ownership_root: Path) -> dict:
         "status": "draft_not_qualified",
         "seed": 17,
         "transitions": 7_168_000,
+        "max_overshoot": 2048,
         "map_uid": UID,
         "qualification_report": None,
         "qualification_sha256": None,
