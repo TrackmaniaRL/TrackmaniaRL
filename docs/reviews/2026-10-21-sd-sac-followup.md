@@ -77,8 +77,7 @@ live traces to a production replay, or declaring the policy fixed.
 4. Reject a long campaign if the independent driving assessment still stalls.
    Qualify headless reset/input/observation parity before transferring this pilot.
 
-Local evidence is retained under
-`F:/AITrackmania/reports/sd-sac-followup-20261021/`: `audit.py`, `result.json`,
+Local evidence is retained separately: `audit.py`, `result.json`,
 `audit.log`, the exact audited objective snapshot and `solver-benchmark.json`.
 These local telemetry artifacts are not committed or uploaded. Unit tests cover
 opposing-error priorities, explicit legacy/current checkpoint contracts, centered

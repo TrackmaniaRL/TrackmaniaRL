@@ -144,24 +144,29 @@ class _TreeColumns:
     def read(self, slot: int) -> Any:
         return self._read_node(self.spec, slot)
 
-    def _read_node(self, spec: Any, slot: int) -> Any:
+    def read_owned(self, slot: int) -> Any:
+        """Copy column leaves directly, without constructing then cloning tensor views."""
+        return self._read_node(self.spec, slot, owned=True)
+
+    def _read_node(self, spec: Any, slot: int, *, owned: bool = False) -> Any:
         kind = spec[0]
         if kind == "mapping":
             return {
-                key: self._read_node(child, slot)
+                key: self._read_node(child, slot, owned=owned)
                 for key, child in zip(spec[1], spec[2], strict=True)
             }
         if kind == "tuple":
-            return tuple(self._read_node(child, slot) for child in spec[1])
+            return tuple(self._read_node(child, slot, owned=owned) for child in spec[1])
         if kind == "list":
-            return [self._read_node(child, slot) for child in spec[1]]
+            return [self._read_node(child, slot, owned=owned) for child in spec[1]]
         value = self.arrays[spec[1]][slot]
         if spec[2] == "tensor":
             # Indexing a scalar tensor column returns a NumPy scalar. Restore
             # its zero-dimensional shape before converting it back to a tensor.
-            return torch.from_numpy(np.asarray(value))
+            array = np.array(value, copy=True, order="C") if owned else np.asarray(value)
+            return torch.from_numpy(array)
         if spec[2] == "ndarray":
-            return value
+            return value.copy(order="C") if owned and isinstance(value, np.ndarray) else value
         return value.item()
 
     def snapshot(self, slots: slice | np.ndarray[Any, np.dtype[np.int64]]) -> dict[str, Any]:

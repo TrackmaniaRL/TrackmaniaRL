@@ -162,3 +162,29 @@ def test_capture_pause_wait_is_cancellable_and_does_not_exhaust_reset_attempts(
     assert result == (None if cancel else "ready")
     assert environment.attempts == (1 if cancel else 9)
     assert actor.watchdog.idle_s() is not None
+
+
+def test_actor_retries_transient_reset_readiness_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    from trackmaniarl.core.environment_errors import EnvironmentResetError
+    from trackmaniarl.distributed.actor_watchdog import ProgressWatchdog
+
+    actor = object.__new__(ActorRuntime)
+    actor.actor_id = "actor"
+    actor.stop = threading.Event()
+    actor.stop_reason = "running"
+    actor._actor_seed = lambda: 7
+    actor.watchdog = ProgressWatchdog()
+    monkeypatch.setattr("trackmaniarl.distributed.actor_collection._TELEMETRY_RETRY_INITIAL_S", 0)
+
+    class Environment:
+        attempts = 0
+
+        def reset(self, *, seed: int) -> tuple[str, dict[str, Any]]:
+            self.attempts += 1
+            if self.attempts == 1:
+                raise EnvironmentResetError("race changed")
+            return "ready", {}
+
+    environment = Environment()
+    assert actor._reset_environment(EnvironmentReset(environment, 0, attempts=2)) == "ready"
+    assert environment.attempts == 2

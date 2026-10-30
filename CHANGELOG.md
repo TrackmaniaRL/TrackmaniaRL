@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+## 1.3.0
+
+- Bind qualified V8 deployments, backend sources and assets to preparation and
+  evaluation, and reject incomplete or unclean native process closures.
+- Replace recorded native test captures with reproducible synthetic fixtures.
+- Package the opt-in full QR headless game adapter and experiment components under
+  their owning library namespaces, with separately qualified native source deployments.
+- Preserve full V5/V6 observations, historical rewards and strict native timing,
+  contact, material and Finish proofs; document the virtual150FPS limitation.
+- Reduce submission validation contention, replay materialization copies and
+  qualified encoder launch overhead without changing the training objective.
+- Stream numeric NumPy checkpoint arrays through Torch storage records while
+  retaining the restricted reader, array ownership and backward loading support.
+- Join actor service workers before closing stop mappings and retain independent
+  wall-clock budgets, owned-process cleanup, storage reserves and checkpoint audits.
+
 ## 1.2.16 - 2026-10-22
 
 - Local asynchronous STOP/Ctrl+C now stops the actor first, then drains accepted

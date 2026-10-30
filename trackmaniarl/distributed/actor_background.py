@@ -93,7 +93,10 @@ def start_background_workers(runtime: BackgroundRuntime) -> list[threading.Threa
     workers = [*senders, *_service_workers(runtime)]
     for worker in workers:
         worker.start()
-    return senders
+    # Policy refresh can still be decoding/loading Torch tensors at shutdown.
+    # Its lifetime must be joined alongside the spool senders, before Python
+    # tears down the tensor runtime or the external stop mapping is closed.
+    return workers
 
 
 def _sender_workers(runtime: BackgroundRuntime) -> list[threading.Thread]:
@@ -321,9 +324,11 @@ def raise_background_failure(runtime: BackgroundRuntime) -> None:
 def external_stop_loop(runtime: BackgroundRuntime) -> None:
     if runtime.external_stop is None:
         return
-    runtime.external_stop.wait()
-    runtime.stop_reason = "local launcher shutdown"
-    runtime.stop.set()
+    while not runtime.stop.is_set():
+        if runtime.external_stop.wait(0.1):
+            runtime.stop_reason = "local launcher shutdown"
+            runtime.stop.set()
+            return
 
 
 def policy(runtime: BackgroundRuntime) -> tuple[ReplicablePolicy, float, int]:

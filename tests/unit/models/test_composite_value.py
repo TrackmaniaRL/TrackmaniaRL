@@ -272,6 +272,22 @@ def test_recurrent_learner_resume_continues_deterministically() -> None:
         _assert_recurrent_learner_resume_continues_deterministically(kind)
 
 
+@pytest.mark.parametrize("kind", ["scalar", "fqf"])
+def test_loading_and_training_does_not_mutate_checkpoint_optimizer_state(kind: str) -> None:
+    learner = DiscreteValueLearner(_value_model(kind))
+    learner.setup({"seed": 17})
+    learner.update(_batch())
+    checkpoint = deepcopy(learner.state_dict())
+    expected = deepcopy(checkpoint["optimizers"])
+
+    restored = DiscreteValueLearner(_value_model(kind))
+    restored.setup({"seed": 99})
+    restored.load_state_dict(checkpoint)
+    restored.update(_batch())
+
+    _assert_nested_state_equal(checkpoint["optimizers"], expected)
+
+
 def test_sequence_view_does_not_compose_the_final_n_step_return_twice() -> None:
     batch = _sequence_batch()
     view = ValueBatchView.from_batch(batch)

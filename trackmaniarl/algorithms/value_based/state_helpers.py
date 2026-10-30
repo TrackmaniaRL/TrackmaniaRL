@@ -101,14 +101,16 @@ def load_state_dict(learner: DiscreteValueLearner, state: Mapping[str, Any]) -> 
 
 
 def _restore_optimizers(learner: DiscreteValueLearner, optimizers: Mapping[str, Any]) -> None:
-    learner.optimizer.load_state_dict(optimizers["main"])
+    # PyTorch can retain tensor storage from the supplied state on the same
+    # device. Take ownership so subsequent updates do not mutate the checkpoint.
+    learner.optimizer.load_state_dict(deepcopy(optimizers["main"]))
     strategy_state = optimizers["strategy"]
     if learner.fraction_optimizer is None and strategy_state is not None:
         raise ValueError("checkpoint has a strategy optimizer but model does not")
     if learner.fraction_optimizer is not None:
         if strategy_state is None:
             raise ValueError("checkpoint is missing strategy optimizer state")
-        learner.fraction_optimizer.load_state_dict(strategy_state)
+        learner.fraction_optimizer.load_state_dict(deepcopy(strategy_state))
 
 
 def _restore_training(learner: DiscreteValueLearner, training: Mapping[str, Any]) -> None:

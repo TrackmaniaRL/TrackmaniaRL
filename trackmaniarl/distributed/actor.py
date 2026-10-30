@@ -7,9 +7,10 @@ import logging
 import os
 import re
 import socket
+import sys
 import threading
 import uuid
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from queue import Queue
 from time import monotonic
@@ -128,22 +129,40 @@ class ActorRuntime:
         )
 
     def run_forever(self) -> None:
-        senders: list[threading.Thread] = []
+        workers: list[threading.Thread] = []
         try:
             pipeline, environment_factory = self._components()
             initial = self._register()
             self._initialize_policy(initial)
-            senders = actor_background.start_background_workers(self)
+            workers = actor_background.start_background_workers(self)
             environment = environment_factory.create(seed=self._actor_seed())
             self._collect_environment(environment, pipeline)
             self._raise_background_failure()
         finally:
             self.stop.set()
-            try:
-                self._join_senders(senders)
-            finally:
-                self.client.close()
+            original_error = sys.exception()
+            cleanup_error: BaseException | None = None
+            cleanup_steps: tuple[Callable[[], None], ...] = (
+                lambda: self._join_senders(workers),
+                self.client.close,
+                lambda: self._join_workers(workers),
+            )
+            for cleanup in cleanup_steps:
+                try:
+                    cleanup()
+                except BaseException as exc:
+                    if original_error is not None:
+                        original_error.add_note(f"Actor cleanup failed: {exc!r}")
+                    elif cleanup_error is None:
+                        cleanup_error = exc
+                    else:
+                        cleanup_error.add_note(f"Additional actor cleanup failure: {exc!r}")
+            if original_error is not None or cleanup_error is not None:
+                logger.warning("Actor %s shutdown failed or was interrupted", self.actor_id)
+            else:
                 logger.info("Actor %s stopped: %s", self.actor_id, self.stop_reason)
+            if original_error is None and cleanup_error is not None:
+                raise cleanup_error
 
     def _initialize_policy(self, initial: Mapping[str, Any]) -> None:
         logger.info(
@@ -177,6 +196,16 @@ class ActorRuntime:
         deadline = monotonic() + 10.0
         for sender in senders:
             sender.join(timeout=max(0.0, deadline - monotonic()))
+
+    @staticmethod
+    def _join_workers(workers: list[threading.Thread]) -> None:
+        """Never report a stopped actor while an owned Torch worker is alive."""
+        deadline = monotonic() + 10.0
+        for worker in workers:
+            worker.join(timeout=max(0.0, deadline - monotonic()))
+        remaining = [worker.name for worker in workers if worker.is_alive()]
+        if remaining:
+            raise RuntimeError(f"actor background workers did not stop: {remaining}")
 
     def _components(self) -> tuple[Any, Any]:
         _configure_actor_threads(self.spec.distributed.actor_execution)

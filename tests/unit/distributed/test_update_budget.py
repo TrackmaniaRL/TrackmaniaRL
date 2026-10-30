@@ -7,9 +7,43 @@ import pytest
 from trackmaniarl.core.spec import DistributedSpec
 from trackmaniarl.distributed.actor_collection import CollectionContext, _wait_for_update_budget
 from trackmaniarl.distributed.coordinator_checkpoint import _restore_distributed
-from trackmaniarl.distributed.coordinator_ingest import _credit_updates
+from trackmaniarl.distributed.coordinator_ingest import _credit_updates, _strict_learner_has_work
+from trackmaniarl.distributed.coordinator_learning import ready_to_update
 from trackmaniarl.distributed.coordinator_rpc import _policy_response
 from trackmaniarl.distributed.coordinator_support import _Counters
+
+
+@pytest.mark.parametrize(
+    ("state", "expected"),
+    [
+        ((7, 1.0, True), False),
+        ((8, 0.9, True), False),
+        ((8, 1.0, False), False),
+        ((8, 1.0, True), True),
+    ],
+)
+def test_strict_ingestion_uses_learner_readiness(
+    state: tuple[int, float, bool], *, expected: bool
+) -> None:
+    replay_size, credit, can_update = state
+    coordinator = SimpleNamespace(
+        run=SimpleNamespace(
+            spec=SimpleNamespace(
+                distributed=DistributedSpec(strict_update_budget=True),
+                training=SimpleNamespace(
+                    warmup_transitions=5, batch_size=3, sequence_length=2, n_step=3
+                ),
+            ),
+            replay_store=[None] * replay_size,
+        ),
+        counters=_Counters(update_credit=credit),
+        _evaluation_stop_reason=None,
+        _can_update=lambda: can_update,
+    )
+    assert ready_to_update(coordinator) is expected
+    assert _strict_learner_has_work(coordinator) is expected
+    coordinator._evaluation_stop_reason = "finished"
+    assert not _strict_learner_has_work(coordinator)
 
 
 @pytest.mark.parametrize(("strict", "expected"), [(True, 540.0), (False, 512.0)])

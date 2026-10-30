@@ -1,0 +1,5 @@
+# Fixed-byte imported evidence: hashes are part of the V7 profile.
+# Retain imported CRLF bytes; their hashes are part of the tested asset profile.
+original-source-manifest.json -text -whitespace
+v6-to-v7.patch -text -whitespace
+build-receipt.json -text -whitespace

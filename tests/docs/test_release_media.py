@@ -7,6 +7,11 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_tick_replay_game_media_is_not_bundled() -> None:
+    assert not (ROOT / "docs/assets/headless-tick-cpu-search.gif").exists()
+    assert not (ROOT / "docs/assets/headless-tick-cpu-search-preview.jpg").exists()
+
+
 def test_neural_gif_is_bounded_looping_and_has_no_private_metadata() -> None:
     path = ROOT / "docs/assets/trackmaniarl-neural-flow.gif"
     assert path.stat().st_size < 10 * 1024**2

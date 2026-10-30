@@ -1,0 +1,89 @@
+{
+  "schema": "tmre.preview200-portable-profile/v1",
+  "driverSourceManifestSha256": "637c30f41d3763b98e25b1017d77be96fa4ec578d2f19e843becd90ac4d54c83",
+  "oldDriverSha256": "669486302fd66cdd8833128e06879089d1c4073ceed0dc11bcc0963fea06e1c4",
+  "sevenRoles": [
+    {
+      "role": "server",
+      "path": "build/server-probe/linux-validate-map2-001/TrackmaniaServer",
+      "bytes": 30113288,
+      "sha256": "3b6107824feea402bd32c888e994dcd6df4a10afc8676a2647ac9560ccf0d779",
+      "redistributionPermissionEstablished": false
+    },
+    {
+      "role": "driver",
+      "path": "build/tmrl-shortcut/long-horizon-001/driver/target/release/tmre-reset-driver",
+      "bytes": 1109320,
+      "sha256": "669486302fd66cdd8833128e06879089d1c4073ceed0dc11bcc0963fea06e1c4",
+      "redistributionPermissionEstablished": false
+    },
+    {
+      "role": "shim",
+      "path": "build/forkoracle/native-long-v6-001/libforkshim.so",
+      "bytes": 586240,
+      "sha256": "a14837a1c64595a697ddea89637e4f12a904df7ddaa84d814b4fc2cd47e97781",
+      "redistributionPermissionEstablished": false
+    },
+    {
+      "role": "map",
+      "path": "analysis/tmrl-shortcut/assets-001/tmrl-test.Map.Gbx",
+      "bytes": 554998,
+      "sha256": "ed61a14dcfed9d4b3e3e961b1f1655deef6ac3f5ad05b6875f7722c1440004cc",
+      "redistributionPermissionEstablished": false
+    },
+    {
+      "role": "tape",
+      "path": "analysis/tmrl-shortcut/long-horizon-controls-001/n4152-decl40000.Ghost.Gbx",
+      "bytes": 37519,
+      "sha256": "1cb2dfe4749c9743c8aa7cc710c5442f82c1193157e2c15b8e973f5bb5d6979e",
+      "redistributionPermissionEstablished": false
+    },
+    {
+      "role": "reference",
+      "path": "experiments/headless-native16-training-001/reference.json",
+      "bytes": 111612,
+      "sha256": "49b7663cc35f4fefedb68309a54e37c627634c990d51aec9de3590a217efdeea",
+      "redistributionPermissionEstablished": false
+    },
+    {
+      "role": "cold_post",
+      "path": "analysis/headless-normalstart/run-001/posts/post-828.bin",
+      "bytes": 955904,
+      "sha256": "b30d31c5d0758319237c3251f7d79c4b42d5105bda8a66e457847d3de9a7d324",
+      "redistributionPermissionEstablished": false
+    }
+  ],
+  "supportAssets": [
+    {
+      "path": "build/server-probe/linux-validate-map2-001/Packs/Trackmania.Title.Pack.Gbx",
+      "bytes": 38547784,
+      "sha256": "fe607611a96f160e375c9e59faa0ba3cfcb16c9116c852c16e7a8434a2a793e7"
+    },
+    {
+      "path": "build/server-probe/linux-validate-map2-001/Packs/dedicated.pak",
+      "bytes": 8174216,
+      "sha256": "55270cf001f982ac0f9d5109d6e9a2a88f62df279973ac7b6db030393c572b2a"
+    },
+    {
+      "path": "build/server-probe/linux-validate-map2-001/Packs/dedicated_TMStadium.pak",
+      "bytes": 292346632,
+      "sha256": "b020f6a47334b69a748fb0e9024959ec4f94b5fded95c5aecb5a66e78339856b"
+    },
+    {
+      "path": "build/server-probe/linux-validate-map2-001/Packs/resource.pak",
+      "bytes": 181768,
+      "sha256": "62b82c192e85b096fc70d001c568aad32e7c57abe447bd5f260fa1828bbd087c"
+    }
+  ],
+  "target": "Windows WSL2 Ubuntu x86_64",
+  "testedUbuntu": "24.04",
+  "testedGlibc": "2.39",
+  "strongGlibcMinimum": "2.34",
+  "optionalGlibcSymbols": "2.39",
+  "runtimeQualified": false,
+  "redistributionPermissionEstablished": false,
+  "driverSourceRevision": "211",
+  "portableDriverSha256": "1586652d46b907eee7fedf86bc29f545067f65fc3b79c9f3abfc1f8c231a4d3c",
+  "portableDriverBytes": 1115880,
+  "driverBuildReceiptSha256": "cb51f707ab488300f4e7a0fde61713ad37715f5e3ac1ec63b09251de55553c27"
+}

@@ -12,6 +12,7 @@ import numpy as np
 import trackmaniarl.trackmania.environment_step as environment_step
 from trackmaniarl.core.contracts import FeaturePipeline
 from trackmaniarl.core.data import Transition
+from trackmaniarl.core.environment_errors import EnvironmentResetError
 from trackmaniarl.trackmania.actions import select_brake_tap_actions
 from trackmaniarl.trackmania.control import Controller, GamepadController, KeyboardController
 from trackmaniarl.trackmania.environment_config import (
@@ -166,9 +167,15 @@ class OpenPlanetEnvironment:
             self.geometry.validate_map(self.evaluation_map.map_path)
         self._session.verify_loaded_map(self._expected_map_uid)
         frame = self._restart_race()
+        confirmation_race_ms = float(frame.values[3])
         if self.config.reset_settle_s:
             sleep(self.config.reset_settle_s)
-            frame = self.client.read()
+        # Session confirmation can block for multiple simulation ticks. Never
+        # hand its older, pre-confirmation frame to the first policy decision.
+        frame = self.client.read()
+        observation_race_ms = float(frame.values[3])
+        if observation_race_ms < confirmation_race_ms or bool(frame.values[2]):
+            raise EnvironmentResetError("Race changed or finished while confirming reset readiness")
         self.reward.reset(
             frame.values[list(self.config.position_indices)],
             velocity=frame.values[list(self.config.velocity_indices)],
@@ -178,6 +185,8 @@ class OpenPlanetEnvironment:
         self._last_race_time_ms = float(frame.values[3])
         return frame.values, {
             "telemetry_health": "ok",
+            "reset_confirmation_race_time_ms": confirmation_race_ms,
+            "reset_observation_race_time_ms": observation_race_ms,
             "reset/countdown_throttle": self.config.countdown_throttle,
             "reset/race_time_ms": self._last_race_time_ms,
         }

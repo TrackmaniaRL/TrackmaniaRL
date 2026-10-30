@@ -1,0 +1,8 @@
+[meta]
+name = "Full QR Passive Probe 041"
+author = "AITrackmania diagnostics"
+category = "Developer tools"
+version = "0.0.1"
+
+[script]
+dependencies = [ "VehicleState" ]

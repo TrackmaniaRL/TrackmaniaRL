@@ -1,0 +1,31 @@
+{
+  "origin": "synthetic",
+  "context": {
+    "pid": 127,
+    "birth": 550,
+    "module_base": 268435456,
+    "vehicle": 131072,
+    "world": 196608,
+    "physical_state": 262144,
+    "tracer_tid": 129,
+    "wheel_count": 4
+  },
+  "sha256": "4de3c775ffaf88157e60af0812bd251218b15a059368ac0d7485e2207fd1497a",
+  "wheel_models": [
+    327684,
+    327728,
+    327772,
+    327816
+  ],
+  "vehicle_model": 458752,
+  "normalization_owner": 393216,
+  "normalization_owner_header_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "records": 23,
+  "expected_categories": [
+    0,
+    1,
+    0,
+    1
+  ],
+  "expected_thresholds_hex": "00002042000020410000a0410000c842"
+}

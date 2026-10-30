@@ -63,7 +63,15 @@ def tree_collate(values: Sequence[PyTree]) -> PyTree:
         return _collate_sequence(values, first, list)
     if isinstance(first, Mapping):
         return _collate_mapping(values, first)
-    if isinstance(first, Number):
+    if any(type(item) is np.uint64 for item in values) and all(
+        type(item) in (int, np.uint64) and 0 <= item < 2**64 for item in values
+    ):
+        # NumPy scalars mixed with Python ints otherwise overflow Torch's
+        # signed inference for values above int64's maximum.
+        return torch.as_tensor(np.asarray(values, dtype=np.uint64))
+    if isinstance(first, np.bool_) and all(type(item) is type(first) for item in values):
+        return torch.as_tensor(np.asarray(values))
+    if isinstance(first, (Number, np.bool_)):
         return torch.as_tensor(values)
     raise TypeError(f"Cannot collate unsupported PyTree leaf {type(first).__name__}")
 
@@ -112,13 +120,15 @@ def tree_snapshot(value: PyTree) -> PyTree:
 
 
 def sanitize_finite(value: PyTree) -> PyTree:
-    """Replace non-finite floating tensor/array values with zero at model boundaries."""
+    """Sanitize floating tensor, array, and NumPy scalar values at model boundaries."""
 
     def sanitize(leaf: Any) -> Any:
         if isinstance(leaf, torch.Tensor):
             return torch.nan_to_num(leaf) if leaf.is_floating_point() else leaf
         if isinstance(leaf, np.ndarray):
             return np.nan_to_num(leaf) if np.issubdtype(leaf.dtype, np.floating) else leaf
+        if isinstance(leaf, np.generic) and leaf.dtype.kind in "biufc":
+            return np.nan_to_num(leaf) if leaf.dtype.kind == "f" else leaf
         if isinstance(leaf, (bool, int, float, str, type(None))):
             return leaf
         raise TypeError(f"Cannot sanitize unsupported PyTree leaf {type(leaf).__name__}")

@@ -1,7 +1,7 @@
 """Reusable frame encoders supplied by TrackmaniaRL."""
 
 from trackmaniarl.models.encoders.convolutional import ConvolutionalSensorEncoder
-from trackmaniarl.models.encoders.mlp import MlpSensorEncoder
+from trackmaniarl.models.encoders.mlp import MlpSensorEncoder, StructuredMlpSensorEncoder
 from trackmaniarl.models.encoders.track_geometry import (
     TemporalMambaTrackGeometryEncoder,
     require_mamba_layer,
@@ -16,6 +16,7 @@ __all__ = [
     "ConvolutionalSensorEncoder",
     "MlpSensorEncoder",
     "ObservationEncoder",
+    "StructuredMlpSensorEncoder",
     "TemporalMambaTrackGeometryEncoder",
     "TemporalTrackGeometryEncoder",
     "TrackGeometryEncoder",

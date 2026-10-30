@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
 
@@ -406,3 +407,43 @@ def test_ppo_updates_from_structured_observation_sequences() -> None:
     metrics = learner.update(batch)
 
     assert all(torch.isfinite(torch.tensor(value)) for value in metrics.values())
+
+
+@pytest.mark.parametrize("kind", ["sac", "tqc", "redq", "ppo"])
+def test_restored_optimizers_do_not_mutate_checkpoint(kind: str) -> None:
+    def make() -> Any:
+        if kind == "sac":
+            return SoftActorCritic(ContinuousModel(), learn_entropy_coefficient=True)
+        if kind == "tqc":
+            return TruncatedQuantileCritic(
+                ContinuousModel(quantiles=5), learn_entropy_coefficient=True
+            )
+        if kind == "redq":
+            return RandomizedEnsembleSAC(RedqModel())
+        return ProximalPolicyOptimization(ContinuousPpoModel())
+
+    source, restored = make(), make()
+    source.setup({"seed": 0})
+    restored.setup({"seed": 1})
+    keys = ["optimizer"] if kind == "ppo" else ["actor_optimizer", "critic_optimizer"]
+    if kind in {"sac", "tqc"}:
+        keys.append("alpha_optimizer")
+    for key in keys:
+        optimizer = getattr(source, key)
+        for group in optimizer.param_groups:
+            for parameter in group["params"]:
+                parameter.grad = torch.ones_like(parameter)
+        optimizer.step()
+    checkpoint = deepcopy(source.state_dict())
+    expected = deepcopy(checkpoint)
+    restored.load_state_dict(checkpoint)
+    for key in keys:
+        optimizer = getattr(restored, key)
+        for group in optimizer.param_groups:
+            for parameter in group["params"]:
+                parameter.grad = torch.ones_like(parameter)
+        optimizer.step()
+        for param_id, state in checkpoint[key]["state"].items():
+            for name, value in state.items():
+                if isinstance(value, torch.Tensor):
+                    torch.testing.assert_close(value, expected[key]["state"][param_id][name])

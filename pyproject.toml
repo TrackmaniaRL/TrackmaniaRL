@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "TrackmaniaRL"
-version = "1.2.16"
+version = "1.3.0"
 description = "Reinforcement-learning library for training agents in Trackmania 2020"
 readme = "README.md"
 license = "MIT"
@@ -43,6 +43,7 @@ dependencies = [
 
 [project.optional-dependencies]
 vision = ["mss>=10.0,<11"]
+native-vision = ["numba>=0.64,<0.69"]
 orchestrator = [
     "google-genai>=2.2.0",
     "optuna>=3.0",
@@ -64,6 +65,7 @@ mamba = [
 ]
 all = [
     "mss>=10.0,<11",
+    "numba>=0.64,<0.69",
     "google-genai>=2.2.0",
     "optuna>=3.0",
     "libevdev>=0.13; sys_platform == 'linux'",
@@ -139,13 +141,26 @@ include = ["trackmaniarl*"]
 exclude = ["tests*"]
 
 [tool.setuptools.package-data]
-trackmaniarl = ["py.typed", "project/openplanet/*.as", "project/openplanet/*.toml"]
+trackmaniarl = ["py.typed", "project/openplanet/*.as", "project/openplanet/*.toml",
+               "trackmania/native_headless/_runtime/portable_profile.json",
+               "trackmania/native_headless/_runtime/immediate_profile.json",
+               "trackmania/native_headless/_runtime/native_input_v7/*.patch",
+               "trackmania/native_headless/_runtime/native_input_v7/README.md"]
+
+[tool.setuptools.exclude-package-data]
+trackmaniarl = ["trackmania/native_headless/_runtime/native_input_v7/build-receipt.json"]
 
 [tool.ruff]
 target-version = "py312"
 line-length = 100
 src = ["."]
-extend-exclude = [".pytest-*"]
+extend-exclude = [
+    ".pytest-*",
+    # Byte-pinned source snapshots: changing formatting changes provenance.
+    "tools/tmrl_native1164/environment.py",
+    "tools/tmrl_native1164/multi_goal.py",
+    "tools/tmrl_native1164/orientation.py",
+]
 
 [tool.ruff.lint]
 select = [
@@ -173,6 +188,11 @@ ignore = [
 ]
 # RUF022 (__all__ sort) defaults to "unsafe"; allow it under `ruff check --fix` / `uv run poe fmt`.
 extend-safe-fixes = ["RUF022"]
+
+[tool.ruff.lint.per-file-ignores]
+# Historical, repository-only experiment scripts are not the typed library API.
+"tools/record_rl1168/*.py" = ["ANN", "PLR0913", "PT009", "PT011", "E501", "RUF001", "N818"]
+"tools/vision_qr1167/*.py" = ["ANN", "PLR0913"]
 
 [tool.ruff.lint.pylint]
 max-args = 3

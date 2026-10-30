@@ -1,0 +1,10 @@
+{
+  "schema": "tmrl.native-immediate-build-pins/v1",
+  "shimSha256": "fb041afb982e7cc7a5922d49c3dd0ed49c2e6ae698dd0fd103415fbeddf98004",
+  "sourceManifestSha256": "92cc6ebdfb81a9c32ca345dbe884065ecf523ec3cf70fb37a8b6e12eff20b325",
+  "patchSha256": "ddeec38045f3c001a8087d2edef3e143c9c5da71c15cab605777bc0affe996b7",
+  "buildReceiptSha256": "2f2834e9d026238f75b0bcdcceefa6984f819ba5f81ec62eb6ed5e5e750933a6",
+  "wireABI": "V7-request192-response448-op6-current-before-load",
+  "literalResetNativeT": 2200,
+  "inputSchedule": "current-record-before-load/v1"
+}

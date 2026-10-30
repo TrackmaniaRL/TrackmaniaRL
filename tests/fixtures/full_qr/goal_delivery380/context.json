@@ -1,0 +1,18 @@
+{
+  "pid": 123,
+  "meta": {
+    "module_slide": 268435456,
+    "participant": 1073741824,
+    "sim": 1342177280,
+    "controller": 1610612736,
+    "vehicle": 805306368
+  },
+  "origin": "Synthetic records generated from zero-filled buffers; not engine captures.",
+  "files": {
+    "facts.bin": "4b9e1d8dfac4d5093cc4db814309df8c7db99c41c9a21edc4f77b06f2a6ab9d1",
+    "initial.bin": "c974f32fc5625c52d6f2c937ed1933a6be9f0041b93073890aaa3f8fdf58c335",
+    "pending.bin": "7bd35ebdf4e361def1caee3783991529e79ae609d609c9bda2fc08e9a01b22be",
+    "active.bin": "e4cb10407153c3eaf509d20c65630f692c73b3f58d64fdb2d0b3e9bea821059b",
+    "receipts.bin": "ca49094e0747315f370d710244e9575da1f7baa4be19a0ce70d214cace1dd2cf"
+  }
+}

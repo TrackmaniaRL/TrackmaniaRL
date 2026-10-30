@@ -1,0 +1,8 @@
+[meta]
+name = "Headless Fresh Telemetry 006"
+author = "AITrackmania"
+category = "Utilities"
+version = "0.0.6"
+
+[script]
+dependencies = ["VehicleState", "PlayerState"]

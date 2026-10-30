@@ -275,6 +275,14 @@ class InMemoryReplayStore:
         with self._lock:
             return list(range(self._next_index - self._size, self._next_index))
 
+    def available_id_range(self) -> range:
+        """Return the dense FIFO ID range without allocating every ID.
+
+        Hold the sampling transaction while selecting and materializing rows.
+        """
+        with self._lock:
+            return range(self._next_index - self._size, self._next_index)
+
     def contains(self, transition_id: TransitionId) -> bool:
         if transition_id < 0:
             return False

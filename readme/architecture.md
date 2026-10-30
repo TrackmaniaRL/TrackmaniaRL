@@ -147,6 +147,11 @@ requires an exact architecture fingerprint and complete state. A Mamba kernel
 backend may differ because `native` and `torch` share parameters and the backend
 is excluded from the architecture fingerprint.
 
+The current Torch checkpoint codec reads older checkpoints, but checkpoints it
+writes with numeric NumPy arrays use a newer restore helper. Older library
+versions and frozen runtimes without that helper cannot load those files; keep
+the current reader available when retaining or moving such checkpoints.
+
 The single-process `Trainer` used by PPO has its own schema 2.0 checkpoint with
 a semantic run fingerprint, learner, replay, sampler and local counters. It is
 resumed through `Trainer` and is not interchangeable with a distributed schema

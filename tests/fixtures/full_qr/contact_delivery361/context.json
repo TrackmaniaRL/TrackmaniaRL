@@ -1,0 +1,39 @@
+{
+  "origin": "synthetic",
+  "context": {
+    "pid": 127,
+    "tid": 129,
+    "module_base": 268435456,
+    "vehicle": 131072,
+    "participant": 589824,
+    "sim": 655360,
+    "controller": 720896,
+    "normalization_owner": 393216,
+    "normalization_header": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "normalization_thresholds": "00002042000020410000a0410000c842",
+    "wheel_models": [
+      327684,
+      327728,
+      327772,
+      327816
+    ],
+    "wheel_headers": [
+      "6400000000000000c80000002c010000",
+      "6500000001000000c90000002d010000",
+      "6600000000000000ca0000002e010000",
+      "6700000001000000cb0000002f010000"
+    ]
+  },
+  "final_native_t": 2220,
+  "contacts": 5,
+  "files": [
+    {
+      "name": "receipts.bin",
+      "sha256": "a7f8ddc53f3384757b775c1f1862bf3f2f421363585eba984a3bfa2dedf02818"
+    },
+    {
+      "name": "contacts.bin",
+      "sha256": "452e22ad6275a503d74fa3a6b5448f363e6ddf4eeb0a97e5b41eae6aeb14ffe0"
+    }
+  ]
+}

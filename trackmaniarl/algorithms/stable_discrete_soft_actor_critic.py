@@ -641,10 +641,17 @@ class StableDiscreteSoftActorCritic(TorchLearnerBase):
         self._validate_checkpoint_options(state)
         self.model.load_state_dict(state["model"])
         self.target_model.load_state_dict(state["target_model"])
-        self.actor_optimizer.load_state_dict(state["actor_optimizer"])
-        self.critic_optimizer.load_state_dict(state["critic_optimizer"])
+        # Optimizer loading may otherwise retain same-device checkpoint tensors.
+        self.actor_optimizer.load_state_dict(deepcopy(state["actor_optimizer"]))
+        self.critic_optimizer.load_state_dict(deepcopy(state["critic_optimizer"]))
         entropy = EntropyRestoreTarget(self.log_alpha, self.alpha_optimizer, self.device)
-        restore_entropy_state(entropy, state)
+        restore_entropy_state(
+            entropy,
+            {
+                "log_alpha": state["log_alpha"],
+                "alpha_optimizer": deepcopy(state["alpha_optimizer"]),
+            },
+        )
         self._restore_scaler(state["scaler"])
         self._restore_rng(state["rng"])
 

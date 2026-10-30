@@ -7,6 +7,7 @@ from typing import Any, cast
 import numpy as np
 import torch
 
+from trackmaniarl.core.observation_endpoints import validate_endpoint_flags
 from trackmaniarl.core.replay.store_pace import validated_sampling_pace
 from trackmaniarl.distributed.codec import WireCodec
 from trackmaniarl.distributed.coordinator_observability_validation import (
@@ -17,11 +18,13 @@ from trackmaniarl.distributed.coordinator_observability_validation import (
 from trackmaniarl.distributed.protocol import transition_from_wire
 
 
-def _validate_submit_payload(value: Mapping[str, Any], codec: WireCodec) -> None:
+def _validate_submit_payload(
+    value: Mapping[str, Any], codec: WireCodec, *, pipeline: object | None = None
+) -> None:
     _validate_fields(value, _SUBMIT_FIELDS, "rollout")
     _validate_submit_identity(value)
     transitions, episodes, evaluations = _submit_collections(value)
-    _validate_submit_collections(transitions, episodes, evaluations)
+    _validate_submit_collections(transitions, episodes, evaluations, pipeline=pipeline)
     _validate_episode_owners(value, transitions, episodes)
     _validate_evaluation_snapshot(value, evaluations, codec)
 
@@ -42,11 +45,15 @@ def _submit_collections(
     return transitions, episodes, evaluations
 
 
-def _validate_submit_collections(
-    transitions: list[Any], episodes: list[Any], evaluations: list[Any]
+def _validate_submit_collections(  # noqa: PLR0913 -- collection fields plus opt-in pipeline
+    transitions: list[Any],
+    episodes: list[Any],
+    evaluations: list[Any],
+    *,
+    pipeline: object | None = None,
 ) -> None:
     for item in transitions:
-        _validate_wire_transition(item)
+        _validate_wire_transition(item, pipeline=pipeline)
     for summary in episodes:
         _validate_episode_summary(summary)
     for summary in evaluations:
@@ -91,13 +98,17 @@ def _validate_evaluation_snapshot(
     _validate_finite_tree(policy_state, "evaluation_snapshot")
 
 
-def _validate_wire_transition(value: object) -> None:
+def _validate_wire_transition(value: object, *, pipeline: object | None = None) -> None:
     if not isinstance(value, Mapping):
         raise TypeError("transitions must contain mappings")
     _validate_transition_fields(value)
     _validate_transition_identity(value)
-    _validate_transition_values(value)
-    transition_from_wire(value)
+    validate_endpoint_flags(pipeline, terminated=value["terminated"], truncated=value["truncated"])
+    _validate_transition_values(value, pipeline=pipeline)
+    transition = transition_from_wire(value)
+    validate = getattr(pipeline, "validate_replay_transition", None)
+    if callable(validate):
+        validate(transition)
 
 
 def _validate_transition_fields(value: Mapping[str, Any]) -> None:
@@ -117,10 +128,19 @@ def _validate_transition_identity(value: Mapping[str, Any]) -> None:
         raise TypeError("transition step must be a non-negative integer or null")
 
 
-def _validate_transition_values(value: Mapping[str, Any]) -> None:
+def _validate_transition_values(
+    value: Mapping[str, Any], *, pipeline: object | None = None
+) -> None:
     _validate_numeric_tree(value["observation"], "transition observation")
     _validate_numeric_tree(value["action"], "transition action")
-    _validate_numeric_tree(value["next_observation"], "transition next_observation")
+    missing_terminal = (
+        value["next_observation"] is None
+        and value["terminated"] is True
+        and value["truncated"] is False
+        and getattr(pipeline, "terminal_next_observation_optional", False) is True
+    )
+    if not missing_terminal:
+        _validate_numeric_tree(value["next_observation"], "transition next_observation")
     _validate_finite_number(value["reward"], "transition reward")
     projected = value["info"].get("sampling/projected_lap_time_s")
     if projected is not None:
@@ -262,9 +282,22 @@ def _validate_numeric_children(values: Any, name: str) -> None:
 def _validate_numeric_array(value: torch.Tensor | np.ndarray[Any, Any], name: str) -> None:
     if value.dtype in {torch.bool, np.bool_}:
         return
-    finite = (
-        torch.isfinite(value).all() if isinstance(value, torch.Tensor) else np.isfinite(value).all()
-    )
+    if (
+        isinstance(value, torch.Tensor)
+        and value.device.type == "cpu"
+        and value.layout == torch.strided
+        and value.dtype in {torch.float16, torch.float32, torch.float64}
+    ):
+        # Small decoded CPU leaves are checked without multiple Torch
+        # dispatches/GIL handoffs per leaf across concurrent RPC threads.
+        # This is a zero-copy view; every NaN/Inf is still rejected.
+        finite = np.isfinite(value.numpy(force=True)).all()
+    else:
+        finite = (
+            torch.isfinite(value).all()
+            if isinstance(value, torch.Tensor)
+            else np.isfinite(value).all()
+        )
     if not bool(finite):
         raise ValueError(f"{name} contains non-finite values")
 

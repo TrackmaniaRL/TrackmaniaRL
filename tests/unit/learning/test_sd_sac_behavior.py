@@ -8,6 +8,7 @@ import pytest
 import torch
 from torch import nn
 
+from tests.unit._composite_value_fixtures import _assert_nested_state_equal
 from tests.unit.learning._algorithm_fixtures import BatchKind, DiscreteSacModel, _batch
 from trackmaniarl.algorithms import StableDiscreteSoftActorCritic
 from trackmaniarl.algorithms.execution import TorchExecutionConfig
@@ -22,6 +23,23 @@ def _learner() -> StableDiscreteSoftActorCritic:
     )
     learner.setup({"seed": 17})
     return learner
+
+
+@pytest.mark.parametrize("key", ["actor_optimizer", "critic_optimizer", "alpha_optimizer"])
+def test_restored_update_preserves_caller_optimizer_states(key: str) -> None:
+    learner = StableDiscreteSoftActorCritic(DiscreteSacModel())
+    learner.setup({"seed": 17})
+    learner.update(_batch(BatchKind.DISCRETE))
+    checkpoint = deepcopy(learner.state_dict())
+    expected = deepcopy(checkpoint[key])
+    assert expected is not None
+    assert expected["state"]
+
+    restored = StableDiscreteSoftActorCritic(DiscreteSacModel())
+    restored.setup({"seed": 17})
+    restored.load_state_dict(checkpoint)
+    restored.update(_batch(BatchKind.DISCRETE))
+    _assert_nested_state_equal(checkpoint[key], expected)
 
 
 def test_policy_records_exact_categorical_entropy_without_sampling_in_evaluation() -> None:

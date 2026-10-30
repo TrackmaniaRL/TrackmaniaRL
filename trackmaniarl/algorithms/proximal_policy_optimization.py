@@ -201,7 +201,7 @@ class ProximalPolicyOptimization(TorchLearnerBase):
     def load_state_dict(self, state: Mapping[str, Any]) -> None:
         assert self.model is not None
         self.model.load_state_dict(state["model"])
-        self.optimizer.load_state_dict(state["optimizer"])
+        self.optimizer.load_state_dict(deepcopy(state["optimizer"]))
         self.observation_normalizer.load_state_dict(
             cast(Mapping[str, Any], state["observation_normalizer"])
         )

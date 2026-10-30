@@ -1,0 +1,184 @@
+{
+  "origin": "synthetic",
+  "context": {
+    "pid": 127,
+    "birth": 550,
+    "module_base": 268435456,
+    "vehicle": 131072,
+    "world": 196608,
+    "physical_state": 262144,
+    "tracer_tid": 129,
+    "wheel_count": 4
+  },
+  "sha256": "d25815b8f90e49b9a1580d596d2529830aa27191e99da8ce7d5e850b9d5499bf",
+  "expected": [
+    {
+      "sequence": 1,
+      "native_time": 2200,
+      "wheel_index": 0,
+      "material": 9,
+      "normal": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "point": [
+        1.0,
+        2.0,
+        3.0
+      ],
+      "contact_velocity": [
+        30.0,
+        20.0,
+        0.0
+      ]
+    },
+    {
+      "sequence": 2,
+      "native_time": 2210,
+      "wheel_index": 1,
+      "material": 16,
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "point": [
+        1.0,
+        2.0,
+        3.0
+      ],
+      "contact_velocity": [
+        30.0,
+        20.0,
+        0.0
+      ]
+    },
+    {
+      "sequence": 3,
+      "native_time": 2220,
+      "wheel_index": 2,
+      "material": 9,
+      "normal": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "point": [
+        1.0,
+        2.0,
+        3.0
+      ],
+      "contact_velocity": [
+        30.0,
+        20.0,
+        0.0
+      ]
+    },
+    {
+      "sequence": 4,
+      "native_time": 2230,
+      "wheel_index": 3,
+      "material": 16,
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "point": [
+        1.0,
+        2.0,
+        3.0
+      ],
+      "contact_velocity": [
+        30.0,
+        20.0,
+        0.0
+      ]
+    },
+    {
+      "sequence": 5,
+      "native_time": 2240,
+      "wheel_index": 0,
+      "material": 9,
+      "normal": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "point": [
+        1.0,
+        2.0,
+        3.0
+      ],
+      "contact_velocity": [
+        30.0,
+        20.0,
+        0.0
+      ]
+    },
+    {
+      "sequence": 6,
+      "native_time": 2250,
+      "wheel_index": 1,
+      "material": 16,
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "point": [
+        1.0,
+        2.0,
+        3.0
+      ],
+      "contact_velocity": [
+        30.0,
+        20.0,
+        0.0
+      ]
+    },
+    {
+      "sequence": 7,
+      "native_time": 2260,
+      "wheel_index": 2,
+      "material": 9,
+      "normal": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "point": [
+        1.0,
+        2.0,
+        3.0
+      ],
+      "contact_velocity": [
+        30.0,
+        20.0,
+        0.0
+      ]
+    },
+    {
+      "sequence": 8,
+      "native_time": 2270,
+      "wheel_index": 3,
+      "material": 16,
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "point": [
+        1.0,
+        2.0,
+        3.0
+      ],
+      "contact_velocity": [
+        30.0,
+        20.0,
+        0.0
+      ]
+    }
+  ]
+}
