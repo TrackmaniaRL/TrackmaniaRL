@@ -67,6 +67,7 @@ assert immediate.IMMEDIATE_PROTOCOL == PROTOCOL
 assert immediate.IMMEDIATE_PROFILE == PROFILE
 session = immediate.ImmediateSession.__new__(immediate.ImmediateSession)
 session.events = {10: b'a', 30: b'c', 20: b'b'}
+session._event_times = sorted(session.events)
 assert session._decision_events(10, 30) == [b'b', b'c']
 try:
     session._decision_events(10, 20)

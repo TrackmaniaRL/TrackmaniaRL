@@ -195,10 +195,17 @@ class FullQrEnvironmentFactory:
                 error.add_note(f"Closing the native event source also failed: {cleanup_error!r}")
             raise
 
-    def _create_provider(self, settings: NativeFullQrProviderSettings, events: Any) -> NativeFullQrProvider:
+    def _create_provider(
+        self, settings: NativeFullQrProviderSettings, events: Any
+    ) -> NativeFullQrProvider:
         return NativeFullQrProvider(settings, events)
 
-    def _create_environment(self, provider: NativeFullQrProvider, pipeline: NativeObservationPipeline, settings: FullQrEnvironmentSettings) -> FullQrEnvironment:
+    def _create_environment(
+        self,
+        provider: NativeFullQrProvider,
+        pipeline: NativeObservationPipeline,
+        settings: FullQrEnvironmentSettings,
+    ) -> FullQrEnvironment:
         return FullQrEnvironment(provider, pipeline, settings)
 
     def _create_pipeline(self) -> NativeObservationPipeline:

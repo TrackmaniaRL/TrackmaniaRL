@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from math import isfinite
 from struct import pack, unpack
+from time import monotonic
 from typing import Any, Protocol, cast
 
 from trackmaniarl.trackmania.native_headless._runtime.immediate import (
@@ -297,6 +299,11 @@ class NativeFullQrProvider:
         session = self._session
         if session is None or self._driver_episodes >= self.driver_episode_limit:
             return False
+        remaining = session.deadline - monotonic()
+        if not isfinite(remaining):
+            raise NativeLifecycleError("finite native driver deadline required")
+        if remaining < 180.0:
+            return False
         monitor = session._quota_monitor
         if monitor is None:
             raise NativeLifecycleError("a live native trace quota monitor is required")
@@ -312,6 +319,12 @@ class NativeFullQrProvider:
             + self.next_episode_reserve_bytes
         )
         return required <= session.max_trace_bytes
+
+    def finish_episode(self) -> None:
+        """Close a consumed driver before any between-episode learner wait."""
+        if self._session is not None and not self._can_reuse_driver():
+            self.events.release_episode()
+            self._finish_session("episode_complete")
 
     def close(self) -> None:
         if self._closed:
