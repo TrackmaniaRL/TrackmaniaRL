@@ -148,6 +148,9 @@ def reject_live_competitors() -> None:
         "trackmaniarl\x00train",
         "trackmaniarl\x00resume",
         "headless_campaign_queue.job",
+        "native_headless/_runtime/supervisor.py",
+        "trackmaniarl.distributed.actor",
+        "trackmaniarl.distributed.coordinator",
     )
     for path in Path("/proc").iterdir():
         if not path.name.isdigit() or int(path.name) in own:
