@@ -25,7 +25,7 @@ def now() -> str:
 def preflight(path: Path) -> tuple[dict, str]:
     raw = path.read_bytes()
     data = json.loads(raw)
-    if not isinstance(data, dict) or data.get("schema_version") != 1:
+    if not isinstance(data, dict) or data.get("schema_version") not in (1, 2):
         if isinstance(data, dict) and data.get("status") == "prototype_not_runnable":
             raise ValueError("campaign is not runnable: headless configurations and continuous actions are not qualified")
         raise ValueError("manifest must be an object with schema_version 1")
@@ -47,7 +47,42 @@ def preflight(path: Path) -> tuple[dict, str]:
         exe = Path(argv[0])
         if not exe.is_absolute() or not exe.is_file() or not os.access(exe, os.X_OK):
             raise ValueError(f"{name}: executable must be an existing executable absolute file")
+        if data["schema_version"] == 2:
+            receipt = job.get("receipt")
+            budget = job.get("transitions")
+            if not isinstance(receipt, str) or not Path(receipt).is_absolute():
+                raise ValueError(f"{name}: receipt must be an absolute path")
+            if type(budget) is not int or budget < 1:
+                raise ValueError(f"{name}: transitions must be a positive integer")
+    if data["schema_version"] == 2 and len({j["receipt"] for j in jobs}) != len(jobs):
+        raise ValueError("receipt paths must be unique")
     return data, hashlib.sha256(raw).hexdigest()
+
+
+def verify_receipt(job: dict, digest: str, pid: int) -> dict:
+    """Check an explicit producer receipt and the referenced checkpoint bytes."""
+    path = Path(job["receipt"])
+    raw = path.read_bytes()
+    receipt = json.loads(raw)
+    if not isinstance(receipt, dict) or receipt.get("job_id") != job["id"] or receipt.get("status") != "completed":
+        raise ValueError(f"{job['id']}: invalid completion receipt")
+    if receipt.get("manifest_sha256") != digest or type(receipt.get("process_pid")) is not int or receipt["process_pid"] != pid:
+        raise ValueError(f"{job['id']}: receipt does not match launched process and manifest")
+    if type(receipt.get("transitions")) is not int or receipt["transitions"] != job["transitions"]:
+        raise ValueError(f"{job['id']}: receipt transition budget mismatch")
+    checkpoint = receipt.get("checkpoint")
+    expected = receipt.get("checkpoint_sha256")
+    if not isinstance(checkpoint, str) or not Path(checkpoint).is_absolute():
+        raise ValueError(f"{job['id']}: invalid checkpoint path")
+    if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+        raise ValueError(f"{job['id']}: invalid checkpoint hash")
+    h = hashlib.sha256()
+    with Path(checkpoint).open("rb") as f:
+        for block in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(block)
+    if h.hexdigest() != expected:
+        raise ValueError(f"{job['id']}: checkpoint hash mismatch")
+    return {"receipt_sha256": hashlib.sha256(raw).hexdigest(), "checkpoint_sha256": expected}
 
 
 def atomic_json(path: Path, data: dict) -> None:
@@ -70,7 +105,7 @@ def atomic_json(path: Path, data: dict) -> None:
             os.unlink(temp)
 
 
-def run(data: dict, digest: str, output: Path) -> int:
+def run(data: dict, digest: str, output: Path, resume: bool = False) -> int:
     output.mkdir(parents=True, exist_ok=True)
     # Shared across output directories for this OS user. Direct, unsupervised
     # training and another OS user are outside this lock's scope.
@@ -91,27 +126,71 @@ def run(data: dict, digest: str, output: Path) -> int:
     state_path = output / "state.json"
     release_locks = True
     try:
-        if state_path.exists():
-            raise ValueError("state already exists; automatic restart/resume is disabled; use a new output directory")
-        # Exclusive creation prevents overwriting pre-existing logs even if state was removed.
         logs = [output / f"{j['id']}.{stream}.log" for j in data['jobs'] for stream in ('stdout', 'stderr')]
-        if any(p.exists() for p in logs):
-            raise ValueError("job logs already exist; use a new output directory")
-        state = {"schema_version": 1, "manifest_sha256": digest, "status": "running", "started_at": now(),
-                 "jobs": [{"id": j["id"], "status": "pending"} for j in data["jobs"]]}
+        start = 0
+        if resume:
+            if data["schema_version"] != 2:
+                raise ValueError("resume requires schema 2 completion receipts")
+            state = json.loads(state_path.read_bytes())
+            if not isinstance(state, dict):
+                raise ValueError("invalid saved queue state")
+            if state.get("manifest_sha256") != digest or state.get("status") != "running":
+                raise ValueError("resume requires the same manifest and an interrupted running queue")
+            entries = state.get("jobs")
+            if not isinstance(entries, list) or [j.get("id") for j in entries] != [j["id"] for j in data["jobs"]]:
+                raise ValueError("saved queue does not match manifest")
+            while start < len(entries) and entries[start].get("status") == "verified":
+                if type(entries[start].get("pid")) is not int:
+                    raise ValueError("completed job lacks process identity")
+                evidence = verify_receipt(data["jobs"][start], digest, entries[start]["pid"])
+                if evidence != entries[start].get("evidence"):
+                    raise ValueError("saved completion evidence has changed")
+                start += 1
+            if any(entry.get("status") != "pending" for entry in entries[start:]):
+                raise ValueError("a started or failed job cannot be automatically resumed")
+            if any(p.exists() for p in logs[2 * start:]):
+                raise ValueError("pending job log exists; inspect before recovery")
+            if any(Path(j["receipt"]).exists() for j in data["jobs"][start:]):
+                raise ValueError("pending job receipt exists; inspect before recovery")
+            state["resumed_at"] = now()
+        else:
+            if state_path.exists():
+                raise ValueError("state already exists; use --resume only after inspection")
+            if any(p.exists() for p in logs):
+                raise ValueError("job logs already exist; use a new output directory")
+            if data["schema_version"] == 2 and any(Path(j["receipt"]).exists() for j in data["jobs"]):
+                raise ValueError("receipt already exists; use fresh receipt paths")
+            state = {"schema_version": 1, "manifest_sha256": digest, "status": "running", "started_at": now(),
+                     "jobs": [{"id": j["id"], "status": "pending"} for j in data["jobs"]]}
         atomic_json(state_path, state)
-        for index, job in enumerate(data["jobs"]):
+        for index in range(start, len(data["jobs"])):
+            job = data["jobs"][index]
             entry = state["jobs"][index]
             entry.update(status="running", started_at=now())
             atomic_json(state_path, state)
             try:
                 with logs[2 * index].open("xb") as stdout, logs[2 * index + 1].open("xb") as stderr:
-                    result = subprocess.run(job["argv"], cwd=job["cwd"], stdout=stdout, stderr=stderr, shell=False, check=False)
-                entry.update(status="exited", returncode=result.returncode, finished_at=now())
-                if result.returncode:
+                    env = os.environ.copy()
+                    env["TRACKMANIARL_QUEUE_MANIFEST_SHA256"] = digest
+                    env["TRACKMANIARL_QUEUE_JOB_ID"] = job["id"]
+                    process = subprocess.Popen(job["argv"], cwd=job["cwd"], stdout=stdout, stderr=stderr, shell=False, env=env)
+                    entry["pid"] = process.pid
+                    atomic_json(state_path, state)
+                    returncode = process.wait()
+                entry.update(status="exited", returncode=returncode, finished_at=now())
+                if returncode:
                     state.update(status="failed", finished_at=now())
                     atomic_json(state_path, state)
                     return 1
+                if data["schema_version"] == 2:
+                    try:
+                        entry["evidence"] = verify_receipt(job, digest, process.pid)
+                    except (OSError, ValueError, json.JSONDecodeError) as exc:
+                        entry.update(status="invalid_receipt", error=str(exc))
+                        state.update(status="failed", finished_at=now())
+                        atomic_json(state_path, state)
+                        return 1
+                    entry["status"] = "verified"
             except BaseException as exc:
                 # The child may have survived, so force an operator inspection.
                 release_locks = False
@@ -134,13 +213,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("manifest", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--execute", action="store_true", help="actually start jobs; default is preflight only")
+    parser.add_argument("--resume", action="store_true", help="continue verified completed jobs after manual inspection")
     args = parser.parse_args(argv)
     try:
         data, digest = preflight(args.manifest)
+        if args.resume and not args.execute:
+            raise ValueError("--resume requires --execute")
         if not args.execute:
             print(f"Preflight OK: {len(data['jobs'])} jobs, manifest SHA-256 {digest}; nothing started")
             return 0
-        return run(data, digest, args.output)
+        return run(data, digest, args.output, resume=args.resume)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"Queue error: {exc}", file=sys.stderr)
         return 2

@@ -1,4 +1,5 @@
 import json
+import hashlib
 from pathlib import Path
 import sys
 import tempfile
@@ -79,6 +80,67 @@ class QueueTests(unittest.TestCase):
         with patch("tools.headless_campaign_queue.__main__.Path.home", return_value=self.root):
             self.assertEqual(self.call("--execute"), 2)
         self.assertFalse((self.out / "state.json").exists())
+
+    def test_missing_receipt_stops_queue_after_zero_exit(self):
+        job = self.job("first", "pass")
+        job.update(receipt=str(self.root / "receipt.json"), transitions=12)
+        self.manifest.write_text(json.dumps({"schema_version": 2, "jobs": [job]}))
+        self.assertEqual(self.call("--execute"), 1)
+        state = json.loads((self.out / "state.json").read_text())
+        self.assertEqual(state["jobs"][0]["status"], "invalid_receipt")
+        self.assertEqual(state["status"], "failed")
+
+    def test_valid_receipt_verifies_checkpoint_and_budget(self):
+        checkpoint, receipt = self.root / "model.pt", self.root / "receipt.json"
+        payload = {"job_id": "first", "status": "completed", "transitions": 12,
+                   "checkpoint": str(checkpoint), "checkpoint_sha256": hashlib.sha256(b"model").hexdigest()}
+        code = (f"from pathlib import Path; import json, os; Path({str(checkpoint)!r}).write_bytes(b'model'); "
+                f"d=json.loads({json.dumps(payload)!r}); d.update(process_pid=os.getpid(), manifest_sha256=os.environ['TRACKMANIARL_QUEUE_MANIFEST_SHA256']); "
+                f"Path({str(receipt)!r}).write_text(json.dumps(d))")
+        job = self.job("first", code)
+        job.update(receipt=str(receipt), transitions=12)
+        self.manifest.write_text(json.dumps({"schema_version": 2, "jobs": [job]}))
+        self.assertEqual(self.call("--execute"), 0)
+        state = json.loads((self.out / "state.json").read_text())
+        self.assertEqual(state["jobs"][0]["status"], "verified")
+
+    def test_receipt_from_different_process_is_rejected(self):
+        checkpoint, receipt = self.root / "model.pt", self.root / "receipt.json"
+        payload = {"job_id": "first", "status": "completed", "transitions": 12,
+                   "checkpoint": str(checkpoint), "checkpoint_sha256": hashlib.sha256(b"model").hexdigest()}
+        code = (f"from pathlib import Path; import json, os; Path({str(checkpoint)!r}).write_bytes(b'model'); "
+                f"d=json.loads({json.dumps(payload)!r}); d.update(process_pid=os.getpid()+1, manifest_sha256=os.environ['TRACKMANIARL_QUEUE_MANIFEST_SHA256']); "
+                f"Path({str(receipt)!r}).write_text(json.dumps(d))")
+        job = self.job("first", code)
+        job.update(receipt=str(receipt), transitions=12)
+        self.manifest.write_text(json.dumps({"schema_version": 2, "jobs": [job]}))
+        self.assertEqual(self.call("--execute"), 1)
+        state = json.loads((self.out / "state.json").read_text())
+        self.assertEqual(state["jobs"][0]["status"], "invalid_receipt")
+
+    def test_resume_checks_checkpoint_before_starting_pending_job(self):
+        receipt = self.root / "receipt.json"
+        checkpoint = self.root / "checkpoint.pt"
+        checkpoint.write_bytes(b"checkpoint")
+        sha = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+        marker = self.root / "marker"
+        first = self.job("first", "pass")
+        first.update(receipt=str(receipt), transitions=12)
+        second = self.job("second", f"open({str(marker)!r}, 'w').write('x')")
+        second.update(receipt=str(self.root / "second.json"), transitions=12)
+        self.manifest.write_text(json.dumps({"schema_version": 2, "jobs": [first, second]}))
+        digest = hashlib.sha256(self.manifest.read_bytes()).hexdigest()
+        receipt.write_text(json.dumps({"job_id": "first", "status": "completed", "transitions": 12,
+                                       "checkpoint": str(checkpoint), "checkpoint_sha256": sha,
+                                       "manifest_sha256": digest, "process_pid": 123}))
+        self.out.mkdir()
+        state = {"status": "running", "manifest_sha256": digest, "jobs": [
+            {"id": "first", "status": "verified", "pid": 123, "evidence": {"receipt_sha256": hashlib.sha256(receipt.read_bytes()).hexdigest(), "checkpoint_sha256": sha}},
+            {"id": "second", "status": "pending"}]}
+        (self.out / "state.json").write_text(json.dumps(state))
+        checkpoint.write_bytes(b"tampered")
+        self.assertEqual(self.call("--execute", "--resume"), 2)
+        self.assertFalse(marker.exists())
 
 
 if __name__ == "__main__":
