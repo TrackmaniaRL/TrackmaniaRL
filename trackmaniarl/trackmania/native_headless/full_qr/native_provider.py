@@ -144,7 +144,7 @@ class NativeFullQrProvider:
                     trace_dir=self.settings.trace_dir / name,
                     work_dir=self.settings.work_dir / name,
                 )
-                self._session = ImmediateSession(settings, self.assets)
+                self._session = self._create_session(settings)
             session = self._session
             packet = session.reset()
             identity = process_identity(session.pid)
@@ -220,20 +220,38 @@ class NativeFullQrProvider:
         if previous_native_t >= 152200:
             raise NativeLifecycleError("full150s domain ended; reset is required")
         stride, observe = self._physics_delivery()
-        issued = _issued_steering(action)
+        issued = self._decision_steering(action)
         for offset in range(0, 5, stride):
-            tick_action = _action_for_tick(action, offset)
-            packet = self._session.advance(tick_action, stride)
+            tick_action = self._control_for_tick(action, offset)
+            packet = self._advance_tick(tick_action, stride)
             if packet["eof"]:
                 final = self._final_step(previous_native_t, issued) if stride == 1 else None
                 if final is not None:
                     return final
                 raise NativeInconclusiveError(packet)
-            qualify_immediate(packet, self._before, tick_action, stride)
+            self._qualify_tick(packet, self._before, tick_action, stride)
             self._before = physical_state(packet)
             if observe is not None:
                 observe(self._session, self._before["nativeT"])
         return self._complete_step(issued)
+
+    def _decision_steering(self, action: int) -> float:
+        return _issued_steering(action)
+
+    def _create_session(self, settings: NativeRuntimeConfig) -> ImmediateSession:
+        return ImmediateSession(settings, self.assets)
+
+    def _advance_tick(self, action: int, stride: int) -> dict[str, Any]:
+        assert self._session is not None
+        return self._session.advance(action, stride)
+
+    def _qualify_tick(  # noqa: PLR0913
+        self, packet: dict[str, Any], before: dict[str, Any], action: int, stride: int
+    ) -> None:
+        qualify_immediate(packet, before, action, stride)
+
+    def _control_for_tick(self, action: int, offset: int) -> int:
+        return _action_for_tick(action, offset)
 
     def _final_step(
         self, previous_native_t: int, issued: float
