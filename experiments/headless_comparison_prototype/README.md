@@ -31,3 +31,15 @@ Przed przygotowaniem wykonywalnej kolejki:
    dopiero na wyraźne polecenie użytkownika uruchomić kampanię.
 
 Jeden seed to wstępne porównanie, nie pomiar zmienności między treningami.
+
+Prototyp kolejki jest w `tools/headless_campaign_queue`. Z katalogu repo można
+sprawdzić obecny plan poleceniem:
+
+```powershell
+python -m tools.headless_campaign_queue experiments/headless_comparison_prototype/manifest.json --output artifacts/headless-five-algorithm-campaign
+```
+
+Obecnie celowo zgłosi brak gotowości, również z `--execute`: manifest nie
+zawiera zweryfikowanych komend dla headless. Ogólna kolejka wymaga osobnego,
+kompletnego manifestu i nie zapewnia jeszcze automatycznego wznowienia,
+ochrony przed uśpieniem ani weryfikacji zakończenia budżetu treningowego.
