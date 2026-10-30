@@ -1,0 +1,8 @@
+[meta]
+name = "Model Replay Visual Schema 1125"
+author = "AITrackmania"
+category = "Utilities"
+version = "0.0.1"
+
+[script]
+dependencies = []

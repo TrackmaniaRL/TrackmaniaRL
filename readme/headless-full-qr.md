@@ -21,6 +21,23 @@ migration. The V8 wire profile and native source pins keep their original names.
 
 ## Model and observation choices
 
+Keep the V5 telemetry/geometry pipeline as the conservative starting profile for
+native training. This preserves the established feature contract; it is not a
+claim that this representation learns faster than every alternative. The
+historical benchmark label "graph/lidar" includes physics, track geometry,
+context and recovery sensors, rather than only lidar rays.
+
+| Observation contract | Use |
+| --- | --- |
+| V5 telemetry/geometry with a V6 graph or compatible encoder | Established native starting profile; retains the named sensors below |
+| Schematic vision (`NativeSchematicVisionPipeline`) | Experimental observation alternative: rendered road boundaries, not game pixels |
+| Game RGB (`VisionFeaturePipeline` with desktop capture) | Separate desktop contract; native game-RGB rendering and transfer from schematic weights are unqualified |
+
+These labels describe observations, not algorithm restrictions or new API enum
+values. Existing component paths and checkpoint fingerprints remain unchanged.
+See the [representation comparison protocol](vision.md#choosing-a-native-observation-profile)
+before choosing a profile from throughput numbers alone.
+
 The default observations retain V5 preprocessing. Choose their encoder, temporal
 core, head and algorithm independently. `StructuredMlpSensorEncoder` accepts
 explicit named sensor shapes instead of requiring the V6 graph encoder:
@@ -64,7 +81,7 @@ remains specific to its qualified QR profile.
 | DQN, QR-DQN, IQN, discrete SAC | SDK update/action tests with both V6 graph and structured MLP encoders; these are synthetic compatibility tests, not four native training benchmarks |
 | Recurrent models | The MLP preserves sequence axes; select a compatible SDK temporal core and replay schedule separately |
 | Continuous SAC, REDQ, TQC, current Gaussian PPO | Their continuous actions do not satisfy this native 78-ID contract; an independently qualified actuator adapter is required |
-| CNN/vision models | This profile supplies telemetry, not rendered images; a real image source and its timing contract are required |
+| CNN/vision models | Opt-in recorded-road ribbon images through `NativeSchematicVisionPipeline`; these are schematic geometry observations, not the game's graphics. See [native vision](vision.md#native-headless-schematic-vision) |
 
 ## Historical full QR training profile
 
@@ -229,11 +246,32 @@ for the qualified encoder; CPU actors remain eager. Pinned transfer/lookahead
 remains optional because its isolated benefit did not establish a production
 advantage. The default ordinary learner is unchanged.
 
+Set `distributed.actor_execution.torch_threads` independently of
+`components.learner.kwargs.execution.torch_threads`. An explicit actor value is
+also passed into its replica learner, so model setup cannot restore the
+learner's thread count. Omitting it preserves the replica's configured value.
+Compare measured execution settings, rather than the requested configuration
+alone, when choosing the number of actors.
+
 Checkpoint writing already runs asynchronously. Numeric NumPy replay arrays
 now use separate Torch storage records, avoiding large protocol-2 Python byte
 strings while retaining NumPy arrays on load and the restricted weights-only
 reader. Old checkpoints load. New arrays require this reader; older releases
 are not assumed to understand the new restore helper.
+
+Generic `Trainer` and `Coordinator` runs can set the top-level `checkpoint_root`
+to keep checkpoints on a different volume from live logs, actor spools and the
+rollout journal. Files use `checkpoint_root/run_id/checkpoints`; a relative root
+is resolved against the project's base directory. Omitting it keeps the existing
+`artifacts_dir/run_id/checkpoints` layout. Loading expands a temporary archive
+beside the checkpoint, so that volume must also have enough space for the
+uncompressed checkpoint. Retention and unsafe-path checks remain unchanged.
+The storage location is excluded from semantic run identity.
+
+The separately budgeted full-QR campaign launcher pins checkpoints to its bound
+artifact root and rejects this override. Select that campaign's artifact volume
+explicitly instead; the generic setting does not bypass campaign ownership or
+storage guards.
 
 See [measured results and their limits](../docs/benchmarks/full-qr-headless.md).
 Published package names differ from the frozen laboratory source paths. Preserve

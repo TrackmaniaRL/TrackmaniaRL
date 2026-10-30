@@ -160,7 +160,22 @@ def _collate_tensor_box(
     expected_dtype = torch.from_numpy(np.empty((), dtype=space.dtype)).dtype
     if any(tensor.dtype != expected_dtype for tensor in tensors):
         raise ValueError(f"{path} must have dtype {space.dtype}")
+    numpy_validation = expected_dtype == torch.uint8 and all(
+        type(tensor) is torch.Tensor and tensor.device.type == "cpu" for tensor in tensors
+    )
+    if (
+        expected_dtype == torch.uint8
+        and not numpy_validation
+        and all(tensor.device.type == "cpu" for tensor in tensors)
+    ):
+        # Preserve the existing conversion behavior for Tensor subclasses.
+        return _collate_array_box(space, tensors, path)
     stacked = torch.stack(tuple(tensors))
+    if numpy_validation:
+        # Stack once into owned storage. One NumPy view avoids converting every
+        # input row separately and retains all per-coordinate bounds checks.
+        _validate_box_array(space, stacked.detach().numpy(), path)
+        return stacked
     if stacked.is_floating_point() and not torch.isfinite(stacked).all():
         raise ValueError(f"{path} contains non-finite values")
     low = torch.as_tensor(space.low, dtype=stacked.dtype, device=stacked.device)
@@ -180,11 +195,28 @@ def _collate_array_box(space: spaces.Box, values: Sequence[Any], path: str) -> t
     if any(array.dtype != space.dtype for array in arrays):
         raise ValueError(f"{path} must have dtype {space.dtype}")
     stacked = np.stack(arrays)
+    _validate_box_array(space, stacked, path)
+    return torch.from_numpy(np.ascontiguousarray(stacked))
+
+
+def _validate_box_array(space: spaces.Box, stacked: np.ndarray[Any, Any], path: str) -> None:
     if np.issubdtype(stacked.dtype, np.floating) and not np.isfinite(stacked).all():
         raise ValueError(f"{path} contains non-finite values")
-    if np.any(stacked < space.low) or np.any(stacked > space.high):
+    # Uniform byte-image bounds need two SIMD reductions, rather than two
+    # batch-sized comparison arrays. Heterogeneous bounds keep the full check.
+    uniform_byte_bounds = (
+        stacked.dtype == np.uint8
+        and stacked.size > 0
+        and np.all(space.low == space.low.flat[0])
+        and np.all(space.high == space.high.flat[0])
+    )
+    outside = (
+        stacked.min() < space.low.flat[0] or stacked.max() > space.high.flat[0]
+        if uniform_byte_bounds
+        else np.any(stacked < space.low) or np.any(stacked > space.high)
+    )
+    if outside:
         raise ValueError(f"{path} contains values outside the Box space")
-    return torch.from_numpy(np.ascontiguousarray(stacked))
 
 
 class TransitionFeaturePipeline:

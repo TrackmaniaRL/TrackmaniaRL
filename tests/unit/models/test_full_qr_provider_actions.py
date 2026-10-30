@@ -28,6 +28,34 @@ class RecordingSession:
         return {"eof": self.eof, "state": {"nativeT": self.native_t}, "action": action}
 
 
+def test_warm_driver_requires_episode_time_headroom_and_original_disk_quota(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = object.__new__(native_provider.NativeFullQrProvider)
+    provider.driver_episode_limit = 8
+    provider._driver_episodes = 1
+    provider.next_episode_reserve_bytes = 10
+    usage = SimpleNamespace(used_bytes=10, post_copy_bytes=20)
+    monitor = SimpleNamespace(usage=lambda **kwargs: usage)
+    session = SimpleNamespace(
+        deadline=280.0,
+        max_trace_bytes=100,
+        _quota_monitor=monitor,
+        capture=SimpleNamespace(persisted=10),
+    )
+    provider._session = session
+    monkeypatch.setattr(native_provider, "monotonic", lambda: 100.0)
+    assert provider._can_reuse_driver()
+    session.deadline = 279.999
+    assert not provider._can_reuse_driver()
+    session.deadline = 300.0
+    session.max_trace_bytes = 59
+    assert not provider._can_reuse_driver()
+    session.max_trace_bytes = 100
+    provider._driver_episodes = 8
+    assert not provider._can_reuse_driver()
+
+
 @pytest.fixture
 def recording_provider(
     monkeypatch: pytest.MonkeyPatch,

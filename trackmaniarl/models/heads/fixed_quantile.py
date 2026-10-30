@@ -18,6 +18,7 @@ class FixedQuantileHeadConfig:
     action_count: int
     quantile_count: int = 32
     dueling: bool = False
+    dense_cuda_selected: bool = False
 
     @classmethod
     def from_mapping(cls, values: Mapping[str, Any]) -> Self:
@@ -38,7 +39,9 @@ class FixedQuantileHead(nn.Module):
         self.quantile_count = config.quantile_count
         # Execution-only opt-in; parameters, quantile locations and checkpoint
         # names are unchanged. Sparse selection remains the default.
-        self.dense_cuda_selected = False
+        if type(config.dense_cuda_selected) is not bool:
+            raise TypeError("dense_cuda_selected must be an explicit bool")
+        self.dense_cuda_selected = config.dense_cuda_selected
         self.advantage = nn.Linear(config.feature_dim, config.action_count * config.quantile_count)
         self.value = (
             nn.Linear(config.feature_dim, config.quantile_count) if config.dueling else None

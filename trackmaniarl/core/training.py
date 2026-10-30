@@ -57,6 +57,10 @@ class Trainer:
         if self.on_policy and not getattr(self.run.sampler, "on_policy_rollouts", False):
             raise ValueError("On-policy learners require OnPolicySequenceSampler")
         training = self.run.spec.training
+        if self.on_policy and training.reuse_environment:
+            raise ValueError(
+                "reuse_environment is an off-policy option; PPO already owns a rollout environment"
+            )
         if self.on_policy and training.total_transitions % training.sequence_length:
             raise ValueError("On-policy total_transitions must be divisible by sequence_length")
         capacity = getattr(self.run.replay_store, "capacity", None)
@@ -152,7 +156,7 @@ class Trainer:
         keep = self.run.spec.training.checkpoint_keep_last
         if keep is None:
             return
-        result = prune_checkpoint_family(path, self.run.run_dir / "checkpoints", keep)
+        result = prune_checkpoint_family(path, self.run.checkpoint_dir, keep)
         if not result.removed:
             return
         removed = [str(item) for item in result.removed]
@@ -164,7 +168,7 @@ class Trainer:
         print(f"Checkpoint retention removed: {', '.join(removed)}", flush=True)
 
     def _checkpoint_path(self, update: int) -> Path:
-        return self.run.run_dir / "checkpoints" / f"update-{update:08d}.pt"
+        return self.run.checkpoint_dir / f"update-{update:08d}.pt"
 
     def _restore_checkpoint(self, state: Mapping[str, Any]) -> Mapping[str, Any]:
         learner_state, counters = self._validated_checkpoint(state)

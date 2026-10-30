@@ -16,6 +16,7 @@ from trackmaniarl.distributed.coordinator_support import (
     _CheckpointWrite,
     _Counters,
     load_state_dict,
+    snapshot_state_dict,
     snapshot_value,
     state_dict,
 )
@@ -153,7 +154,7 @@ def _apply_checkpoint_retention(plan: _CheckpointPlan, update: int) -> None:
     keep = coordinator.run.spec.training.checkpoint_keep_last
     if keep is None:
         return
-    result = prune_checkpoint_family(plan.path, coordinator.run.run_dir / "checkpoints", keep)
+    result = prune_checkpoint_family(plan.path, coordinator.run.checkpoint_dir, keep)
     if not result.removed:
         return
     removed = [str(path) for path in result.removed]
@@ -202,7 +203,7 @@ def _checkpoint_plan(
         )
     else:
         name = f"distributed-update-{coordinator.counters.updates:08d}.pt"
-    path = coordinator.run.run_dir / "checkpoints" / name
+    path = coordinator.run.checkpoint_dir / name
     return _CheckpointPlan(
         coordinator, evaluated_policy, path, perf_counter(), coordinator.counters.transitions
     )
@@ -216,7 +217,7 @@ def _checkpoint_state(plan: _CheckpointPlan) -> dict[str, Any]:
         "journal_id": coordinator.journal.identity,
         "run_fingerprint": coordinator.fingerprint,
         "learner": snapshot_value(_learner_state(plan)),
-        "replay_store": snapshot_value(state_dict(coordinator.run.replay_store)),
+        "replay_store": snapshot_state_dict(coordinator.run.replay_store),
         "sampler": snapshot_value(state_dict(coordinator.run.sampler)),
         "distributed": _distributed_state(coordinator),
         "evaluated_policy_version": (

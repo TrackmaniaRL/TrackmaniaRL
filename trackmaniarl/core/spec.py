@@ -75,6 +75,7 @@ class TrainingSpec(BaseModel):
     batch_size: PositiveInt = 256
     sequence_length: PositiveInt = 1
     reset_after_on_policy_rollout: bool = False
+    reuse_environment: bool = False
     n_step: PositiveInt = 1
     gamma: float = Field(default=0.99, ge=0.0, le=1.0)
     beta: float | None = Field(default=None, ge=0.0, le=1.0)
@@ -281,6 +282,7 @@ class RunSpec(BaseModel):
     run_id: str = Field(min_length=1, pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
     seed: int = 0
     artifacts_dir: Path = Field(default_factory=lambda: Path("artifacts"))
+    checkpoint_root: Path | None = None
     components: ComponentsSpec
     training: TrainingSpec = Field(default_factory=TrainingSpec)
     distributed: DistributedSpec = Field(default_factory=DistributedSpec)

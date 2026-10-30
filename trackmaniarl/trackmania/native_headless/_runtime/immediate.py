@@ -10,6 +10,7 @@ import struct
 import sys
 import tempfile
 import time
+from bisect import bisect_right, insort
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -498,6 +499,7 @@ class ImmediateSession(NativeSession):
                 _, native_t = env.qualify_post(record, self.pid, self.meta)
                 env.require(native_t not in self.events, "V7 duplicate native boundary")
                 self.events[native_t] = record
+                insort(self._event_times, native_t)
             else:
                 env.require(
                     record[:8] in (b"TMPOST03", b"TMREAD01", b"TMPOST02"),
@@ -547,6 +549,7 @@ class ImmediateSession(NativeSession):
         )
         self.arm()
         self.post_offset, self.events, self.audits, self.hits = 0, {}, [], set()
+        self._event_times: list[int] = []
         self.poll_posts()
         state = physical_state(self.packet())
         env.require(state["appliedSGB"] == [0.0, 0.0, 0.0], "V7 neutral bootstrap POST required")
@@ -618,8 +621,7 @@ class ImmediateSession(NativeSession):
             eof = True
             self.end(truncated=False)
         self.poll_posts()
-        events = [self.events[t] for t in sorted(self.events) if anchor < t <= anchor + n * 10]
-        env.require(not any(t > anchor + n * 10 for t in self.events), "V7 advanced beyond request")
+        events = self._decision_events(anchor, anchor + n * 10)
         if eof and events:
             self.boundary = events[-1]
         packet = self.packet()
@@ -646,6 +648,13 @@ class ImmediateSession(NativeSession):
         if eof:
             packet["resultEvidence"] = self.result_evidence
         return packet
+
+    def _decision_events(self, anchor: int, end: int) -> list[bytes]:
+        """Index retained evidence without sorting/scanning the full episode per tick."""
+        clocks = self._event_times
+        env.require(not clocks or clocks[-1] <= end, "V7 advanced beyond request")
+        first, last = bisect_right(clocks, anchor), bisect_right(clocks, end)
+        return [self.events[clock] for clock in clocks[first:last]]
 
     def _publish_bytes(self, path: Path, raw: bytes) -> None:
         self.check_budget(len(raw))

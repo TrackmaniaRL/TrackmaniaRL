@@ -82,6 +82,40 @@ def test_checkpoint_preserves_different_dtype_views_of_one_storage(tmp_path: Pat
     assert torch.equal(loaded["tensor"], torch.from_numpy(array))
 
 
+@pytest.mark.parametrize("tensor_first", [False, True])
+def test_numpy_and_later_tensor_with_conflicting_storage_dtype(
+    tmp_path: Path, *, tensor_first: bool
+) -> None:
+    array = np.arange(24, dtype=np.uint8)
+    tensor = torch.from_numpy(array).view(torch.float32)
+    entries = [("array", array), ("tensor", tensor)]
+    if tensor_first:
+        entries.reverse()
+    codec = TorchCheckpointCodec()
+    path = tmp_path / "mixed.pt"
+    codec.save(dict(entries), path)
+    restored = codec.load(path)
+    np.testing.assert_array_equal(restored["array"], array)
+    torch.testing.assert_close(restored["tensor"], tensor, rtol=0, atol=0)
+    restored["array"].fill(0)
+    torch.testing.assert_close(restored["tensor"], tensor, rtol=0, atol=0)
+
+
+def test_strided_array_does_not_serialize_bytes_outside_its_values(tmp_path: Path) -> None:
+    import zstandard
+
+    marker = b"storage gap must not enter checkpoint"
+    storage = np.zeros(4096, dtype=np.uint8)
+    storage[1 : 1 + len(marker)] = np.frombuffer(marker, dtype=np.uint8)
+    selected = storage[::64]
+    codec = TorchCheckpointCodec()
+    path = tmp_path / "gapped.pt"
+    codec.save({"array": selected}, path)
+    np.testing.assert_array_equal(codec.load(path)["array"], selected)
+    with path.open("rb") as source, zstandard.ZstdDecompressor().stream_reader(source) as reader:
+        assert marker not in reader.read()
+
+
 def test_checkpoint_loads_original_protocol2_numpy_format(tmp_path: Path) -> None:
     import zstandard
 

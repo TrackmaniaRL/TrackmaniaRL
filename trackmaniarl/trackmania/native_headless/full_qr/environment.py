@@ -179,8 +179,8 @@ class FullQrEnvironment:
             raise NativeLifecycleError("full QR reset failed; provider closed") from error
 
     def step(self, action: int) -> tuple[dict[str, Any], float, bool, bool, dict[str, Any]]:
-        if type(action) is not int or not 0 <= action < 78:
-            raise ValueError("one of the historical 78 actions is required")
+        self._validate_action(action)
+
         if self._closed or self._ended or self._events is None or self._reward is None:
             raise NativeLifecycleError("an active full QR reset is required")
         try:
@@ -190,12 +190,22 @@ class FullQrEnvironment:
             observation, result = self._observe_and_reward(step)
             self._ended = result.terminated
             info = self._record_step_info(step, result)
+            # Finish the native lease before the actor may wait for rollout
+            # ingestion or a policy refresh. That wait belongs to the learner,
+            # not to the completed engine episode's original watchdog.
+            finish_episode = getattr(self.provider, "finish_episode", None)
+            if self._ended and callable(finish_episode):
+                finish_episode()
             return observation, result.reward, result.terminated, False, info
         except BaseException as error:
             self._fail(error)
             if isinstance(error, (KeyboardInterrupt, SystemExit)):
                 raise
             raise NativeLifecycleError("full QR step failed; no transition returned") from error
+
+    def _validate_action(self, action: int) -> None:
+        if type(action) is not int or not 0 <= action < 78:
+            raise ValueError("one of the historical 78 actions is required")
 
     def _observe_and_reward(
         self, step: FullQrStep | FullQrTerminalStep

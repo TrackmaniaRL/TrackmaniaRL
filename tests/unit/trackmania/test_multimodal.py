@@ -27,6 +27,59 @@ def test_dictionary_collation_uses_keys_not_insertion_order() -> None:
         collator.collate_observations([{"a": np.zeros(1)}])
 
 
+def test_cpu_byte_image_collation_is_owned_exact_and_preserves_validation() -> None:
+    collator = GymnasiumObservationCollator(spaces.Box(0, 2, shape=(2, 4), dtype=np.uint8))
+    first = torch.arange(8, dtype=torch.uint8).reshape(4, 2).T % 3
+    expected = torch.stack([first, first])
+    result = collator.collate_observations([first, first])
+    torch.testing.assert_close(result, expected, rtol=0, atol=0)
+    first.fill_(2)
+    torch.testing.assert_close(result, expected, rtol=0, atol=0)
+    result[0].fill_(1)
+    torch.testing.assert_close(result[1], expected[1], rtol=0, atol=0)
+    for invalid, message in (
+        (torch.zeros(3, 4, dtype=torch.uint8), "shape"),
+        (torch.zeros(2, 4), "dtype"),
+        (torch.full((2, 4), 3, dtype=torch.uint8), "outside"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            collator.collate_observations([first, invalid])
+    heterogeneous = GymnasiumObservationCollator(
+        spaces.Box(np.array([0, 1], np.uint8), np.array([1, 2], np.uint8), dtype=np.uint8)
+    )
+    with pytest.raises(ValueError, match="outside"):
+        heterogeneous.collate_observations([torch.tensor([0, 0], dtype=torch.uint8)])
+
+
+@pytest.mark.parametrize("dtype", [torch.float16, torch.float32, torch.float64])
+def test_cpu_float_collation_preserves_gradients_ownership_and_all_bounds(
+    dtype: torch.dtype,
+) -> None:
+    numpy_dtype = torch.empty((), dtype=dtype).numpy().dtype
+    collator = GymnasiumObservationCollator(
+        spaces.Box(np.array([-1, 1], numpy_dtype), np.array([1, 2], numpy_dtype), dtype=numpy_dtype)
+    )
+    first = torch.tensor([-0.0, 1.5], dtype=dtype, requires_grad=True)
+    expected = torch.stack([first, first]).detach().clone()
+    result = collator.collate_observations([first, first])
+    torch.testing.assert_close(result, expected, rtol=0, atol=0)
+    assert result.detach().numpy().tobytes() == expected.numpy().tobytes()
+    result.sum().backward()
+    torch.testing.assert_close(first.grad, torch.full_like(first, 2), rtol=0, atol=0)
+    with torch.no_grad():
+        first.fill_(0)
+    torch.testing.assert_close(result, expected, rtol=0, atol=0)
+    for values, message in (
+        ([float("nan"), 1.5], "non-finite"),
+        ([float("inf"), 1.5], "non-finite"),
+        ([float("-inf"), 1.5], "non-finite"),
+        ([-2, 1.5], "outside"),
+        ([0, 2.5], "outside"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            collator.collate_observations([torch.tensor(values, dtype=dtype)])
+
+
 def test_paired_environment_preserves_both_observations() -> None:
     environment = VisionEnvironment(_Environment(), _Frames(), include_telemetry=True)
     first, info = environment.reset(seed=17)

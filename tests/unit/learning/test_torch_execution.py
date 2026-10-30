@@ -24,6 +24,9 @@ from trackmaniarl.algorithms.execution import (
     _supported_precisions,
     resolve_torch_execution,
 )
+from trackmaniarl.core.runtime import _instantiate
+from trackmaniarl.core.spec import ActorExecutionSpec, ComponentSpec
+from trackmaniarl.distributed.actor import _actor_learner_spec
 
 
 @pytest.mark.parametrize("threads", [0, -1, True, 1.5])
@@ -39,6 +42,27 @@ def test_execution_applies_cpu_thread_limit_before_model_setup(
     monkeypatch.setattr(torch, "set_num_threads", calls.append)
     resolve_torch_execution(TorchExecutionConfig(device="cpu", torch_threads=2))
     assert calls == [2]
+
+
+@pytest.mark.parametrize(("actor_threads", "expected_threads"), [(1, 1), (None, 2)])
+def test_actor_thread_override_survives_real_learner_setup(
+    actor_threads: int | None, expected_threads: int
+) -> None:
+    configured = ComponentSpec(
+        class_path="trackmaniarl.algorithms:SoftActorCritic",
+        kwargs={"execution": {"device": "cpu", "precision": "float32", "torch_threads": 2}},
+    )
+    before = configured.model_dump()
+    replica = _actor_learner_spec(configured, ActorExecutionSpec(torch_threads=actor_threads))
+    previous_threads = torch.get_num_threads()
+    try:
+        learner = _instantiate(replica, model=ContinuousModel())
+        learner.setup({"seed": 0})
+        assert torch.get_num_threads() == expected_threads
+        assert learner.execution_manifest()["torch_threads"] == expected_threads
+        assert configured.model_dump() == before
+    finally:
+        torch.set_num_threads(previous_threads)
 
 
 def _new_checkpoint_learner(name: str) -> Any:

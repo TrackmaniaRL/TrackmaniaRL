@@ -287,6 +287,10 @@ class InMemoryReplayStore:
     def state_dict(self) -> dict[str, Any]:
         return store_state.state_dict(self)
 
+    def snapshot_state_dict(self) -> dict[str, Any]:
+        """Return caller-owned CPU state for an asynchronous checkpoint writer."""
+        return store_state.snapshot_state_dict(self)
+
     def _snapshot_slots(
         self,
     ) -> slice | np.ndarray[Any, np.dtype[np.int64]]:

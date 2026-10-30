@@ -6,7 +6,7 @@ from collections.abc import Mapping
 from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from numbers import Number
-from typing import Any, Protocol, TypeGuard
+from typing import Any, Protocol, TypeGuard, cast
 
 import numpy as np
 import torch
@@ -148,6 +148,29 @@ class _TreeColumns:
         """Copy column leaves directly, without constructing then cloning tensor views."""
         return self._read_node(self.spec, slot, owned=True)
 
+    def read_many_owned(self, slots: np.ndarray[Any, np.dtype[np.int64]]) -> list[Any]:
+        """Gather each column once; duplicate slots still own distinct output rows."""
+        return self._read_many_node(self.spec, slots)
+
+    def _read_many_node(self, spec: Any, slots: np.ndarray[Any, np.dtype[np.int64]]) -> list[Any]:
+        kind = spec[0]
+        if kind == "mapping":
+            children = [self._read_many_node(child, slots) for child in spec[2]]
+            return [
+                dict(zip(spec[1], (child[index] for child in children), strict=True))
+                for index in range(len(slots))
+            ]
+        if kind in ("tuple", "list"):
+            children = [self._read_many_node(child, slots) for child in spec[1]]
+            rows = [[child[index] for child in children] for index in range(len(slots))]
+            return [tuple(row) for row in rows] if kind == "tuple" else rows
+        values = np.take(self.arrays[spec[1]], slots, axis=0)
+        if spec[2] == "tensor":
+            return list(torch.from_numpy(values).unbind(0))
+        if spec[2] == "ndarray":
+            return list(values)
+        return cast(list[Any], values.tolist())
+
     def _read_node(self, spec: Any, slot: int, *, owned: bool = False) -> Any:
         kind = spec[0]
         if kind == "mapping":
@@ -172,7 +195,7 @@ class _TreeColumns:
     def snapshot(self, slots: slice | np.ndarray[Any, np.dtype[np.int64]]) -> dict[str, Any]:
         return {
             "spec": self.spec,
-            "arrays": [np.array(array[slots], copy=True, order="C") for array in self.arrays],
+            "arrays": [_owned_rows(array, slots) for array in self.arrays],
         }
 
     @classmethod
@@ -192,6 +215,16 @@ class _TreeColumns:
         for target, source in zip(value.arrays, packed, strict=True):
             target[slots] = source
         return value
+
+
+def _owned_rows(
+    array: np.ndarray[Any, Any], slots: slice | np.ndarray[Any, np.dtype[np.int64]]
+) -> np.ndarray[Any, Any]:
+    # Advanced indexing already allocates a complete selection. A subsequent
+    # array(copy=True) would transiently duplicate the whole wrapped replay.
+    return (
+        array[slots].copy(order="C") if isinstance(slots, slice) else np.take(array, slots, axis=0)
+    )
 
 
 def _is_demo(info: Mapping[str, Any]) -> bool:

@@ -98,12 +98,15 @@ def _collate_mapping(values: Sequence[PyTree], first: Mapping[Any, Any]) -> PyTr
     return {key: tree_collate([value[key] for value in values]) for key in keys}
 
 
-def tree_snapshot(value: PyTree) -> PyTree:
-    """Take ownership of mutable PyTree leaves at an asynchronous boundary."""
+def tree_snapshot(value: PyTree, *, device: torch.device | str | None = None) -> PyTree:
+    """Own mutable leaves, optionally moving tensors before making their copy."""
 
     def snapshot(leaf: Any) -> Any:
         if isinstance(leaf, torch.Tensor):
-            return leaf.detach().clone()
+            tensor = leaf.detach()
+            if device is not None:
+                tensor = tensor.to(device)
+            return tensor.clone()
         if isinstance(leaf, np.ndarray):
             return np.array(leaf, copy=True, order="C")
         return deepcopy(leaf)

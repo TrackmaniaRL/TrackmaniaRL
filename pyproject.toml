@@ -43,6 +43,7 @@ dependencies = [
 
 [project.optional-dependencies]
 vision = ["mss>=10.0,<11"]
+native-vision = ["numba>=0.64,<0.69"]
 orchestrator = [
     "google-genai>=2.2.0",
     "optuna>=3.0",
@@ -64,6 +65,7 @@ mamba = [
 ]
 all = [
     "mss>=10.0,<11",
+    "numba>=0.64,<0.69",
     "google-genai>=2.2.0",
     "optuna>=3.0",
     "libevdev>=0.13; sys_platform == 'linux'",

@@ -55,6 +55,80 @@ class ImageEnvironmentFactory:
         return ImageEnvironment()
 
 
+class NativeVisionFixtureFactory:
+    """Synthetic native provider; exercises SDK wiring without starting an engine."""
+
+    def __init__(self, geometry_path: str) -> None:
+        self.geometry_path = geometry_path
+
+    def create(self, *, seed: int, evaluation_map: Any = None) -> Any:
+        from tests.unit.models.test_full_qr_environment import setup
+        from trackmaniarl.trackmania.native_headless.vision import NativeSchematicVisionPipeline
+
+        environment, _, _ = setup()
+        environment.pipeline = NativeSchematicVisionPipeline(
+            self.geometry_path,
+            "test-map",
+            camera={"width": 32, "height": 32},
+            vision={"width": 32, "height": 32},
+        )
+        return environment
+
+
+def test_native_prepared_qr_vision_trains_and_restores(tmp_path: Path) -> None:
+    from tests.unit.experiments.test_graph_iqn_v5 import _geometry
+
+    config = yaml.safe_load(_trackmania_vision_config("qr"))
+    config["artifacts_dir"] = str(tmp_path)
+    config.pop("evaluation")
+    components = config["components"]
+    components.pop("evaluator")
+    components["environment"] = {
+        "class_path": f"{__name__}:NativeVisionFixtureFactory",
+        "kwargs": {"geometry_path": str(_geometry(tmp_path / "road.npz"))},
+    }
+    components["feature_pipeline"] = {
+        "class_path": "trackmaniarl.trackmania.vision:PreparedVisionFeaturePipeline",
+        "kwargs": {"config": {"width": 32, "height": 32}},
+    }
+    components["model_factory"]["kwargs"]["head"]["kwargs"]["config"].update(
+        quantile_count=64, dueling=True
+    )
+    components["model_factory"]["kwargs"]["strategy"]["kwargs"] = {"quantile_count": 64}
+    components["replay_store"]["kwargs"] = {"capacity": 16}
+    components["learner"]["kwargs"]["execution"] = {"device": "cpu", "precision": "float32"}
+    config["training"].update(
+        total_transitions=8,
+        batch_size=2,
+        n_step=1,
+        warmup_transitions=2,
+        updates_per_transition=1.0,
+        checkpoint_interval_updates=2,
+    )
+    spec = RunSpec.model_validate(config)
+    run = resolve_run(spec)
+    try:
+        result = Trainer(run).train()
+        assert result.transitions == 8
+        assert result.updates > 0
+        gradients = [
+            p.grad
+            for name, p in run.learner.model.named_parameters()
+            if "convolution" in name and p.grad is not None
+        ]
+        assert any(torch.count_nonzero(gradient) > 0 for gradient in gradients)
+        assert all(torch.isfinite(gradient).all() for gradient in gradients)
+    finally:
+        run.logger.close()
+    restored = resolve_run(spec)
+    try:
+        continuation = Trainer(restored, resume_checkpoint=result.checkpoints[-1]).train()
+        assert continuation.transitions == result.transitions
+        assert continuation.updates == result.updates
+    finally:
+        restored.logger.close()
+
+
 @pytest.mark.parametrize("algorithm", ["q", "qr", "iqn", "fqf", "sac", "redq", "tqc", "sd-sac"])
 def test_off_policy_vision_update_train_and_resume(tmp_path: Path, algorithm: str) -> None:
     config = yaml.safe_load(_trackmania_vision_config(algorithm))

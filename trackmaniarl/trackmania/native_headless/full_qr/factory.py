@@ -33,10 +33,12 @@ from trackmaniarl.trackmania.native_headless.full_qr.native_features import (
     NativeGraphFeaturePipeline,
 )
 from trackmaniarl.trackmania.native_headless.full_qr.native_provider import (
+    FullQrEventSource,
     NativeFullQrProvider,
     NativeFullQrProviderSettings,
 )
 from trackmaniarl.trackmania.native_headless.full_qr.profile import ASSET_SCHEMA, PROFILE, PROTOCOL
+from trackmaniarl.trackmania.native_headless.full_qr.reward_reference import load_reward_reference
 from trackmaniarl.trackmania.native_headless.full_qr.trace_retention import (
     ClosedTraceRetention,
     TraceRetentionSettings,
@@ -111,6 +113,8 @@ class FullQrEnvironmentFactory:
         self._geometry_path = Path(config["geometry_path"])
         self._map_uid = str(config["expected_map_uid"])
         self._reward = RewardConfig(**config["reward"])
+        reference = config.get("reward_reference")
+        self._reward_reference = None if reference is None else dict(reference)
         self._archive_root = Path(config["trace_archive_root"])
         if (
             not self._archive_root.is_absolute()
@@ -146,6 +150,13 @@ class FullQrEnvironmentFactory:
         )
         assets = verify_bound_assets(settings, self._manifest_sha)
         geometry.validate_map(assets.paths["map"])
+        trajectory = (
+            geometry.reward_center
+            if self._reward_reference is None
+            else load_reward_reference(
+                self._reward_reference, map_uid=geometry.map_uid, map_sha256=geometry.map_sha256
+            )
+        )
         pipeline = self._create_pipeline()
         retention = ClosedTraceRetention(
             TraceRetentionSettings(
@@ -156,7 +167,7 @@ class FullQrEnvironmentFactory:
             )
         )
         events = self._source_class(**self._source_kwargs)
-        provider = NativeFullQrProvider(
+        provider = self._create_provider(
             NativeFullQrProviderSettings(
                 settings,
                 assets,
@@ -167,11 +178,24 @@ class FullQrEnvironmentFactory:
             ),
             events,
         )
-        return FullQrEnvironment(
+        return self._create_environment(
             provider,
             pipeline,
-            FullQrEnvironmentSettings(geometry.reward_center, self._reward, lease),
+            FullQrEnvironmentSettings(trajectory, self._reward, lease),
         )
+
+    def _create_environment(
+        self,
+        provider: NativeFullQrProvider,
+        pipeline: NativeObservationPipeline,
+        settings: FullQrEnvironmentSettings,
+    ) -> FullQrEnvironment:
+        return FullQrEnvironment(provider, pipeline, settings)
+
+    def _create_provider(
+        self, settings: NativeFullQrProviderSettings, events: FullQrEventSource
+    ) -> NativeFullQrProvider:
+        return NativeFullQrProvider(settings, events)
 
     def _create_pipeline(self) -> NativeObservationPipeline:
         if self._pipeline_spec is None:

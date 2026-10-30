@@ -9,10 +9,12 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
+import errno
 import os
 import stat
 import struct
 import sys
+import weakref
 from collections.abc import Collection, Iterable
 from dataclasses import dataclass
 from pathlib import Path
@@ -52,6 +54,7 @@ STRUCTURAL = (
 CHANGE = IN_MODIFY | IN_ATTRIB | IN_CLOSE_WRITE
 MAX_EVENTS = 200_000
 MAX_REBUILDS = 4
+MAX_DIRECTORY_HANDLES = 16
 Inode = tuple[int, int]
 
 
@@ -136,16 +139,68 @@ class _File:
     size: int
 
 
+def _close_directories(handles: dict[Path, int]) -> None:
+    while handles:
+        _, descriptor = handles.popitem()
+        with contextlib.suppress(OSError):
+            os.close(descriptor)
+
+
 class _Snapshot:
     def __init__(self, backend: _Inotify) -> None:
         self.backend = backend
         self.directories: dict[Path, Inode] = {}
         self.directory_watches: dict[int, Path] = {}
         self.files: dict[Path, _File] = {}
+        self.locations: dict[Path, tuple[Path, str]] = {}
+        self.directory_files: dict[Path, dict[str, Inode]] = {}
         self.aliases: dict[Inode, set[Path]] = {}
         self.file_watches: dict[int, Inode] = {}
         self.links: dict[Path, _File] = {}
         self.usage = TraceUsage(0, 0)
+        self._directory_handles: dict[Path, int] = {}
+        self._cache_disabled = False
+        self._close_handles = weakref.finalize(self, _close_directories, self._directory_handles)
+
+    def close(self) -> None:
+        self._close_handles()
+        self.backend.close()
+
+    def file_stat(self, parent: Path, name: str) -> os.stat_result:
+        """Reuse a directory handle only after a fresh check of its current name.
+
+        File size/type/inode are always read again. Neither path resolution nor
+        file metadata is cached, and replacement of a parent forces a rebuild.
+        """
+        expected = self.directories[parent]
+        descriptor = self._directory_handles.get(parent)
+        if descriptor is not None:
+            current = parent.lstat()
+            if not stat.S_ISDIR(current.st_mode) or _inode(current) != expected:
+                raise _RebuildError
+            return os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+        flags = os.O_RDONLY | linux_os.O_DIRECTORY | linux_os.O_NOFOLLOW | linux_os.O_CLOEXEC
+        try:
+            descriptor = os.open(parent, flags)
+        except OSError as error:
+            if error.errno not in (errno.EMFILE, errno.ENFILE):
+                raise
+            # Release only our own optional handles before retrying the original
+            # open/stat/close path under descriptor pressure.
+            _close_directories(self._directory_handles)
+            self._cache_disabled = True
+            descriptor = os.open(parent, flags)
+        retained = False
+        try:
+            if _inode(os.fstat(descriptor)) != expected:
+                raise _RebuildError
+            if not self._cache_disabled and len(self._directory_handles) < MAX_DIRECTORY_HANDLES:
+                self._directory_handles[parent] = descriptor
+                retained = True
+            return os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+        finally:
+            if not retained:
+                os.close(descriptor)
 
     def _watch(self, descriptor: int, *, is_directory: bool) -> int:
         try:
@@ -186,6 +241,9 @@ class _Snapshot:
             actual = os.fstat(opened)
             self.aliases[identity].add(path)
             self.files[path] = _File(identity, actual.st_size)
+            parent, name = path.parent, path.name
+            self.locations[path] = parent, name
+            self.directory_files.setdefault(parent, {})[name] = identity
             return actual
         finally:
             os.close(opened)
@@ -233,7 +291,7 @@ class TraceQuotaMonitor:
 
     def _fallback(self, reason: str) -> None:
         if self._snapshot is not None:
-            self._snapshot.backend.close()
+            self._snapshot.close()
             self._snapshot = None
         self.mode, self.fallback_reason = "full-scan", reason
 
@@ -249,12 +307,12 @@ class TraceQuotaMonitor:
             snapshot.usage = trace_usage(self.roots, observer=snapshot, **self.options)
             identities = {root: snapshot.directories.get(root) for root in self.roots}
         except BaseException:
-            backend.close()
+            snapshot.close()
             raise
         old, self._snapshot = self._snapshot, snapshot
         self._root_identities = identities
         if old is not None:
-            old.backend.close()
+            old.close()
 
     def _roots_changed(self) -> bool:
         for root, expected in self._root_identities.items():
@@ -280,31 +338,23 @@ class TraceQuotaMonitor:
 
     def _refresh(self, snapshot: _Snapshot, changed: set[Inode]) -> None:
         total, posts = snapshot.usage.used_bytes, snapshot.usage.post_copy_bytes
-        flags = os.O_RDONLY | linux_os.O_DIRECTORY | linux_os.O_NOFOLLOW
         for identity in changed:
             aliases = snapshot.aliases[identity]
             size = 0
             for path in aliases:
+                parent, name = snapshot.locations[path]
                 try:
-                    directory = os.open(path.parent, flags)
+                    observed = snapshot.file_stat(parent, name)
                 except FileNotFoundError as error:
                     raise _RebuildError from error
-                try:
-                    if _inode(os.fstat(directory)) != snapshot.directories[path.parent]:
-                        raise _RebuildError
-                    try:
-                        observed = os.stat(path.name, dir_fd=directory, follow_symlinks=False)
-                    except FileNotFoundError as error:
-                        raise _RebuildError from error
-                    if not stat.S_ISREG(observed.st_mode) or _inode(observed) != identity:
-                        raise _RebuildError
-                    size = max(size, observed.st_size)
-                finally:
-                    os.close(directory)
+                if not stat.S_ISREG(observed.st_mode) or _inode(observed) != identity:
+                    raise _RebuildError
+                size = max(size, observed.st_size)
             for path in aliases:
                 previous = snapshot.files[path]
                 total += size - previous.size
-                if path.parent == self.local_posts and path.name.endswith(".bin"):
+                parent, name = snapshot.locations[path]
+                if parent == self.local_posts and name.endswith(".bin"):
                     posts += size - previous.size
                 snapshot.files[path] = _File(identity, size)
         snapshot.usage = TraceUsage(total, posts)
@@ -327,10 +377,11 @@ class TraceQuotaMonitor:
                 if wd in snapshot.file_watches:
                     changed.add(snapshot.file_watches[wd])
                 elif wd in snapshot.directory_watches and name:
-                    path = snapshot.directory_watches[wd] / name
-                    if path not in snapshot.files:
+                    parent = snapshot.directory_watches[wd]
+                    identity = snapshot.directory_files.get(parent, {}).get(name)
+                    if identity is None:
                         raise _RebuildError
-                    changed.add(snapshot.files[path].inode)
+                    changed.add(identity)
                 else:
                     raise _RebuildError
             self._refresh(snapshot, changed)

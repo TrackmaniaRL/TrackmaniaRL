@@ -176,6 +176,17 @@ class Evaluator(Protocol):
 
 
 @runtime_checkable
+class CheckpointSnapshotProvider(Protocol):
+    """Optionally capture owned CPU state without redundant defensive copies.
+
+    Mutable values must be independent of the component's live state before
+    this method returns; an asynchronous writer may retain them afterward.
+    """
+
+    def snapshot_state_dict(self) -> Mapping[str, Any]: ...
+
+
+@runtime_checkable
 class CheckpointCodec(Protocol):
     """Persists learner state without coupling trainers to a format."""
 

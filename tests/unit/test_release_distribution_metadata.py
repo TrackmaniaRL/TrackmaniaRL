@@ -19,6 +19,7 @@ def _wheel_metadata(*requirements: str) -> Message:
         "Provides-Extra: all",
         "Provides-Extra: distributed",
         "Provides-Extra: mamba",
+        "Provides-Extra: native-vision",
         "Provides-Extra: orchestrator",
         "Provides-Extra: trackmania",
         "Provides-Extra: vision",

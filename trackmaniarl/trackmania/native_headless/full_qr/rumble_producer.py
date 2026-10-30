@@ -4,6 +4,10 @@ from dataclasses import dataclass
 from math import copysign, inf, isfinite
 from struct import pack, unpack
 
+from trackmaniarl.trackmania.native_headless.full_qr.prepared_contact_capture import (
+    PreparedContactCapture,
+)
+
 
 def _round_float32(value: float) -> float:
     try:
@@ -102,7 +106,10 @@ def produce_rumble(
 
 
 def combine_contact_rumble(
-    current: RumbleState, normalized_impacts: tuple[float, float, float]
+    current: RumbleState,
+    normalized_impacts: tuple[float, float, float],
+    *,
+    source_contacts: tuple[PreparedContactCapture, ...] | None = None,
 ) -> RumbleState:
     """Port 1407ced77..1407cee37; inputs are not inferred from velocity changes.
 
@@ -116,13 +123,11 @@ def combine_contact_rumble(
     if any(type(value) is not float or not isfinite(value) for value in values):
         raise ValueError("finite float32 contact inputs required")
     frequency, amplitude, main, first, second = map(_round_float32, values)
-    if (
-        not isfinite(frequency)
-        or frequency < 0
-        or not 0 <= amplitude <= 1
-        or any(not 0 <= value <= 1 for value in (main, first, second))
-    ):
+    if not isfinite(frequency) or frequency < 0 or not 0 <= amplitude <= 1:
         raise ValueError("bounded normalized contact inputs required")
+    channels = (main, first, second)
+    if any(not 0 <= value <= 1 for value in channels):
+        _verify_rounded_contact_channels(channels, source_contacts)
     mix = _round_float32(
         _round_float32(second * _round_float32(0.45)) + _round_float32(first * _round_float32(0.65))
     )
@@ -140,3 +145,34 @@ def combine_contact_rumble(
     target_amplitude = _round_float32(_round_float32(scaled + scaled) + _round_float32(0.66))
     target_amplitude = min(1.0, max(_round_float32(0.66), target_amplitude))
     return RumbleState(max(frequency, target_frequency), max(amplitude, target_amplitude))
+
+
+def _verify_rounded_contact_channels(
+    channels: tuple[float, float, float],
+    source_contacts: tuple[PreparedContactCapture, ...] | None,
+) -> None:
+    """Admit literal smoothstep rounding only with the captured producer inputs.
+
+    Actual contact1075 and the original 125-byte helper both produce float32
+    0x3f800002 (1 + 2 ULP), despite a pre-polynomial clamp to [0, 1]. Do not
+    clamp that result or accept an arbitrary near-one float. The untrusted
+    scalar API keeps its strict bound; this path requires exact reprojection
+    of every channel from the already validated held contact delivery.
+    """
+    from trackmaniarl.trackmania.native_headless.full_qr.prepared_impact import (
+        project_prepared_impact,
+    )
+
+    if (
+        type(source_contacts) is not tuple
+        or not source_contacts
+        or any(not 0 <= value <= 1 + 2**-20 for value in channels)
+    ):
+        raise ValueError("bounded normalized contact inputs required")
+    expected = [0.0, 0.0, 0.0]
+    for contact in source_contacts:
+        impact = project_prepared_impact(contact)
+        if impact is not None:
+            expected[impact.channel] = max(expected[impact.channel], impact.normalized_strength)
+    if tuple(expected) != channels:
+        raise ValueError("rounded contact channels must match their exact source projection")

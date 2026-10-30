@@ -194,24 +194,34 @@ def _write_retained_distributed_checkpoints(coordinator: Coordinator) -> None:
 
 
 def _assert_distributed_retention(coordinator: Coordinator) -> None:
-    files = sorted((coordinator.run.run_dir / "checkpoints").glob("distributed-update-*.pt"))
+    files = sorted(coordinator.run.checkpoint_dir.glob("distributed-update-*.pt"))
     assert [path.name for path in files] == ["distributed-update-00000003.pt"]
     events = coordinator.run.logger.events
     assert events.count("train/checkpoint_completed") == 3
     assert events.count("train/checkpoint_retention") == 2
 
 
-def test_distributed_checkpoint_retention_runs_after_async_saves(tmp_path: Path) -> None:
+@pytest.mark.parametrize("external_root", [False, True])
+def test_distributed_checkpoint_retention_runs_after_async_saves(
+    tmp_path: Path, *, external_root: bool
+) -> None:
     training = {
         "total_transitions": 10,
         "warmup_transitions": 10,
         "checkpoint_interval_updates": None,
         "checkpoint_keep_last": 1,
     }
-    coordinator = _coordinator(_resolved_run(tmp_path, "retained", training))
+    run = _resolved_run(tmp_path, "retained", training)
+    if external_root:
+        spec = run.spec.model_copy(update={"checkpoint_root": tmp_path / "checkpoint-volume"})
+        run = replace(run, spec=spec)
+    coordinator = _coordinator(run)
     try:
         _write_retained_distributed_checkpoints(coordinator)
         _assert_distributed_retention(coordinator)
+        if external_root:
+            assert not (run.run_dir / "checkpoints").exists()
+            assert (run.run_dir / "distributed" / "rollouts.sqlite3").is_file()
     finally:
         _close(coordinator)
 

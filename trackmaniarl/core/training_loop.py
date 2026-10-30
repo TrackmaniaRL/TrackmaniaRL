@@ -187,10 +187,36 @@ def _collect(trainer: Trainer, session: _TrainingSession) -> CollectionResult:
         _start_on_policy_collection(trainer, session)
     collector = session.rollout_collector
     if collector is None:
+        if trainer.run.spec.training.reuse_environment:
+            return _collect_reused_episode(trainer, session, remaining)
         return _collect_episode(trainer, session.counters, remaining)
     collector.set_policy(trainer.run.learner.policy())
     length = min(trainer.run.spec.training.sequence_length, remaining)
     return collector.collect(length, rollout_id=f"rollout-{session.counters.updates:08d}")
+
+
+def _collect_reused_episode(
+    trainer: Trainer, session: _TrainingSession, remaining: int
+) -> CollectionResult:
+    """Retain construction work, but reset every episode with its explicit seed.
+
+    The normal session close/evaluation/failure paths own this environment, just
+    as they own an on-policy rollout environment. Native driver rollover, quotas
+    and wall-clock guards remain entirely within the environment's provider.
+    """
+    counters = session.counters
+    seed = trainer.run.spec.seed + counters.episodes
+    if session.rollout_environment is None:
+        session.rollout_environment = trainer.environment_factory.create(seed=seed)
+    collector = EpisodeCollector(
+        trainer.run.replay_store, trainer.run.feature_pipeline, trainer.run.learner.policy()
+    )
+    return collector.collect(
+        session.rollout_environment,
+        episode_id=f"episode-{counters.episodes:08d}",
+        max_steps=min(trainer.run.spec.training.max_episode_steps, remaining),
+        reset_seed=seed,
+    )
 
 
 def _collect_episode(

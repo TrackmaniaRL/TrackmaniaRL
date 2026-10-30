@@ -1,0 +1,8 @@
+[meta]
+name = "Vision QR Frame Marker 1167"
+author = "AITrackmania"
+category = "Utilities"
+version = "0.0.1"
+
+[script]
+dependencies = []

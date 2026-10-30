@@ -109,10 +109,17 @@ class EpisodeCollector:
         self.pipeline = pipeline
         self.policy = policy
 
-    def collect(
-        self, environment: Environment, episode_id: str, max_steps: int
+    def collect(  # noqa: PLR0913 - optional explicit reset seed preserves factory episode seeding
+        self,
+        environment: Environment,
+        episode_id: str,
+        max_steps: int,
+        *,
+        reset_seed: int | None = None,
     ) -> CollectionResult:
-        observation, reset_info = environment.reset()
+        observation, reset_info = (
+            environment.reset() if reset_seed is None else environment.reset(seed=reset_seed)
+        )
         self._reset_episode_state()
         prepared = self.pipeline.transform_observation(observation)
         trace = _EpisodeTrace()

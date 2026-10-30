@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from statistics import fmean
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
+
+import numpy as np
 
 from trackmaniarl.core.data import BatchRequest, TransitionId
 from trackmaniarl.core.replay.store import _IncrementalReplayStore
@@ -123,8 +125,11 @@ def _non_expert_group(sampler: PrioritizedSampler, count: int, batch_size: int) 
 def _draw_incremental_group(
     sampler: PrioritizedSampler, group: _GroupDraw
 ) -> tuple[list[TransitionId], list[float]]:
-    if group.active_count < 1 or group.tree.total <= 0.0 or group.uniform_tree.total <= 0.0:
+    totals = group.tree.total, group.uniform_tree.total
+    if group.active_count < 1 or totals[0] <= 0.0 or totals[1] <= 0.0:
         raise RuntimeError("Prioritized replay cannot satisfy expert_fraction")
+    if group.count >= 32:
+        return _draw_many_group(sampler, group, totals)
     transition_ids: list[TransitionId] = []
     probabilities: list[float] = []
     for _ in range(group.count):
@@ -135,6 +140,35 @@ def _draw_incremental_group(
         transition_ids.append(transition_id)
         probabilities.append(_slot_probability(sampler, group, slot))
     return transition_ids, probabilities
+
+
+def _draw_many_group(
+    sampler: PrioritizedSampler, group: _GroupDraw, totals: tuple[float, float]
+) -> tuple[list[TransitionId], list[float]]:
+    # The caller holds the sampler lock. Totals cannot change between draws.
+    # Keep the two conditional RNG calls in precisely their scalar order.
+    uniform = np.empty(group.count, dtype=np.bool_)
+    targets = np.empty(group.count, dtype=np.float64)
+    for index in range(group.count):
+        use_uniform = bool(sampler.uniform_mix and sampler._rng.random() < sampler.uniform_mix)
+        uniform[index] = use_uniform
+        targets[index] = sampler._rng.random() * totals[int(use_uniform)]
+    slots = np.empty(group.count, dtype=np.int64)
+    for use_uniform, tree in ((False, group.tree), (True, group.uniform_tree)):
+        selected = uniform == use_uniform
+        if selected.any():
+            slots[selected] = tree.find_many(targets[selected])
+    transition_ids = sampler._slot_ids[slots]
+    if (transition_ids < 0).any():
+        raise RuntimeError("Prioritized replay tree is out of sync")
+    proportional = group.tree.leaves[slots].astype(np.float64) / totals[0]
+    mixed = (1.0 - sampler.uniform_mix) * proportional + sampler.uniform_mix * (
+        1.0 / group.active_count
+    )
+    probabilities = group.group_fraction * mixed
+    return cast(list[TransitionId], transition_ids.tolist()), cast(
+        list[float], probabilities.tolist()
+    )
 
 
 def _draw_slot(sampler: PrioritizedSampler, group: _GroupDraw) -> int:

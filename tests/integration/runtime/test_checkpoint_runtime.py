@@ -212,6 +212,36 @@ def test_trainer_respects_disabled_final_checkpoint(tmp_path: Path) -> None:
     assert not checkpoint_dir.exists() or not list(checkpoint_dir.iterdir())
 
 
+@pytest.mark.parametrize("absolute_root", [False, True])
+def test_checkpoint_volume_is_independent_of_logs_and_preserves_retention(
+    tmp_path: Path, *, absolute_root: bool
+) -> None:
+    spec = _fake_environment_spec(
+        tmp_path,
+        {
+            "total_transitions": 6,
+            "max_episode_steps": 2,
+            "batch_size": 2,
+            "warmup_transitions": 2,
+            "checkpoint_interval_updates": 1,
+            "checkpoint_keep_last": 2,
+        },
+    )
+    root = tmp_path / "checkpoint-volume" if absolute_root else Path("checkpoint-volume")
+    spec = spec.model_copy(update={"checkpoint_root": root})
+    run = resolve_run(spec, base_dir=tmp_path)
+    result = _train_and_close(run)
+    expected = tmp_path / "checkpoint-volume" / spec.run_id / "checkpoints"
+
+    assert run.checkpoint_dir == expected
+    assert all(path.parent == expected for path in result.checkpoints)
+    assert len(list(expected.glob("update-*.pt"))) == 2
+    assert (run.run_dir / "manifest.json").is_file()
+    assert not (run.run_dir / "checkpoints").exists()
+    state = run.checkpoint_codec.load(result.checkpoints[-1])
+    assert state["counters"]["transitions"] == result.transitions == 6
+
+
 def test_on_policy_checkpoint_discards_partial_replay_on_resume(tmp_path: Path) -> None:
     spec = _ppo_resume_spec(tmp_path)
     result = _restore_partial_replay(spec, _checkpoint_partial_replay(spec))
@@ -266,7 +296,11 @@ def test_training_checkpoint_identity_ignores_run_and_artifact_paths(tmp_path: P
     spec = _ppo_resume_spec(tmp_path)
     checkpoint = _checkpoint_partial_replay(spec)
     relocated = spec.model_copy(
-        update={"run_id": "ppo-relocated", "artifacts_dir": tmp_path / "relocated"}
+        update={
+            "run_id": "ppo-relocated",
+            "artifacts_dir": tmp_path / "relocated",
+            "checkpoint_root": tmp_path / "checkpoint-volume",
+        }
     )
 
     result = _restore_partial_replay(relocated, checkpoint)

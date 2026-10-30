@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
+
 from trackmaniarl.core.data import BatchRequest, Transition, TransitionId
 from trackmaniarl.core.pytree import tree_snapshot
 
@@ -63,11 +65,74 @@ def materialize_n_step(
         ]
         if missing:
             raise KeyError(f"Replay transitions no longer available: {missing[:3]}")
+        if request.n_step == 1 and len(transition_ids) > 1:
+            return _materialize_single_step_batch(store, transition_ids, request.gamma)
         materialized = [
             store._materialize_n_step_locked(transition_id, request)
             for transition_id in transition_ids
         ]
     return [item[0] for item in materialized], [item[1] for item in materialized]
+
+
+def _materialize_single_step_batch(
+    store: InMemoryReplayStore, transition_ids: list[TransitionId], gamma: float
+) -> tuple[list[Transition], list[float]]:
+    """Gather the one-step horizon without per-row traversal/context objects.
+
+    Caller holds the replay lock and has checked every selected ID. Column
+    gathers copy into owned arrays, including duplicate IDs. Terminal overrides
+    and nonterminal missing endpoints retain the strict endpoint checks.
+    """
+    assert store._observations is not None
+    assert store._actions is not None
+    slots = np.asarray(transition_ids, dtype=np.int64) % store.capacity
+    observations = store._observations.read_many_owned(slots)
+    actions = store._actions.read_many_owned(slots)
+    following = _bulk_next_observations(store, transition_ids, slots)
+    rows, discounts = [], []
+    for index, (transition_id, slot) in enumerate(zip(transition_ids, slots, strict=True)):
+        terminated = bool(store._terminated[slot])
+        step, code = int(store._steps[slot]), int(store._episode_codes[slot])
+        rows.append(
+            Transition(
+                observation=observations[index],
+                action=actions[index],
+                # Match the reference horizon's initial +0.0, including signed zero.
+                reward=0.0 + float(store._rewards[slot]),
+                next_observation=following[index],
+                terminated=terminated,
+                truncated=bool(store._truncated[slot]),
+                info=store._info.get(transition_id, {}),
+                episode_id=store._episode_names.get(code),
+                step=step if step >= 0 else None,
+            )
+        )
+        discounts.append(0.0 if terminated else gamma**1)
+    return rows, discounts
+
+
+def _bulk_next_observations(
+    store: InMemoryReplayStore,
+    transition_ids: list[TransitionId],
+    slots: np.ndarray[Any, np.dtype[np.int64]],
+) -> list[Any]:
+    assert store._observations is not None
+    following: list[Any] = [None] * len(transition_ids)
+    linked = []
+    for index, (transition_id, slot) in enumerate(zip(transition_ids, slots, strict=True)):
+        if transition_id in store._next_overrides:
+            following[index] = _owned_next_observation(store, transition_id, int(slot))
+        else:
+            next_id = int(store._next_ids[slot])
+            if not store.contains(next_id):
+                raise RuntimeError(f"Transition {transition_id} has no next observation")
+            linked.append((index, next_id % store.capacity))
+    if linked:
+        next_slots = np.asarray([slot for _, slot in linked], dtype=np.int64)
+        values = store._observations.read_many_owned(next_slots)
+        for (index, _), value in zip(linked, values, strict=True):
+            following[index] = value
+    return following
 
 
 def _materialize_n_step_locked(

@@ -89,3 +89,16 @@ def test_single_last_record_is_also_rejected_before_any_native_operation() -> No
     with pytest.raises(ValueError, match="unsupported-final-reader-boundary"):
         session.advance(39, 1)
     assert calls == []
+
+
+def test_indexed_event_windows_keep_exact_boundaries_and_reject_future_evidence() -> None:
+    session = ImmediateSession.__new__(ImmediateSession)
+    # Includes retained evidence before the request and an exact right endpoint.
+    session.events = {clock: str(clock).encode() for clock in (2190, 2200, 2210, 2220)}
+    session._event_times = sorted(session.events)
+    retained = session.events.copy()
+    assert session._decision_events(2200, 2220) == [b"2210", b"2220"]
+    assert session._decision_events(2220, 2220) == []
+    assert session.events == retained
+    with pytest.raises(ValueError, match="advanced beyond"):
+        session._decision_events(2200, 2210)

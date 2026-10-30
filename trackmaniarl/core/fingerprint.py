@@ -37,6 +37,7 @@ def _fingerprint_config(spec: RunSpec) -> tuple[dict[str, Any], list[dict[str, A
     config = spec.model_dump(mode="json")
     config.pop("run_id")
     config.pop("artifacts_dir")
+    config.pop("checkpoint_root")
     components = config["components"]
     components.pop("logger")
     components.pop("additional_loggers")

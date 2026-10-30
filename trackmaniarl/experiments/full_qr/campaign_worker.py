@@ -146,6 +146,7 @@ class WorkerSettings:
             or self.artifact_root.name != "artifacts"
             or self.artifact_root.resolve() != self.artifact_root
             or spec.artifacts_dir != self.artifact_root
+            or spec.checkpoint_root is not None
         ):
             raise ValueError("only the new campaign's explicitly bound artifact root is allowed")
         if (

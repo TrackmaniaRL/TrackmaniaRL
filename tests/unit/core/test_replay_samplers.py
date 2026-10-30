@@ -5,12 +5,16 @@ from __future__ import annotations
 import math
 import threading
 
+import numpy as np
 import pytest
 import torch
 
 from tests.unit.core._replay_sampler_support import (
     _basic_n_step_store,
     _behavior_store,
+    _EpisodeSpec,
+    _paced_store,
+    _ReplayOrigin,
     _store,
 )
 from trackmaniarl.core.builtins import IdentityFeaturePipeline
@@ -20,7 +24,9 @@ from trackmaniarl.core.replay import (
     PrioritizedSampler,
     SequenceSampler,
     UniformSampler,
+    prioritized_draw,
 )
+from trackmaniarl.core.replay.structures import _FenwickTree
 
 
 class _BlockingStore(InMemoryReplayStore):
@@ -323,3 +329,88 @@ def test_sequence_sampler_preserves_ppo_behavior_statistics() -> None:
         batch.metadata["behavior_latent_actions"],
         torch.tensor([[[0.0, 0.0], [1.0, -1.0], [2.0, -2.0]]]),
     )
+
+
+@pytest.mark.parametrize("capacity", [1, 257, 1_000_003])
+def test_batched_prefix_search_preserves_scalar_boundaries_and_input(capacity: int) -> None:
+    tree = _FenwickTree(capacity)
+    reference = _FenwickTree(capacity)
+    rng = np.random.default_rng(17)
+    for index in rng.integers(0, capacity, size=min(512, capacity * 2)):
+        value = float(rng.uniform(0.001, 50))
+        for weight in (value, float(np.float32(value)), 0.0, -0.0, value):
+            _reference_tree_set(reference, int(index), weight)
+            tree.set(int(index), weight)
+    assert tree.values.tobytes() == reference.values.tobytes()
+    assert tree.leaves.tobytes() == reference.leaves.tobytes()
+    points = np.linspace(0, tree.total, 257)
+    targets = np.concatenate((points, np.nextafter(points, -np.inf), np.nextafter(points, np.inf)))
+    before = targets.copy()
+    expected = np.array([tree.find(float(value)) for value in targets], dtype=np.int64)
+    np.testing.assert_array_equal(tree.find_many(targets), expected)
+    np.testing.assert_array_equal(targets, before)
+    assert tree.find_many(np.array([], dtype=np.float64)).shape == (0,)
+    with pytest.raises(ValueError, match="vector"):
+        tree.find_many(np.zeros((2, 2), dtype=np.float64))
+
+
+def _reference_tree_set(tree: _FenwickTree, index: int, value: float) -> None:
+    """Original scalar updates, including zero additions and float32 deltas."""
+    delta = value - tree.leaves[index]
+    tree.leaves[index] = value
+    index += 1
+    while index <= tree.size:
+        tree.values[index] += delta
+        index += index & -index
+
+
+def _scalar_reference_group(
+    sampler: PrioritizedSampler,
+    group: prioritized_draw._GroupDraw,
+    totals: tuple[float, float],
+) -> tuple[list[int], list[float]]:
+    del totals
+    ids, probabilities = [], []
+    for _ in range(group.count):
+        slot = prioritized_draw._draw_slot(sampler, group)
+        ids.append(int(sampler._slot_ids[slot]))
+        probabilities.append(prioritized_draw._slot_probability(sampler, group, slot))
+    return ids, probabilities
+
+
+@pytest.mark.parametrize("uniform_mix", [0.0, 0.25, 1.0])
+def test_batched_per_preserves_ids_weights_metadata_rng_and_feedback(
+    monkeypatch: pytest.MonkeyPatch, uniform_mix: float
+) -> None:
+    store = _paced_store(
+        [
+            _EpisodeSpec("demo", 256, 35.0, _ReplayOrigin.DEMONSTRATION),
+            _EpisodeSpec("online", 256, 55.0, _ReplayOrigin.ONLINE),
+        ],
+        capacity=769,
+    )
+    for expert_fraction in (0.0, 0.5):
+        options = {
+            "seed": 17,
+            "uniform_mix": uniform_mix,
+            "expert_demo_time_s": 45.0,
+            "expert_fraction": expert_fraction,
+        }
+        reference = PrioritizedSampler(IdentityFeaturePipeline(), **options)
+        candidate = PrioritizedSampler(IdentityFeaturePipeline(), **options)
+        for size in (3, 128, 128):
+            request = BatchRequest(size, beta=0.7)
+            with monkeypatch.context() as context:
+                context.setattr(prioritized_draw, "_draw_many_group", _scalar_reference_group)
+                expected = reference.sample(store, request)
+            actual = candidate.sample(store, request)
+            assert actual.transition_ids == expected.transition_ids
+            assert torch.equal(actual.importance_weights, expected.importance_weights)
+            np.testing.assert_equal(actual.metadata, expected.metadata)
+            assert candidate._rng.getstate() == reference._rng.getstate()
+            feedback = PriorityUpdate(
+                actual.transition_ids,
+                tuple((index % 11 + 1) / 7 for index in range(size)),
+            )
+            for sampler in (reference, candidate):
+                sampler.update_priorities(feedback)

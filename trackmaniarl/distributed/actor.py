@@ -61,6 +61,8 @@ def _actor_learner_spec(
         device=override.device,
         precision=override.precision,
     )
+    if override.torch_threads is not None:
+        execution["torch_threads"] = override.torch_threads
     kwargs["execution"] = execution
     return learner.model_copy(update={"kwargs": kwargs})
 

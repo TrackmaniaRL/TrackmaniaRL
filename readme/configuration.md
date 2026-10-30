@@ -52,6 +52,7 @@ and reward fields are derived in [Rewards](rewards.md).
 | `run_id` | non-empty safe identifier, required | Names the immutable artifact directory. Start a new ID after a contract-changing edit. |
 | `seed` | integer, `0` | Seeds model construction, samplers, actors and deterministic splits. |
 | `artifacts_dir` | path, `artifacts` | Root for manifests, events, replay/WAL state and checkpoints. |
+| `checkpoint_root` | path or null, null | Optional checkpoint volume for generic Trainer/Coordinator runs: `checkpoint_root/run_id/checkpoints`. Relative paths resolve against the project base directory. Null retains the artifact layout; the location is excluded from semantic identity. Budgeted native campaigns retain their own bound artifact-root rules. |
 | `metadata` | mapping, `{}` | User attribution only, it does not alter training. Never put secrets here. |
 | `components.learner` | `ComponentSpec`, required | Learner selected by `class_path`, its model contract must match `model_factory`. |
 | `components.environment` | optional component | Required by `train`, Trackmania smoke and live evaluation, not required by offline validation. |
@@ -92,6 +93,7 @@ Relative asset paths are resolved against the directory containing
 | `beta` | float or null, null | Request-time PER importance exponent. When set, it overrides the sampler's constructor `beta`. |
 | `reset_after_on_policy_rollout` | `false` | Reset the environment between completed on-policy rollouts when explicitly enabled; never carry stale collection state across an update. |
 | `warmup_transitions` | int, `1000` | Replay items collected before the first off-policy update, no deferred update debt is accumulated. |
+| `reuse_environment` | bool, `false` | Local off-policy training may retain one environment across episodes and reset it before each collection, closing it on exit. False keeps the per-episode create/close lifecycle. PPO rejects this option; distributed actors manage their own environment lifecycle. |
 | `offline_pretrain_updates` | int, `0` | Updates performed from loaded demonstration replay before actors start. |
 | `updates_per_transition` | finite float `>0`, `1.0` | Off-policy update-to-data ratio. High values improve reuse but amplify stale-policy and overfitting risk. |
 | `checkpoint_interval_updates` | positive int or null, `1000` | Periodic exact-state checkpoint cadence, null disables periodic saves. |

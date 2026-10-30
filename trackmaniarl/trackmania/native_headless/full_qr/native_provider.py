@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, replace
+from math import isfinite
 from struct import pack, unpack
+from time import monotonic
 from typing import Any, Protocol, cast
 
 from trackmaniarl.trackmania.native_headless._runtime.immediate import (
@@ -220,9 +222,9 @@ class NativeFullQrProvider:
         if previous_native_t >= 152200:
             raise NativeLifecycleError("full150s domain ended; reset is required")
         stride, observe = self._physics_delivery()
-        issued = _issued_steering(action)
+        issued = self._decision_steering(action)
         for offset in range(0, 5, stride):
-            tick_action = _action_for_tick(action, offset)
+            tick_action = self._control_for_tick(action, offset)
             packet = self._session.advance(tick_action, stride)
             if packet["eof"]:
                 final = self._final_step(previous_native_t, issued) if stride == 1 else None
@@ -234,6 +236,12 @@ class NativeFullQrProvider:
             if observe is not None:
                 observe(self._session, self._before["nativeT"])
         return self._complete_step(issued)
+
+    def _decision_steering(self, action: int) -> float:
+        return _issued_steering(action)
+
+    def _control_for_tick(self, action: int, offset: int) -> int:
+        return _action_for_tick(action, offset)
 
     def _final_step(
         self, previous_native_t: int, issued: float
@@ -279,6 +287,14 @@ class NativeFullQrProvider:
         session = self._session
         if session is None or self._driver_episodes >= self.driver_episode_limit:
             return False
+        # A warm reset inherits this driver's original deadline. Reserve a
+        # conservative three minutes for a new full150s episode; never extend
+        # the original <=240s native watchdog to make reuse succeed.
+        remaining = session.deadline - monotonic()
+        if not isfinite(remaining):
+            raise NativeLifecycleError("finite native driver deadline required")
+        if remaining < 180.0:
+            return False
         monitor = session._quota_monitor
         if monitor is None:
             raise NativeLifecycleError("a live native trace quota monitor is required")
@@ -294,6 +310,12 @@ class NativeFullQrProvider:
             + self.next_episode_reserve_bytes
         )
         return required <= session.max_trace_bytes
+
+    def finish_episode(self) -> None:
+        """Close a consumed driver before any between-episode learner wait."""
+        if self._session is not None and not self._can_reuse_driver():
+            self.events.release_episode()
+            self._finish_session("episode_complete")
 
     def close(self) -> None:
         if self._closed:

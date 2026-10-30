@@ -126,6 +126,60 @@ def test_local_trainer_updates_ppo_once_per_fresh_episode(tmp_path: Path) -> Non
     assert result.updates == 2
 
 
+@pytest.mark.parametrize("fail_on_second_reset", [False, True])
+def test_reused_off_policy_environment_preserves_seeds_and_closes_on_failure(
+    tmp_path: Path,
+    *,
+    fail_on_second_reset: bool,
+) -> None:
+    class TrackedEnvironment(FakeEnvironment):
+        def __init__(self) -> None:
+            super().__init__()
+            self.seeds: list[int | None] = []
+            self.close_calls = 0
+
+        def reset(self, *, seed: int | None = None) -> Any:
+            self.seeds.append(seed)
+            if fail_on_second_reset and len(self.seeds) == 2:
+                raise RuntimeError("reset failure")
+            return super().reset(seed=seed)
+
+        def close(self) -> None:
+            self.close_calls += 1
+            super().close()
+
+    class TrackedFactory:
+        def __init__(self) -> None:
+            self.seeds: list[int] = []
+            self.environment = TrackedEnvironment()
+
+        def create(self, *, seed: int) -> TrackedEnvironment:
+            self.seeds.append(seed)
+            return self.environment
+
+    data = _trainer_spec(
+        tmp_path, {**_CHECKPOINT_TRAINING, "reuse_environment": True}, _FAKE_ENVIRONMENT
+    ).model_dump(mode="json")
+    data["seed"] = 17
+    run = resolve_run(RunSpec.model_validate(data))
+    factory = TrackedFactory()
+    run = replace(run, environment_factory=factory)
+    try:
+        if fail_on_second_reset:
+            with pytest.raises(RuntimeError, match="reset failure"):
+                Trainer(run).train()
+            assert factory.environment.seeds == [17, 18]
+        else:
+            result = Trainer(run).train()
+            assert result.transitions == 8
+            assert result.episodes == 4
+            assert factory.environment.seeds == [17, 18, 19, 20]
+        assert factory.seeds == [17]
+        assert factory.environment.close_calls == 1
+    finally:
+        run.logger.close()
+
+
 def test_ppo_logs_segments_without_presenting_them_as_single_races(tmp_path: Path) -> None:
     run = resolve_run(_ppo_spec(tmp_path))
     result = _train_and_close(run)

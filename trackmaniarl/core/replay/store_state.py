@@ -8,8 +8,9 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
+from trackmaniarl.core.pytree import tree_snapshot
 from trackmaniarl.core.replay.store_pace import validate_episode_sampling_paces
-from trackmaniarl.core.replay.store_support import _is_demo, _TreeColumns
+from trackmaniarl.core.replay.store_support import _is_demo, _owned_rows, _TreeColumns
 
 if TYPE_CHECKING:
     from trackmaniarl.core.replay.store import InMemoryReplayStore
@@ -51,10 +52,26 @@ class _TreeRestore:
 
 def state_dict(store: InMemoryReplayStore) -> dict[str, Any]:
     with store._lock:
-        empty = _empty_state(store)
-        if store._observations is None or store._actions is None:
-            return empty
-        return _populated_state(store, empty)
+        return _state_dict_locked(store)
+
+
+def snapshot_state_dict(store: InMemoryReplayStore) -> dict[str, Any]:
+    """Detach one checkpoint under the replay lock, copying bulk columns once."""
+    with store._lock:
+        state = _state_dict_locked(store)
+        for name in ("next_overrides", "info"):
+            state[name] = tree_snapshot(state[name], device="cpu")
+        for name in ("observations", "actions"):
+            if name in state:
+                state[name]["spec"] = tree_snapshot(state[name]["spec"], device="cpu")
+        return state
+
+
+def _state_dict_locked(store: InMemoryReplayStore) -> dict[str, Any]:
+    empty = _empty_state(store)
+    if store._observations is None or store._actions is None:
+        return empty
+    return _populated_state(store, empty)
 
 
 def _empty_state(store: InMemoryReplayStore) -> dict[str, Any]:
@@ -96,9 +113,7 @@ def _snapshot_arrays(
         "next_ids",
         "sampling_pace",
     )
-    return {
-        name: np.array(getattr(store, f"_{name}")[slots], copy=True, order="C") for name in names
-    }
+    return {name: _owned_rows(getattr(store, f"_{name}"), slots) for name in names}
 
 
 def _snapshot_slots(

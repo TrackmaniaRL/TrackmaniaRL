@@ -28,7 +28,16 @@ CORE_DEPENDENCIES = frozenset(
     {"gymnasium", "numpy", "pydantic", "pyyaml", "tensordict", "torch", "zstandard"}
 )
 PUBLIC_EXTRAS = frozenset(
-    {"all", "distributed", "mamba", "orchestrator", "trackmania", "vision", "wandb"}
+    {
+        "all",
+        "distributed",
+        "mamba",
+        "native-vision",
+        "orchestrator",
+        "trackmania",
+        "vision",
+        "wandb",
+    }
 )
 
 

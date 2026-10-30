@@ -198,6 +198,13 @@ class ResolvedRun:
     evaluator: Evaluator | None
     base_dir: Path = Path(".")
 
+    @property
+    def checkpoint_dir(self) -> Path:
+        """Keep checkpoint IO on an explicit volume, independently of live journals."""
+        if self.spec.checkpoint_root is None:
+            return self.run_dir / "checkpoints"
+        return self.base_dir / self.spec.checkpoint_root / self.spec.run_id / "checkpoints"
+
 
 def resolve_run(spec: RunSpec, *, base_dir: str | Path = ".") -> ResolvedRun:
     project_dir = Path(base_dir)

@@ -11,6 +11,7 @@ from typing import Any, cast
 import torch
 
 from trackmaniarl.core.builtins import sync_checkpoint_path
+from trackmaniarl.core.contracts import CheckpointSnapshotProvider
 from trackmaniarl.core.data import BatchRequest, TrainingBatch
 from trackmaniarl.core.runtime import ResolvedRun
 
@@ -205,3 +206,18 @@ def snapshot_value(value: Any) -> Any:
     if isinstance(value, tuple):
         return tuple(snapshot_value(item) for item in value)
     return deepcopy(value)
+
+
+def snapshot_state_dict(component: object) -> Mapping[str, object]:
+    """Capture detached CPU state, honoring an explicit component capability.
+
+    An opt-in ``snapshot_state_dict`` must return caller-owned mutable values;
+    the component may continue changing its live state while the writer runs.
+    Other components retain the defensive recursive-copy path.
+    """
+    if not isinstance(component, CheckpointSnapshotProvider):
+        return cast(Mapping[str, object], snapshot_value(state_dict(component)))
+    state = component.snapshot_state_dict()
+    if not isinstance(state, Mapping):
+        raise TypeError(f"{type(component).__name__}.snapshot_state_dict() must return a mapping")
+    return cast(Mapping[str, object], state)
