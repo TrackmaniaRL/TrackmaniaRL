@@ -83,6 +83,7 @@ def test_generate_discrete_configs_and_explicitly_block_continuous(
     assert not (tmp_path / "out/campaign-configs/sac-s17.yaml").exists()
     q = yaml.safe_load((tmp_path / "out/campaign-configs/q-s17.yaml").read_text())
     assert q["training"]["total_transitions"] == 7_168_000
+    assert q["distributed"]["strict_update_budget"] is True
     assert "additional exploratory" in q["metadata"]["scope"]
     with pytest.raises(ValueError, match="requires both qualified analog references"):
         module.prepare(

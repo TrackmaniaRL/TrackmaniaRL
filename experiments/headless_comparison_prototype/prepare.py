@@ -227,6 +227,7 @@ def prepare(settings: Preparation) -> dict:
         if name in ADDITIONAL_ALGORITHMS:
             reference_env = team_qr["components"]["environment"]["kwargs"]["config"]
             config["training"]["total_transitions"] = 7_168_000
+            config["distributed"]["strict_update_budget"] = True
             config["training"]["checkpoint_milestones"] = [
                 2_048_000,
                 4_096_000,
