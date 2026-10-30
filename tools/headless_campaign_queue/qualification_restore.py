@@ -83,7 +83,10 @@ def audit(config: Path, config_sha: str, receipt: Path, receipt_sha: str, deploy
     if fingerprint != doc.get("run_fingerprint"):
         raise ValueError("short-run source/configuration fingerprint mismatch")
     components = spec.components.model_copy(update={"additional_loggers": ()})
-    cloned = spec.model_copy(update={"artifacts_dir": output / "artifacts", "checkpoint_root": None, "components": components})
+    updates = {"artifacts_dir": output / "artifacts", "components": components}
+    if "checkpoint_root" in type(spec).model_fields:
+        updates["checkpoint_root"] = None
+    cloned = spec.model_copy(update=updates)
     if run_fingerprint(cloned, config.parent) != fingerprint:
         raise ValueError("isolated restore changed run fingerprint")
     output.mkdir(parents=True)

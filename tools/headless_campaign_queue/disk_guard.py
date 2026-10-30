@@ -76,7 +76,7 @@ def check_disk_space(
         (
             "checkpoints",
             _config_path(
-                spec.checkpoint_root or spec.artifacts_dir,
+                getattr(spec, "checkpoint_root", None) or spec.artifacts_dir,
                 name="checkpoint_root",
                 base_dir=base_dir,
             ),

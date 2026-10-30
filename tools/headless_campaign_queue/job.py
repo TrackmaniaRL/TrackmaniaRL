@@ -89,7 +89,7 @@ def execute(config: Path, receipt: Path, budget: int, stop: Path, *, max_oversho
         raise ValueError("final milestone is not configured")
     base = config.parent
     run_dir = (base / spec.artifacts_dir / spec.run_id).resolve()
-    checkpoint_root = (base / (spec.checkpoint_root or spec.artifacts_dir) / spec.run_id / "checkpoints").resolve()
+    checkpoint_root = (base / (getattr(spec, "checkpoint_root", None) or spec.artifacts_dir) / spec.run_id / "checkpoints").resolve()
     evaluation_id = f"{spec.run_id}-final-evaluation"
     evaluation_dir = (base / spec.artifacts_dir / evaluation_id).resolve()
     if run_dir.exists() or checkpoint_root.exists() or evaluation_dir.exists():

@@ -17,7 +17,6 @@ class FakeSpec:
     def __init__(self, root):
         self.run_id = "example"
         self.artifacts_dir = root / "artifacts"
-        self.checkpoint_root = None
         self.training = SimpleNamespace(total_transitions=100, checkpoint_milestones=(100,), save_final_checkpoint=True)
         self.distributed = SimpleNamespace(strict_update_budget=True)
         self.evaluation = SimpleNamespace(trials_per_map=30, maps=[SimpleNamespace(id="map", expected_map_uid="uid")])

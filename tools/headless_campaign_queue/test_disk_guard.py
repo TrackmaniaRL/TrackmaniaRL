@@ -84,6 +84,18 @@ def test_missing_native_config_is_not_treated_as_valid(tmp_path: Path) -> None:
         disk_guard.check_disk_space(spec, tmp_path, system_path=tmp_path)
 
 
+def test_schema_without_checkpoint_root_uses_artifact_volume(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "artifacts").mkdir()
+    spec = spec_for(tmp_path)
+    del spec.checkpoint_root
+    monkeypatch.setattr(disk_guard.shutil, "disk_usage", lambda _: SimpleNamespace(free=11 * disk_guard.GIB))
+    receipt = disk_guard.check_disk_space(spec, tmp_path, system_path=tmp_path)
+    checkpoints = next(row for row in receipt if row["name"] == "checkpoints")
+    assert Path(checkpoints["checked_at"]) == tmp_path / "artifacts"
+
+
 def test_missing_windows_mount_cannot_fall_back_to_root(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(disk_guard.os.path, "ismount", lambda _: False)
     with pytest.raises(OSError, match="not mounted"):

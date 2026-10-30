@@ -86,7 +86,7 @@ def prepare(path: Path) -> tuple[dict, str]:
         if run_fingerprint(spec, config.parent) != job.get("run_fingerprint"):
             raise ValueError(f"{name}: source/configuration fingerprint mismatch")
         artifact = (config.parent / spec.artifacts_dir / spec.run_id).resolve()
-        checkpoint = (config.parent / (spec.checkpoint_root or spec.artifacts_dir) / spec.run_id / "checkpoints").resolve()
+        checkpoint = (config.parent / (getattr(spec, "checkpoint_root", None) or spec.artifacts_dir) / spec.run_id / "checkpoints").resolve()
         evaluation_path = (config.parent / spec.artifacts_dir / (spec.run_id + "-final-evaluation")).resolve()
         if any(p.exists() for p in (artifact, checkpoint, evaluation_path)):
             raise ValueError(f"{name}: output path already exists")
