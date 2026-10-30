@@ -82,7 +82,17 @@ def verify_receipt(job: dict, digest: str, pid: int) -> dict:
             h.update(block)
     if h.hexdigest() != expected:
         raise ValueError(f"{job['id']}: checkpoint hash mismatch")
-    return {"receipt_sha256": hashlib.sha256(raw).hexdigest(), "checkpoint_sha256": expected}
+    evaluation = receipt.get("evaluation")
+    evaluation_sha = receipt.get("evaluation_sha256")
+    if not isinstance(evaluation, str) or not Path(evaluation).is_absolute() or not isinstance(evaluation_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", evaluation_sha):
+        raise ValueError(f"{job['id']}: invalid evaluation evidence")
+    h = hashlib.sha256()
+    with Path(evaluation).open("rb") as f:
+        for block in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(block)
+    if h.hexdigest() != evaluation_sha:
+        raise ValueError(f"{job['id']}: evaluation hash mismatch")
+    return {"receipt_sha256": hashlib.sha256(raw).hexdigest(), "checkpoint_sha256": expected, "evaluation_sha256": evaluation_sha}
 
 
 def atomic_json(path: Path, data: dict) -> None:

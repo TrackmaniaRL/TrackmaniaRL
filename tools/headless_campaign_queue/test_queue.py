@@ -94,6 +94,7 @@ class QueueTests(unittest.TestCase):
         checkpoint, receipt = self.root / "model.pt", self.root / "receipt.json"
         payload = {"job_id": "first", "status": "completed", "transitions": 12,
                    "checkpoint": str(checkpoint), "checkpoint_sha256": hashlib.sha256(b"model").hexdigest()}
+        payload.update(evaluation=str(checkpoint), evaluation_sha256=payload["checkpoint_sha256"])
         code = (f"from pathlib import Path; import json, os; Path({str(checkpoint)!r}).write_bytes(b'model'); "
                 f"d=json.loads({json.dumps(payload)!r}); d.update(process_pid=os.getpid(), manifest_sha256=os.environ['TRACKMANIARL_QUEUE_MANIFEST_SHA256']); "
                 f"Path({str(receipt)!r}).write_text(json.dumps(d))")
@@ -108,6 +109,7 @@ class QueueTests(unittest.TestCase):
         checkpoint, receipt = self.root / "model.pt", self.root / "receipt.json"
         payload = {"job_id": "first", "status": "completed", "transitions": 12,
                    "checkpoint": str(checkpoint), "checkpoint_sha256": hashlib.sha256(b"model").hexdigest()}
+        payload.update(evaluation=str(checkpoint), evaluation_sha256=payload["checkpoint_sha256"])
         code = (f"from pathlib import Path; import json, os; Path({str(checkpoint)!r}).write_bytes(b'model'); "
                 f"d=json.loads({json.dumps(payload)!r}); d.update(process_pid=os.getpid()+1, manifest_sha256=os.environ['TRACKMANIARL_QUEUE_MANIFEST_SHA256']); "
                 f"Path({str(receipt)!r}).write_text(json.dumps(d))")
@@ -132,10 +134,11 @@ class QueueTests(unittest.TestCase):
         digest = hashlib.sha256(self.manifest.read_bytes()).hexdigest()
         receipt.write_text(json.dumps({"job_id": "first", "status": "completed", "transitions": 12,
                                        "checkpoint": str(checkpoint), "checkpoint_sha256": sha,
+                                       "evaluation": str(checkpoint), "evaluation_sha256": sha,
                                        "manifest_sha256": digest, "process_pid": 123}))
         self.out.mkdir()
         state = {"status": "running", "manifest_sha256": digest, "jobs": [
-            {"id": "first", "status": "verified", "pid": 123, "evidence": {"receipt_sha256": hashlib.sha256(receipt.read_bytes()).hexdigest(), "checkpoint_sha256": sha}},
+            {"id": "first", "status": "verified", "pid": 123, "evidence": {"receipt_sha256": hashlib.sha256(receipt.read_bytes()).hexdigest(), "checkpoint_sha256": sha, "evaluation_sha256": sha}},
             {"id": "second", "status": "pending"}]}
         (self.out / "state.json").write_text(json.dumps(state))
         checkpoint.write_bytes(b"tampered")
