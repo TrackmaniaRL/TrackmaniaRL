@@ -32,7 +32,8 @@ transitions, saved a restorable full checkpoint, completed evaluation, or closed
 all descendants. Those are separate requirements of the training wrapper.
 
 The experimental strict entry point is `python -m tools.headless_campaign_queue.campaign`.
-It accepts schema 3 with a common seed, transition budget and `map_uid`, and jobs
+It accepts schema 3 with a common seed, transition budget, nonnegative
+`max_overshoot` acceptance bound and `map_uid`, and jobs
 with `id`, absolute `config`, `config_sha256`, `run_fingerprint`, absolute fresh
 `receipt` and `stop_file`. It requires all five named algorithms, hashes and
 validates all configurations before starting any, then constructs only `job.py`
@@ -61,9 +62,15 @@ It does not prevent another OS user or an unrelated launcher from starting work.
 
 `job.py` is an experimental producer that trains from a fresh config and performs
 evaluation via the internal API, without imposing a performance threshold. It
-requires the configured budget exactly, a valid final milestone, matching source
-fingerprint and 30 identity-checked trials. It has only synthetic tests; it is
-not qualified for any live method. A stopped or overshooting run fails closed.
+selects the last durably logged regular training checkpoint, checks the checkpoint
+fingerprint and the actual accepted transition counter, and requires the counter
+to lie between the requested budget and budget plus `max_overshoot`. It preserves
+and reports the actual count rather than trimming rollouts. For off-policy runs it
+also requires a matching journal identity/frontier, no submitted WAL rows beyond
+the frontier and no remaining spool files. The check is an acceptance criterion,
+not a runtime collection limit; actual physical environment steps can exceed the
+accepted transition counter. It has only synthetic tests and is not yet qualified
+for any live method. A stopped run or one outside this bound fails closed.
 For isolated tests only, `--qualification-trials N` accepts 1–30 matching trials;
 its receipt is marked `qualification_only` and cannot complete the campaign.
 The queue does not yet ensure all manifest commands use this trusted producer.

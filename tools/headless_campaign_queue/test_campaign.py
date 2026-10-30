@@ -30,7 +30,7 @@ class CampaignTests(unittest.TestCase):
             report = root / "qualification.json"
             report.write_text(json.dumps({"kind": "headless-five-qualification-v1", "jobs": evidence}))
             path = root / "campaign.json"
-            path.write_text(json.dumps({"schema_version": 3, "status": "qualified", "seed": 17, "transitions": 100, "map_uid": "uid", "jobs": jobs, "qualification_report": str(report), "qualification_sha256": hashlib.sha256(report.read_bytes()).hexdigest()}))
+            path.write_text(json.dumps({"schema_version": 3, "status": "qualified", "seed": 17, "transitions": 100, "max_overshoot": 5, "map_uid": "uid", "jobs": jobs, "qualification_report": str(report), "qualification_sha256": hashlib.sha256(report.read_bytes()).hexdigest()}))
             def spec(config):
                 name = Path(config).stem
                 learner = {"qr": "DiscreteValueLearner", "iqn": "DiscreteValueLearner", "sac": "SoftActorCritic", "tqc": "TruncatedQuantileCritic", "ppo": "ProximalPolicyOptimization"}[name]
@@ -38,7 +38,7 @@ class CampaignTests(unittest.TestCase):
                 head = "FixedQuantileHead" if name == "qr" else "DuelingImplicitQuantileHead"
                 strategy = "FixedQuantileStrategy" if name == "qr" else "RandomQuantileStrategy"
                 components = SimpleNamespace(learner=SimpleNamespace(class_path=prefix + learner), model_factory=SimpleNamespace(kwargs={"head": {"class_path": "example:" + head}, "strategy": {"class_path": "example:" + strategy}}), environment=SimpleNamespace(class_path="trackmaniarl.trackmania.native_headless:Factory"), evaluator=object())
-                return SimpleNamespace(seed=17, training=SimpleNamespace(total_transitions=100, checkpoint_milestones=(100,)), evaluation=SimpleNamespace(maps=[SimpleNamespace(expected_map_uid="uid")], trials_per_map=30), components=components, artifacts_dir=root / "artifacts", checkpoint_root=None, run_id=name)
+                return SimpleNamespace(seed=17, training=SimpleNamespace(total_transitions=100, checkpoint_milestones=(100,), save_final_checkpoint=True), distributed=SimpleNamespace(strict_update_budget=True), evaluation=SimpleNamespace(maps=[SimpleNamespace(expected_map_uid="uid")], trials_per_map=30), components=components, artifacts_dir=root / "artifacts", checkpoint_root=None, run_id=name)
             with patch("trackmaniarl.core.spec.RunSpec.from_yaml", side_effect=spec), patch("trackmaniarl.core.fingerprint.run_fingerprint", return_value="fp"):
                 with self.assertRaisesRegex(ValueError, "ppo: configuration"):
                     prepare(path)
@@ -57,7 +57,7 @@ class CampaignTests(unittest.TestCase):
             report = root / "qualification.json"
             report.write_text(json.dumps({"kind": "headless-five-qualification-v1", "jobs": evidence}))
             manifest = root / "campaign.json"
-            manifest.write_text(json.dumps({"schema_version": 3, "status": "qualified", "seed": 17, "transitions": 100, "map_uid": "uid", "jobs": jobs, "qualification_report": str(report), "qualification_sha256": hashlib.sha256(report.read_bytes()).hexdigest()}))
+            manifest.write_text(json.dumps({"schema_version": 3, "status": "qualified", "seed": 17, "transitions": 100, "max_overshoot": 5, "map_uid": "uid", "jobs": jobs, "qualification_report": str(report), "qualification_sha256": hashlib.sha256(report.read_bytes()).hexdigest()}))
             value = "trackmaniarl.algorithms.value_based:DiscreteValueLearner"
             learners = {"qr": value, "iqn": value, "q": value, "fqf": value, "sac": "trackmaniarl.algorithms:SoftActorCritic", "tqc": "trackmaniarl.algorithms:TruncatedQuantileCritic", "ppo": "trackmaniarl.algorithms:ProximalPolicyOptimization", "redq": "trackmaniarl.algorithms:RandomizedEnsembleSAC", "discrete-sac": "trackmaniarl.algorithms:StableDiscreteSoftActorCritic"}
             types = {"q": ("ScalarQHead", "ScalarValueStrategy"), "qr": ("FixedQuantileHead", "FixedQuantileStrategy"), "iqn": ("DuelingImplicitQuantileHead", "RandomQuantileStrategy"), "fqf": ("DuelingImplicitQuantileHead", "LearnedFractionStrategy")}
@@ -65,7 +65,7 @@ class CampaignTests(unittest.TestCase):
                 name = Path(config).stem
                 head, strategy = types.get(name, ("unused", "unused"))
                 components = SimpleNamespace(learner=SimpleNamespace(class_path=learners[name]), model_factory=SimpleNamespace(kwargs={"head": {"class_path": "x:" + head}, "strategy": {"class_path": "x:" + strategy}}), environment=SimpleNamespace(class_path="trackmaniarl.trackmania.native_headless:Factory"), evaluator=object())
-                return SimpleNamespace(seed=17, training=SimpleNamespace(total_transitions=100, checkpoint_milestones=(100,)), evaluation=SimpleNamespace(maps=[SimpleNamespace(expected_map_uid="uid")], trials_per_map=30), components=components, artifacts_dir=root / "artifacts", checkpoint_root=None, run_id=name)
+                return SimpleNamespace(seed=17, training=SimpleNamespace(total_transitions=100, checkpoint_milestones=(100,), save_final_checkpoint=True), distributed=SimpleNamespace(strict_update_budget=True), evaluation=SimpleNamespace(maps=[SimpleNamespace(expected_map_uid="uid")], trials_per_map=30), components=components, artifacts_dir=root / "artifacts", checkpoint_root=None, run_id=name)
             with patch("trackmaniarl.core.spec.RunSpec.from_yaml", side_effect=spec), patch("trackmaniarl.core.fingerprint.run_fingerprint", return_value="fp"):
                 compiled, _ = prepare(manifest)
             self.assertEqual([j["id"] for j in compiled["jobs"]], list(names))

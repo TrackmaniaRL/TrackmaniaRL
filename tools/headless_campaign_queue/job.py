@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 from tools.headless_campaign_queue.__main__ import atomic_json
-from tools.headless_campaign_queue.verify_artifacts import validate_checkpoint, validate_evaluation
+from tools.headless_campaign_queue.verify_artifacts import final_checkpoint, validate_checkpoint, validate_drained_journal, validate_evaluation
 
 
 def file_sha(path: Path) -> str:
@@ -20,7 +20,7 @@ def file_sha(path: Path) -> str:
     return digest.hexdigest()
 
 
-def execute(config: Path, receipt: Path, budget: int, stop: Path, *, qualification_trials: int | None = None, expected_config_sha: str | None = None, expected_fingerprint: str | None = None) -> None:
+def execute(config: Path, receipt: Path, budget: int, stop: Path, *, max_overshoot: int, qualification_trials: int | None = None, expected_config_sha: str | None = None, expected_fingerprint: str | None = None) -> None:
     # Imports are deferred so merely inspecting the wrapper starts no environment.
     from trackmaniarl.commands.evaluation import _BenchmarkArtifact, _configure_evaluation_stop, _evaluate_checkpoint, _has_runtime_errors, _validate_benchmark_artifact
     from trackmaniarl.core.builtins import TorchCheckpointCodec
@@ -44,6 +44,8 @@ def execute(config: Path, receipt: Path, budget: int, stop: Path, *, qualificati
     spec = RunSpec.from_yaml(config)
     if spec.training.total_transitions != budget or budget <= 0:
         raise ValueError("configuration budget mismatch")
+    if type(max_overshoot) is not int or max_overshoot < 0 or not spec.training.save_final_checkpoint:
+        raise ValueError("explicit nonnegative acceptance limit and final checkpoint required")
     evaluation = spec.evaluation
     expected_trials = 30 if qualification_trials is None else qualification_trials
     if type(expected_trials) is not int or not 1 <= expected_trials <= 30:
@@ -67,22 +69,17 @@ def execute(config: Path, receipt: Path, budget: int, stop: Path, *, qualificati
         raise RuntimeError("training interrupted or failed")
     if file_sha(config) != original_config_sha or run_fingerprint(spec, base) != fingerprint:
         raise RuntimeError("source or configuration changed during training")
-    matches = list(checkpoint_root.glob(f"milestone-{budget:012d}-transitions-*-update-*.pt"))
-    if len(matches) != 1:
-        raise RuntimeError("expected exactly one final milestone checkpoint")
-    if matches[0].is_symlink() or not matches[0].is_file():
-        raise ValueError("final checkpoint must be a regular file")
-    checkpoint = matches[0].resolve(strict=True)
-    import json
-    sidecar = checkpoint.with_suffix(".json")
-    if sidecar.is_symlink() or not sidecar.is_file():
-        raise ValueError("milestone sidecar missing or unsafe")
-    meta = json.loads(sidecar.read_text(encoding="utf-8"))
-    if meta.get("requested_transitions") != budget or meta.get("transitions") != budget or meta.get("bytes") != checkpoint.stat().st_size or meta.get("checkpoint") != checkpoint.name:
-        raise ValueError("milestone sidecar differs from expected budget or checkpoint")
     on_policy = bool(getattr(import_symbol(spec.components.learner.class_path), "on_policy", False))
+    if not on_policy and not spec.distributed.strict_update_budget:
+        raise ValueError("off-policy campaign requires strict update budget")
+    checkpoint, logged_update = final_checkpoint(run_dir, checkpoint_root, on_policy=on_policy)
     state = TorchCheckpointCodec().load(checkpoint)
-    validate_checkpoint(state, fingerprint, budget, on_policy=on_policy)
+    actual = validate_checkpoint(state, fingerprint, budget, on_policy=on_policy, max_overshoot=max_overshoot)
+    counters = state["counters" if on_policy else "distributed"]
+    if counters["updates"] != logged_update:
+        raise ValueError("final checkpoint update counter differs from completion log")
+    if not on_policy:
+        validate_drained_journal(run_dir, state)
     checkpoint_sha = file_sha(checkpoint)
     eval_spec = spec.model_copy(update={"run_id": evaluation_id})
     run = resolve_run(eval_spec, base_dir=base)
@@ -97,10 +94,11 @@ def execute(config: Path, receipt: Path, budget: int, stop: Path, *, qualificati
     if stop.exists() or file_sha(config) != original_config_sha or run_fingerprint(spec, base) != fingerprint or file_sha(checkpoint) != checkpoint_sha:
         raise RuntimeError("stop requested or source/configuration/checkpoint changed during evaluation")
     # Check exact identities again against the serialized artifact, not the gate.
+    import json
     artifact_path = evaluation_dir / "evaluation.json"
     artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
     validate_evaluation(artifact, checkpoint, evaluation.maps[0].id, evaluation.maps[0].expected_map_uid, expected_trials)
-    atomic_json(receipt, {"job_id": job_id, "status": "completed", "transitions": budget,
+    atomic_json(receipt, {"job_id": job_id, "status": "completed", "requested_transitions": budget, "transitions": actual, "max_overshoot": max_overshoot,
                           "checkpoint": str(checkpoint), "checkpoint_sha256": checkpoint_sha,
                           "evaluation": str(artifact_path), "evaluation_sha256": file_sha(artifact_path),
                           "run_fingerprint": fingerprint, "manifest_sha256": manifest,
@@ -112,13 +110,14 @@ def main() -> int:
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--receipt", type=Path, required=True)
     parser.add_argument("--budget", type=int, required=True)
+    parser.add_argument("--max-overshoot", type=int, required=True)
     parser.add_argument("--stop-file", type=Path, required=True)
     parser.add_argument("--config-sha256")
     parser.add_argument("--run-fingerprint")
     parser.add_argument("--qualification-trials", type=int, help="explicit qualification-only trial count; cannot satisfy the campaign queue")
     args = parser.parse_args()
     try:
-        execute(args.config, args.receipt, args.budget, args.stop_file, qualification_trials=args.qualification_trials, expected_config_sha=args.config_sha256, expected_fingerprint=args.run_fingerprint)
+        execute(args.config, args.receipt, args.budget, args.stop_file, max_overshoot=args.max_overshoot, qualification_trials=args.qualification_trials, expected_config_sha=args.config_sha256, expected_fingerprint=args.run_fingerprint)
         return 0
     except (Exception, KeyboardInterrupt) as exc:
         print(f"Job failed: {type(exc).__name__}: {exc}", file=sys.stderr)

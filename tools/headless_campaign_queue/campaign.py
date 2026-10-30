@@ -40,8 +40,8 @@ def prepare(path: Path) -> tuple[dict, str]:
     qualification = json.loads(qualification_file.read_text(encoding="utf-8"))
     if not isinstance(qualification, dict) or qualification.get("kind") != "headless-five-qualification-v1" or not isinstance(qualification.get("jobs"), dict):
         raise ValueError("invalid qualification report")
-    seed, budget, uid = doc.get("seed"), doc.get("transitions"), doc.get("map_uid")
-    if type(seed) is not int or type(budget) is not int or budget <= 0 or not isinstance(uid, str) or not uid:
+    seed, budget, uid, limit = doc.get("seed"), doc.get("transitions"), doc.get("map_uid"), doc.get("max_overshoot")
+    if type(seed) is not int or type(budget) is not int or budget <= 0 or type(limit) is not int or limit < 0 or not isinstance(uid, str) or not uid:
         raise ValueError("invalid common seed, budget or map UID")
     repository = Path(__file__).resolve().parent.parent.parent
     compiled, paths = [], set()
@@ -71,6 +71,10 @@ def prepare(path: Path) -> tuple[dict, str]:
                 raise ValueError(f"{name}: value head or strategy does not match algorithm")
         if spec.seed != seed or spec.training.total_transitions != budget or budget not in spec.training.checkpoint_milestones:
             raise ValueError(f"{name}: mismatched seed, budget or final milestone")
+        if not spec.training.save_final_checkpoint:
+            raise ValueError(f"{name}: final checkpoint must be enabled")
+        if name != "ppo" and not spec.distributed.strict_update_budget:
+            raise ValueError(f"{name}: strict update budget must be enabled")
         evaluation = spec.evaluation
         if evaluation is None or len(evaluation.maps) != 1 or evaluation.maps[0].expected_map_uid != uid or evaluation.trials_per_map != 30 or spec.components.evaluator is None:
             raise ValueError(f"{name}: evaluation map or trials mismatch")
@@ -89,7 +93,7 @@ def prepare(path: Path) -> tuple[dict, str]:
             if any(p == prior or p.is_relative_to(prior) or prior.is_relative_to(p) for prior in paths):
                 raise ValueError(f"{name}: output paths overlap another job")
         paths.update(current_paths)
-        compiled.append({"id": name, "cwd": str(repository), "argv": [sys.executable, "-m", "tools.headless_campaign_queue.job", "--config", str(config), "--receipt", str(receipt), "--budget", str(budget), "--stop-file", str(stop), "--config-sha256", job["config_sha256"], "--run-fingerprint", job["run_fingerprint"]], "transitions": budget, "receipt": str(receipt)})
+        compiled.append({"id": name, "cwd": str(repository), "argv": [sys.executable, "-m", "tools.headless_campaign_queue.job", "--config", str(config), "--receipt", str(receipt), "--budget", str(budget), "--max-overshoot", str(limit), "--stop-file", str(stop), "--config-sha256", job["config_sha256"], "--run-fingerprint", job["run_fingerprint"]], "transitions": budget, "max_overshoot": limit, "receipt": str(receipt)})
     return {"schema_version": 2, "jobs": compiled}, hashlib.sha256(raw).hexdigest()
 
 

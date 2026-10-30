@@ -44,6 +44,20 @@ class QueueTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "qualification-only"):
             verify_receipt({"id": "first", "receipt": str(receipt)}, "f" * 64, 123)
 
+    def test_campaign_receipt_accepts_only_declared_window(self):
+        checkpoint = self.root / "checkpoint"
+        checkpoint.write_bytes(b"data")
+        sha = hashlib.sha256(b"data").hexdigest()
+        receipt = self.root / "receipt.json"
+        value = {"job_id": "first", "status": "completed", "process_pid": 123, "manifest_sha256": "f" * 64, "requested_transitions": 100, "transitions": 105, "max_overshoot": 5, "checkpoint": str(checkpoint), "checkpoint_sha256": sha, "evaluation": str(checkpoint), "evaluation_sha256": sha}
+        receipt.write_text(json.dumps(value))
+        job = {"id": "first", "receipt": str(receipt), "transitions": 100, "max_overshoot": 5}
+        self.assertEqual(verify_receipt(job, "f" * 64, 123)["accepted_transitions"], 105)
+        value["transitions"] = 106
+        receipt.write_text(json.dumps(value))
+        with self.assertRaisesRegex(ValueError, "budget mismatch"):
+            verify_receipt(job, "f" * 64, 123)
+
     def test_invalid_later_job_prevents_first_launch(self):
         marker = self.root / "marker"
         self.write([self.job("first", f"open({str(marker)!r}, 'w').write('x')"),

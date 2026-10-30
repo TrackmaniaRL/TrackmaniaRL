@@ -54,6 +54,8 @@ def preflight(path: Path) -> tuple[dict, str]:
                 raise ValueError(f"{name}: receipt must be an absolute path")
             if type(budget) is not int or budget < 1:
                 raise ValueError(f"{name}: transitions must be a positive integer")
+            if "max_overshoot" in job and (type(job["max_overshoot"]) is not int or job["max_overshoot"] < 0):
+                raise ValueError(f"{name}: max_overshoot must be a non-negative integer")
     if data["schema_version"] == 2 and len({j["receipt"] for j in jobs}) != len(jobs):
         raise ValueError("receipt paths must be unique")
     return data, hashlib.sha256(raw).hexdigest()
@@ -70,8 +72,12 @@ def verify_receipt(job: dict, digest: str, pid: int) -> dict:
         raise ValueError(f"{job['id']}: qualification-only receipt cannot complete a campaign")
     if receipt.get("manifest_sha256") != digest or type(receipt.get("process_pid")) is not int or receipt["process_pid"] != pid:
         raise ValueError(f"{job['id']}: receipt does not match launched process and manifest")
-    if type(receipt.get("transitions")) is not int or receipt["transitions"] != job["transitions"]:
+    actual = receipt.get("transitions")
+    maximum = job.get("max_overshoot", 0)
+    if type(actual) is not int or not job["transitions"] <= actual <= job["transitions"] + maximum:
         raise ValueError(f"{job['id']}: receipt transition budget mismatch")
+    if "max_overshoot" in job and (receipt.get("requested_transitions") != job["transitions"] or receipt.get("max_overshoot") != maximum):
+        raise ValueError(f"{job['id']}: receipt requested budget or acceptance limit mismatch")
     checkpoint = receipt.get("checkpoint")
     expected = receipt.get("checkpoint_sha256")
     if not isinstance(checkpoint, str) or not Path(checkpoint).is_absolute():
@@ -94,7 +100,10 @@ def verify_receipt(job: dict, digest: str, pid: int) -> dict:
             h.update(block)
     if h.hexdigest() != evaluation_sha:
         raise ValueError(f"{job['id']}: evaluation hash mismatch")
-    return {"receipt_sha256": hashlib.sha256(raw).hexdigest(), "checkpoint_sha256": expected, "evaluation_sha256": evaluation_sha}
+    evidence = {"receipt_sha256": hashlib.sha256(raw).hexdigest(), "checkpoint_sha256": expected, "evaluation_sha256": evaluation_sha}
+    if "max_overshoot" in job:
+        evidence["accepted_transitions"] = actual
+    return evidence
 
 
 def atomic_json(path: Path, data: dict) -> None:
