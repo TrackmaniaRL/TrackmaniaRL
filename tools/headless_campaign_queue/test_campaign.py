@@ -39,9 +39,10 @@ class CampaignTests(unittest.TestCase):
                 strategy = "FixedQuantileStrategy" if name == "qr" else "RandomQuantileStrategy"
                 components = SimpleNamespace(learner=SimpleNamespace(class_path=prefix + learner), model_factory=SimpleNamespace(kwargs={"head": {"class_path": "example:" + head}, "strategy": {"class_path": "example:" + strategy}}), environment=SimpleNamespace(class_path="trackmaniarl.trackmania.native_headless:Factory"), evaluator=object())
                 return SimpleNamespace(seed=17, training=SimpleNamespace(total_transitions=100, checkpoint_milestones=(100,), save_final_checkpoint=True), distributed=SimpleNamespace(strict_update_budget=True), evaluation=SimpleNamespace(maps=[SimpleNamespace(expected_map_uid="uid")], trials_per_map=30), components=components, artifacts_dir=root / "artifacts", checkpoint_root=None, run_id=name)
-            with patch("trackmaniarl.core.spec.RunSpec.from_yaml", side_effect=spec), patch("trackmaniarl.core.fingerprint.run_fingerprint", return_value="fp"):
+            with patch("trackmaniarl.core.spec.RunSpec.from_yaml", side_effect=spec), patch("trackmaniarl.core.fingerprint.run_fingerprint", return_value="fp"), patch("tools.headless_campaign_queue.disk_guard.check_disk_space") as disk:
                 with self.assertRaisesRegex(ValueError, "ppo: configuration"):
                     prepare(path)
+                self.assertEqual(disk.call_count, 4)
             self.assertFalse((root / "artifacts").exists())
 
     def test_all_nine_compile_only_pinned_job_wrapper(self):
@@ -66,8 +67,15 @@ class CampaignTests(unittest.TestCase):
                 head, strategy = types.get(name, ("unused", "unused"))
                 components = SimpleNamespace(learner=SimpleNamespace(class_path=learners[name]), model_factory=SimpleNamespace(kwargs={"head": {"class_path": "x:" + head}, "strategy": {"class_path": "x:" + strategy}}), environment=SimpleNamespace(class_path="trackmaniarl.trackmania.native_headless:Factory"), evaluator=object())
                 return SimpleNamespace(seed=17, training=SimpleNamespace(total_transitions=100, checkpoint_milestones=(100,), save_final_checkpoint=True), distributed=SimpleNamespace(strict_update_budget=True), evaluation=SimpleNamespace(maps=[SimpleNamespace(expected_map_uid="uid")], trials_per_map=30), components=components, artifacts_dir=root / "artifacts", checkpoint_root=None, run_id=name)
-            with patch("trackmaniarl.core.spec.RunSpec.from_yaml", side_effect=spec), patch("trackmaniarl.core.fingerprint.run_fingerprint", return_value="fp"):
+            with patch("trackmaniarl.core.spec.RunSpec.from_yaml", side_effect=spec), patch("trackmaniarl.core.fingerprint.run_fingerprint", return_value="fp"), patch("tools.headless_campaign_queue.disk_guard.check_disk_space") as disk:
                 compiled, _ = prepare(manifest)
+                self.assertEqual(disk.call_count, len(names))
+                self.assertTrue(all(call.args[1] == root for call in disk.call_args_list))
+                disk.reset_mock()
+                disk.side_effect = [[], [], OSError("insufficient free disk space")]
+                with self.assertRaisesRegex(OSError, "insufficient free disk space"):
+                    prepare(manifest)
+                self.assertEqual(disk.call_count, 3)
             self.assertEqual([j["id"] for j in compiled["jobs"]], list(names))
             for job in compiled["jobs"]:
                 self.assertEqual(job["argv"][1:3], ["-m", "tools.headless_campaign_queue.job"])

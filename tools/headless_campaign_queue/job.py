@@ -7,9 +7,41 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import threading
+from contextlib import contextmanager
 
 from tools.headless_campaign_queue.__main__ import atomic_json
+from tools.headless_campaign_queue.disk_guard import check_disk_space
 from tools.headless_campaign_queue.verify_artifacts import final_checkpoint, validate_checkpoint, validate_drained_journal, validate_evaluation
+
+
+@contextmanager
+def monitor_disk(spec, base: Path, stop: Path, *, interval: float = 10):
+    """Request cooperative stop if the actual volume reserve is breached."""
+    done = threading.Event()
+    errors = []
+
+    def watch():
+        while not done.wait(interval):
+            try:
+                check_disk_space(spec, base)
+            except (OSError, ValueError) as exc:
+                errors.append(exc)
+                try:
+                    stop.touch(exist_ok=True)
+                except OSError as stop_error:
+                    errors.append(stop_error)
+                return
+
+    thread = threading.Thread(target=watch, name="campaign-disk-monitor", daemon=True)
+    thread.start()
+    try:
+        yield
+    finally:
+        done.set()
+        thread.join()
+    if errors:
+        raise RuntimeError(f"disk reserve check failed: {errors[0]}")
 
 
 def file_sha(path: Path) -> str:
@@ -42,6 +74,7 @@ def execute(config: Path, receipt: Path, budget: int, stop: Path, *, max_oversho
     if expected_config_sha is not None and expected_config_sha != original_config_sha:
         raise ValueError("configuration changed since campaign preflight")
     spec = RunSpec.from_yaml(config)
+    check_disk_space(spec, config.parent)
     if spec.training.total_transitions != budget or budget <= 0:
         raise ValueError("configuration budget mismatch")
     if type(max_overshoot) is not int or max_overshoot < 0 or not spec.training.save_final_checkpoint:
@@ -64,7 +97,8 @@ def execute(config: Path, receipt: Path, budget: int, stop: Path, *, max_oversho
     fingerprint = run_fingerprint(spec, base)
     if expected_fingerprint is not None and expected_fingerprint != fingerprint:
         raise ValueError("source or configuration changed since campaign preflight")
-    code = subprocess.call([sys.executable, "-m", "trackmaniarl", "train", str(config), "--stop-file", str(stop)])
+    with monitor_disk(spec, base, stop):
+        code = subprocess.call([sys.executable, "-m", "trackmaniarl", "train", str(config), "--stop-file", str(stop)])
     if code != 0 or stop.exists():
         raise RuntimeError("training interrupted or failed")
     if file_sha(config) != original_config_sha or run_fingerprint(spec, base) != fingerprint:
@@ -81,11 +115,13 @@ def execute(config: Path, receipt: Path, budget: int, stop: Path, *, max_oversho
     if not on_policy:
         validate_drained_journal(run_dir, state)
     checkpoint_sha = file_sha(checkpoint)
+    check_disk_space(spec, base)
     eval_spec = spec.model_copy(update={"run_id": evaluation_id})
     run = resolve_run(eval_spec, base_dir=base)
     try:
         _configure_evaluation_stop(run, stop)
-        trials, _, evaluated_checkpoint = _evaluate_checkpoint(run, checkpoint)
+        with monitor_disk(spec, base, stop):
+            trials, _, evaluated_checkpoint = _evaluate_checkpoint(run, checkpoint)
         _validate_benchmark_artifact(_BenchmarkArtifact(trials, evaluated_checkpoint, evaluation, checkpoint))
         if _has_runtime_errors(trials):
             raise RuntimeError("final evaluation had runtime errors")

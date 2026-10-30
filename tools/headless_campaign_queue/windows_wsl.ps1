@@ -8,7 +8,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$arguments = @('-d', $Distribution, '--cd', $Repository, '--', $Python,
+$arguments = @('-d', $Distribution, '--cd', $Repository, '--', 'env', 'WANDB_MODE=offline', $Python,
                '-m', 'tools.headless_campaign_queue.campaign', $Manifest, '--output', $Output)
 
 # Always preflight before requesting power or starting a process.

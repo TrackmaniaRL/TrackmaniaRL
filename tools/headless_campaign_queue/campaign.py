@@ -14,6 +14,7 @@ from tools.headless_campaign_queue.job import file_sha
 def prepare(path: Path) -> tuple[dict, str]:
     from trackmaniarl.core.fingerprint import run_fingerprint
     from trackmaniarl.core.spec import RunSpec
+    from tools.headless_campaign_queue.disk_guard import check_disk_space
 
     raw = path.read_bytes()
     doc = json.loads(raw)
@@ -61,6 +62,7 @@ def prepare(path: Path) -> tuple[dict, str]:
         if receipt.exists() or stop.exists() or not receipt.parent.is_dir() or not stop.parent.is_dir():
             raise ValueError(f"{name}: receipt/stop paths must be fresh with existing parents")
         spec = RunSpec.from_yaml(config)
+        check_disk_space(spec, config.parent)
         if name in learners and spec.components.learner.class_path != learners[name]:
             raise ValueError(f"{name}: learner does not match algorithm")
         if name in value_heads:

@@ -88,3 +88,10 @@ four Linux paths are explicit arguments (`Repository`, `Python`, `Manifest`,
 of its own Windows process, prevent explicit sleep/reboot, or establish that WSL
 descendants have exited. Do not use it for an unattended campaign until those
 lifecycle contracts and the real manifest have been qualified.
+
+The Windows entry point sets `WANDB_MODE=offline`: W&B records are local and
+can be synced later; the JSONL logger also remains enabled. Before each job and
+its evaluation, and every ten seconds while they run, the job checks free space
+on the configured output and native volumes. If a reserve is breached it writes
+the cooperative stop file. This is not a quota and cannot guarantee graceful
+shutdown if the stop file cannot be written or the process is forcibly killed.
