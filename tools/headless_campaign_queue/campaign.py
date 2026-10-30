@@ -23,11 +23,14 @@ def prepare(path: Path) -> tuple[dict, str]:
     if not isinstance(jobs, list) or len(jobs) < 5:
         raise ValueError("campaign must contain at least five jobs")
     expected = {"qr", "iqn", "sac", "tqc", "ppo"}
+    supported = expected | {"q", "fqf", "discrete-sac", "redq"}
     ids = [j.get("id") if isinstance(j, dict) else None for j in jobs]
     if any(not isinstance(n, str) or not n.isascii() or not n.replace("-", "").replace("_", "").isalnum() for n in ids) or len(set(ids)) != len(ids):
         raise ValueError("job identities must be unique alphanumeric names")
     if not expected.issubset(set(ids)):
         raise ValueError("campaign must include QR, IQN, SAC, TQC and PPO")
+    if not set(ids).issubset(supported):
+        raise ValueError("campaign includes an algorithm without a validated recipe")
     qualification_path = doc.get("qualification_report")
     if not isinstance(qualification_path, str) or not Path(qualification_path).is_absolute():
         raise ValueError("a pinned qualification report is required")
@@ -42,7 +45,9 @@ def prepare(path: Path) -> tuple[dict, str]:
         raise ValueError("invalid common seed, budget or map UID")
     repository = Path(__file__).resolve().parent.parent.parent
     compiled, paths = [], set()
-    learners = {"qr": "trackmaniarl.algorithms.value_based:DiscreteValueLearner", "iqn": "trackmaniarl.algorithms.value_based:DiscreteValueLearner", "sac": "trackmaniarl.algorithms:SoftActorCritic", "tqc": "trackmaniarl.algorithms:TruncatedQuantileCritic", "ppo": "trackmaniarl.algorithms:ProximalPolicyOptimization"}
+    value_learner = "trackmaniarl.algorithms.value_based:DiscreteValueLearner"
+    learners = {"q": value_learner, "qr": value_learner, "iqn": value_learner, "fqf": value_learner, "discrete-sac": "trackmaniarl.algorithms:StableDiscreteSoftActorCritic", "sac": "trackmaniarl.algorithms:SoftActorCritic", "tqc": "trackmaniarl.algorithms:TruncatedQuantileCritic", "redq": "trackmaniarl.algorithms:RandomizedEnsembleSAC", "ppo": "trackmaniarl.algorithms:ProximalPolicyOptimization"}
+    value_heads = {"q": ("ScalarQHead", "ScalarValueStrategy"), "qr": ("FixedQuantileHead", "FixedQuantileStrategy"), "iqn": ("DuelingImplicitQuantileHead", "RandomQuantileStrategy"), "fqf": ("DuelingImplicitQuantileHead", "LearnedFractionStrategy")}
     for job in jobs:
         name = job["id"]
         config, receipt, stop = (Path(job[k]) for k in ("config", "receipt", "stop_file"))
@@ -58,11 +63,12 @@ def prepare(path: Path) -> tuple[dict, str]:
         spec = RunSpec.from_yaml(config)
         if name in learners and spec.components.learner.class_path != learners[name]:
             raise ValueError(f"{name}: learner does not match algorithm")
-        if name in ("qr", "iqn"):
+        if name in value_heads:
             head = spec.components.model_factory.kwargs.get("head", {}).get("class_path", "")
-            expected_head = "FixedQuantileHead" if name == "qr" else "DuelingImplicitQuantileHead"
-            if not head.endswith(":" + expected_head):
-                raise ValueError(f"{name}: value head does not match algorithm")
+            strategy = spec.components.model_factory.kwargs.get("strategy", {}).get("class_path", "")
+            expected_head, expected_strategy = value_heads[name]
+            if not head.endswith(":" + expected_head) or not strategy.endswith(":" + expected_strategy):
+                raise ValueError(f"{name}: value head or strategy does not match algorithm")
         if spec.seed != seed or spec.training.total_transitions != budget or budget not in spec.training.checkpoint_milestones:
             raise ValueError(f"{name}: mismatched seed, budget or final milestone")
         evaluation = spec.evaluation
@@ -83,7 +89,7 @@ def prepare(path: Path) -> tuple[dict, str]:
             if any(p == prior or p.is_relative_to(prior) or prior.is_relative_to(p) for prior in paths):
                 raise ValueError(f"{name}: output paths overlap another job")
         paths.update(current_paths)
-        compiled.append({"id": name, "cwd": str(repository), "argv": [sys.executable, "-m", "tools.headless_campaign_queue.job", "--config", str(config), "--receipt", str(receipt), "--budget", str(budget), "--stop-file", str(stop)], "transitions": budget, "receipt": str(receipt)})
+        compiled.append({"id": name, "cwd": str(repository), "argv": [sys.executable, "-m", "tools.headless_campaign_queue.job", "--config", str(config), "--receipt", str(receipt), "--budget", str(budget), "--stop-file", str(stop), "--config-sha256", job["config_sha256"], "--run-fingerprint", job["run_fingerprint"]], "transitions": budget, "receipt": str(receipt)})
     return {"schema_version": 2, "jobs": compiled}, hashlib.sha256(raw).hexdigest()
 
 

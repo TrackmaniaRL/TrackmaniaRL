@@ -42,6 +42,10 @@ commands. It also requires a pinned `qualification_report` and
 fingerprint and record pass for `native_action_ack`, `checkpoint_restore`,
 `evaluation`, and `clean_process_shutdown`. A report is a claim, not proof of
 its own contents: do not fabricate it. No such qualification has been performed.
+Besides the five team methods, the preflight recognizes Q, FQF, discrete SAC and
+REDQ. It checks each learner and, for value methods, the head and strategy. Unknown
+methods are rejected until their contracts are added. Configuration SHA and run
+fingerprint are checked again immediately before each individual job.
 
 Use a fresh output directory and fresh receipt paths. `--execute --resume` is
 restricted to schema 2 queues interrupted between jobs: the manifest hash, each
@@ -60,6 +64,8 @@ evaluation via the internal API, without imposing a performance threshold. It
 requires the configured budget exactly, a valid final milestone, matching source
 fingerprint and 30 identity-checked trials. It has only synthetic tests; it is
 not qualified for any live method. A stopped or overshooting run fails closed.
+For isolated tests only, `--qualification-trials N` accepts 1–30 matching trials;
+its receipt is marked `qualification_only` and cannot complete the campaign.
 The queue does not yet ensure all manifest commands use this trusted producer.
 
 `verify_artifacts.py` contains read-only checks of training fingerprint, counter,

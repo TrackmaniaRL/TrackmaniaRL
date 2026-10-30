@@ -66,6 +66,8 @@ def verify_receipt(job: dict, digest: str, pid: int) -> dict:
     receipt = json.loads(raw)
     if not isinstance(receipt, dict) or receipt.get("job_id") != job["id"] or receipt.get("status") != "completed":
         raise ValueError(f"{job['id']}: invalid completion receipt")
+    if receipt.get("qualification_only") is True:
+        raise ValueError(f"{job['id']}: qualification-only receipt cannot complete a campaign")
     if receipt.get("manifest_sha256") != digest or type(receipt.get("process_pid")) is not int or receipt["process_pid"] != pid:
         raise ValueError(f"{job['id']}: receipt does not match launched process and manifest")
     if type(receipt.get("transitions")) is not int or receipt["transitions"] != job["transitions"]:

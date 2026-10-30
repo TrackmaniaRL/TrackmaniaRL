@@ -6,7 +6,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from tools.headless_campaign_queue.__main__ import main
+from tools.headless_campaign_queue.__main__ import main, verify_receipt
 
 
 class QueueTests(unittest.TestCase):
@@ -37,6 +37,12 @@ class QueueTests(unittest.TestCase):
         self.manifest.write_text(json.dumps({"status": "prototype_not_runnable", "jobs": []}), encoding="utf-8")
         self.assertEqual(self.call("--execute"), 2)
         self.assertFalse(self.out.exists())
+
+    def test_qualification_receipt_cannot_complete_campaign(self):
+        receipt = self.root / "receipt.json"
+        receipt.write_text(json.dumps({"job_id": "first", "status": "completed", "qualification_only": True}))
+        with self.assertRaisesRegex(ValueError, "qualification-only"):
+            verify_receipt({"id": "first", "receipt": str(receipt)}, "f" * 64, 123)
 
     def test_invalid_later_job_prevents_first_launch(self):
         marker = self.root / "marker"

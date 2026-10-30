@@ -26,6 +26,17 @@ class FakeSpec:
 
 
 class JobTests(unittest.TestCase):
+    def test_changed_configuration_fails_before_process_start(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            config = root / "run.yaml"
+            config.write_text("new content")
+            env = {"TRACKMANIARL_QUEUE_JOB_ID": "example", "TRACKMANIARL_QUEUE_MANIFEST_SHA256": "a" * 64}
+            with patch.dict(os.environ, env), patch("tools.headless_campaign_queue.job.subprocess.call") as start:
+                with self.assertRaisesRegex(ValueError, "changed since"):
+                    execute(config, root / "receipt.json", 100, root / "STOP", expected_config_sha="wrong", expected_fingerprint="fp")
+                start.assert_not_called()
+
     def test_checkpoint_and_all_trials_are_required_before_receipt(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
@@ -50,7 +61,7 @@ class JobTests(unittest.TestCase):
             state = {"run_fingerprint": "fp", "learner": {"value": 1}, "distributed": {"transitions": 100, "updates": 10}, "replay_store": {}, "sampler": {}}
             env = {"TRACKMANIARL_QUEUE_JOB_ID": "example", "TRACKMANIARL_QUEUE_MANIFEST_SHA256": "a" * 64}
             with patch.dict(os.environ, env), patch("trackmaniarl.core.spec.RunSpec.from_yaml", return_value=spec), patch("trackmaniarl.core.fingerprint.run_fingerprint", return_value="fp"), patch("trackmaniarl.core.builtins.TorchCheckpointCodec.load", return_value=state), patch("trackmaniarl.core.runtime.import_symbol", return_value=object), patch("trackmaniarl.core.runtime.resolve_run", return_value=SimpleNamespace(logger=SimpleNamespace(close=lambda: None))), patch("trackmaniarl.commands.evaluation._configure_evaluation_stop"), patch("trackmaniarl.commands.evaluation._evaluate_checkpoint", side_effect=evaluate), patch("tools.headless_campaign_queue.job.subprocess.call", side_effect=train):
-                execute(config, receipt, 100, stop)
+                execute(config, receipt, 100, stop, expected_config_sha=hashlib.sha256(config.read_bytes()).hexdigest(), expected_fingerprint="fp")
             actual = json.loads(receipt.read_text())
             self.assertEqual(actual["process_pid"], os.getpid())
             self.assertEqual(actual["checkpoint_sha256"], hashlib.sha256(b"checkpoint").hexdigest())
