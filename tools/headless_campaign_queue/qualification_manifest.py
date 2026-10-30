@@ -37,6 +37,8 @@ def build(draft_path: Path, short_manifests: list[Path], restore_reports: list[P
 
     if not output.is_absolute() or output.exists() or output.is_symlink() or not output.parent.is_dir():
         raise ValueError("fresh absolute output directory with existing parent required")
+    if os.environ.get("WANDB_MODE") != "offline":
+        raise ValueError("explicit WANDB_MODE=offline is required for this campaign")
     draft = json.loads(draft_path.read_text(encoding="utf-8"))
     if draft.get("schema_version") != 3 or draft.get("status") != "draft_not_qualified":
         raise ValueError("a draft schema-3 campaign is required")
@@ -71,7 +73,7 @@ def build(draft_path: Path, short_manifests: list[Path], restore_reports: list[P
             audits.append((data, deployment, proof, json.loads(report.read_text(encoding="utf-8"))))
     output_jobs, evidence = [], {}
     physical_cache: dict[str, dict] = {}
-    allowed_output_diffs = {"components.environment.kwargs.config.runtime.trace_dir", "components.environment.kwargs.config.runtime.work_dir"}
+    allowed_output_diffs = {"artifacts_dir", "components.environment.kwargs.config.runtime.trace_dir", "components.environment.kwargs.config.runtime.work_dir", "components.environment.kwargs.config.trace_archive_root"}
     for job in draft["jobs"]:
         name = job["id"]
         matches = [(data, dep, proof, row) for data, dep, proof, report in audits for row in report["results"] if row["id"] == name and row.get("short_receipt") and row.get("same_checkpoint_restore") and row.get("status") != "invalid_or_incomplete"]
@@ -105,9 +107,10 @@ def build(draft_path: Path, short_manifests: list[Path], restore_reports: list[P
         output_jobs.append({**job, "receipt": str(output / "receipts" / f"{name}.json"), "stop_file": str(output / "stops" / f"{name}.stop")})
     if audit_only:
         return None
-    report = {"kind": "headless-five-qualification-v1", "scope": "first experimental campaign; short-run evidence only", "jobs": evidence,
-              "limitations": ["Full-budget completion and interruption/restart were not established.", "Short configurations changed warmup, budget, trial count and storage paths; details are retained per job.", "Bounded actuator samples and discrete physical comparisons do not establish arbitrary analog parity.", "The declared overshoot is an acceptance bound, not a collection limit.", "Source bridge documents a shutdown-grace change, not identical runtime behavior."],
-              "draft_sha256": sha(draft_path)}
+    bridge_file = Path(__file__).with_name("qualification_bridge.py")
+    report = {"kind": "headless-five-qualification-v1", "scope": "first experimental campaign; short-run evidence only", "wandb_mode": "offline", "jobs": evidence,
+              "limitations": ["Full-budget completion and interruption/restart were not established.", "Short configurations changed warmup, budget, trial count and storage paths; details are retained per job.", "Bounded actuator samples and discrete physical comparisons do not establish arbitrary analog parity.", "The declared overshoot is an acceptance bound, not a collection limit.", "Source bridge documents a shutdown-grace change, not identical runtime behavior.", "Disk checks run periodically and do not reserve capacity; STOP cannot be guaranteed if its file cannot be written.", "W&B offline mode must also be enforced by the launcher; local runs can be synced later."],
+              "draft_sha256": sha(draft_path), "generator_sha256": sha(Path(__file__)), "bridge_verifier_sha256": sha(bridge_file)}
     output.mkdir()
     (output / "receipts").mkdir()
     (output / "stops").mkdir()

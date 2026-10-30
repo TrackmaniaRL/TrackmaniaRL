@@ -4,11 +4,12 @@ param(
     [Parameter(Mandatory = $true)][string]$Manifest,
     [Parameter(Mandatory = $true)][string]$Output,
     [string]$Distribution = 'Ubuntu',
+    [string]$User = 'root',
     [switch]$Execute
 )
 
 $ErrorActionPreference = 'Stop'
-$arguments = @('-d', $Distribution, '--cd', $Repository, '--', 'env', 'WANDB_MODE=offline', $Python,
+$arguments = @('-d', $Distribution, '-u', $User, '--cd', $Repository, '--', 'env', 'WANDB_MODE=offline', $Python,
                '-m', 'tools.headless_campaign_queue.campaign', $Manifest, '--output', $Output)
 
 # Always preflight before requesting power or starting a process.
