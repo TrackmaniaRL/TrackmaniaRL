@@ -258,13 +258,10 @@ def prove_restore(
     ) as tmp:
         output = Path(tmp)
         components = spec.components.model_copy(update={"additional_loggers": ()})
-        copied = spec.model_copy(
-            update={
-                "artifacts_dir": output / "artifacts",
-                "checkpoint_root": None,
-                "components": components,
-            }
-        )
+        updates = {"artifacts_dir": output / "artifacts", "components": components}
+        if "checkpoint_root" in type(spec).model_fields:
+            updates["checkpoint_root"] = None
+        copied = spec.model_copy(update=updates)
         if run_fingerprint(copied, base) != fingerprint:
             raise ValueError("audit configuration changes the fingerprint")
         run = resolve_run(copied, base_dir=base)
@@ -358,7 +355,7 @@ def prepare(
     base = config.parent
     run_dir = (base / spec.artifacts_dir / spec.run_id).resolve(strict=True)
     checkpoint_dir = (
-        base / (spec.checkpoint_root or spec.artifacts_dir) / spec.run_id / "checkpoints"
+        base / (getattr(spec, "checkpoint_root", None) or spec.artifacts_dir) / spec.run_id / "checkpoints"
     ).resolve(strict=True)
     if destination.resolve().is_relative_to(run_dir) or run_dir.is_relative_to(
         destination.resolve()
@@ -371,9 +368,10 @@ def prepare(
     reject_pending_spool(run_dir)
     fingerprint = run_fingerprint(spec, base)
     original_checkpoint_sha = sha(checkpoint)
-    cloned = spec.model_copy(
-        update={"artifacts_dir": destination / "artifacts", "checkpoint_root": None}
-    )
+    updates = {"artifacts_dir": destination / "artifacts"}
+    if "checkpoint_root" in type(spec).model_fields:
+        updates["checkpoint_root"] = None
+    cloned = spec.model_copy(update=updates)
     destination.mkdir(parents=True)
     clone_config = destination / "recovery.yaml"
     clone_config.write_text(cloned.to_yaml(), encoding="utf-8")
