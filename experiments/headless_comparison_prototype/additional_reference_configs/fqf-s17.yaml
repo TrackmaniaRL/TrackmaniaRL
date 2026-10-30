@@ -1,0 +1,167 @@
+api_version: '2.0'
+run_id: tmrl-test-full-fqf-s17
+seed: 17
+artifacts_dir: ../../../../artifacts/tmrl-test-comparison
+components:
+  learner:
+    class_path: trackmaniarl.algorithms.value_based:DiscreteValueLearner
+    kwargs:
+      learning_rate: 0.0001
+      gradient_clip_norm: 10.0
+      target_update_interval: 1000
+      target_tau: 0.0
+      exploration_epsilon: 0.1
+      value_rescaling: false
+      execution:
+        device: cuda
+        precision: float32
+  environment:
+    class_path: trackmaniarl.trackmania.environment:OpenPlanetEnvironmentFactory
+    kwargs:
+      config:
+        geometry_path: ../../../../my-trackmania-agent/assets/trackmaniarl-test.geometry.npz
+        use_racing_line: false
+        expected_map_uid: oqIJ5rQDRrNwLPTh9H2p_W4tLof
+        reset_settle_s: 0
+        confirm_finish_before_reset: true
+        restart_input: editor_validation
+        action_repeat_frames: 1
+        decision_interval_ms: 50
+        demonstration_action_lead_ms: 0
+        demonstration_control_aggregation: true
+        control_backend: gamepad
+        nearest_forward_points: 100
+        nearest_backward_points: 40
+        limit_progress_by_kinematics: false
+        crash_distance: 15
+        slow_progress_window_steps: 120
+        no_progress_steps: 100
+        minimum_progress_per_window_m: 3
+        maximum_race_time_s: 150
+        terminal_failure_penalty: 2
+        collision_penalty: 0.15
+        collision_cooldown_s: 0
+        time_penalty_per_second: 1
+        max_time_delta_s: 1
+        progress_reward_full_lap: 200
+        finish_reward: 70
+        potential_progress_weight: 0
+        max_projected_speed_mps: 100
+        velocity_to_mps_scale: 1
+        projected_velocity_scale: 0.0576
+        projected_speed_bonus_scale: 0
+        steering_delta_penalty: 0
+        time_attack_target_s: 35
+        time_attack_bonus_scale: 0
+        time_attack_linear_scale: 2
+        pace_reward_scale: 0
+        reward_gamma: 0.995
+  model_factory:
+    class_path: trackmaniarl.models.factory:CompositeValueModelFactory
+    kwargs:
+      encoder:
+        class_path: experiments.tmrl_test_comparison.components:BatchedIncidentEncoder
+        kwargs:
+          context_residual_scale: 0.02
+          spatial_residual_scale: 0.02
+          recovery_residual_scale: 0.01
+          incident_gate_thresholds:
+          - 0.12
+          - 0.25
+          - 0.08
+          - 0.4
+      temporal:
+        class_path: trackmaniarl.models.temporal:IdentityTemporalCore
+        kwargs:
+          input_dim: 192
+      head:
+        class_path: trackmaniarl.experiments.graph_iqn:DuelingImplicitQuantileHead
+      strategy:
+        class_path: trackmaniarl.models.strategies:LearnedFractionStrategy
+        kwargs:
+          feature_dim: 192
+          fraction_count: 64
+  replay_store:
+    class_path: trackmaniarl.core.replay:InMemoryReplayStore
+    kwargs:
+      capacity: 1000000
+  sampler:
+    class_path: trackmaniarl.core.replay:UniformSampler
+    kwargs:
+      seed: 17
+  feature_pipeline:
+    class_path: trackmaniarl.experiments.graph_iqn_v5:BoundaryGraphFeaturePipelineV5
+    kwargs:
+      geometry_path: ../../../../my-trackmania-agent/assets/trackmaniarl-test.geometry.npz
+      expected_map_uid: oqIJ5rQDRrNwLPTh9H2p_W4tLof
+  logger:
+    class_path: trackmaniarl.core.builtins:JsonlRunLogger
+    kwargs: {}
+  additional_loggers:
+  - class_path: trackmaniarl.observability.trackers:WandbTracker
+    kwargs:
+      project: my-trackmania-agent
+  checkpoint_codec:
+    class_path: trackmaniarl.core.builtins:TorchCheckpointCodec
+    kwargs: {}
+  evaluator:
+    class_path: trackmaniarl.trackmania.evaluation:TrackmaniaEvaluator
+    kwargs: {}
+training:
+  total_transitions: 2048000
+  max_episode_steps: 3000
+  batch_size: 256
+  sequence_length: 1
+  n_step: 1
+  gamma: 0.995
+  warmup_transitions: 10000
+  updates_per_transition: 0.25
+  offline_pretrain_updates: 0
+  checkpoint_interval_updates: 5000
+  checkpoint_keep_last: 3
+  save_final_checkpoint: true
+  metrics_interval_updates: 100
+  evaluate_every_episodes: null
+distributed:
+  epsilon_profiles:
+  - 1.0
+  epsilon_start: 0.3
+  epsilon_final: 0.01
+  epsilon_decay_transitions: 500000
+  actor_execution:
+    device: cpu
+    precision: float32
+    torch_threads: 2
+evaluation:
+  name: tmrl-test-comparison
+  version: '1'
+  maps:
+  - id: trackmaniarl-test
+    map_path: ../../../../my-trackmania-agent/maps/trackmaniarl-test.Map.Gbx
+    geometry_path: ../../../../my-trackmania-agent/assets/trackmaniarl-test.geometry.npz
+    expected_map_uid: oqIJ5rQDRrNwLPTh9H2p_W4tLof
+  trials_per_map: 30
+  time_buckets_s:
+  - 150
+  - 100
+  - 80
+  - 60
+  - 50
+  - 45
+  - 40
+  - 38
+  - 37
+  - 36
+  - 35
+  target_median_s: 37
+  target_mean_s: 37
+  max_step_race_time_ms: 100
+  reject_telemetry_skips: false
+  min_finish_rate: 1
+metadata:
+  algorithm: fqf
+  stage: full
+  initialization: random; no demos; no reference filter
+  group: discrete-78
+  encoder_source: V107I/V108 incident-gated GNN Simba V6
+  protocol: experiments/tmrl_test_comparison/README.md

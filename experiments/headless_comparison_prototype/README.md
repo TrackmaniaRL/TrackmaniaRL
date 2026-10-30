@@ -8,12 +8,12 @@ korzystają z OpenPlanet i nie są konfiguracjami headless. Ich SHA-256 zgadzaj�
 się z manifestem źródłowym. Nie wznawiać starych treningów w ich katalogach.
 
 Branch kampanii `codex/headless-five-algorithm-campaign` powstał z lokalnego
-`codex/headless-training-parity` na commicie `b633d56f`. W chwili utworzenia
-tamten katalog zawierał liczne niezacommitowane zmiany, a lokalny branch był
-9 commitów przed i 2 za swoim odpowiednikiem zdalnym. Te zmiany nie są częścią
-tej migawki. Przed integracją kampanii trzeba uwzględnić zakończoną i sprawdzoną
-wersję prac headless, włącznie ze zmianami obecnie w toku, i ponownie zweryfikować
-zgodność oraz stan obu branchy. Nie kopiować ich w ciemno z aktywnego katalogu.
+`codex/headless-training-parity` na commicie `b633d56f`. Następnie włączono
+migawkę lokalnej pracy w toku `3ef45679`, obejmującą również eksperymenty.
+Nie oznacza to kwalifikacji kodu do kampanii. Lokalny branch rozszedł się ze
+zdalnym: tamtejsze dwa commity wymagają osobnej integracji i weryfikacji.
+Przed kampanią należy uwzględnić dalsze poprawki headless oraz ponownie
+sprawdzić zgodność, testy i stan obu branchy.
 
 Przed przygotowaniem wykonywalnej kolejki:
 
@@ -32,6 +32,29 @@ Przed przygotowaniem wykonywalnej kolejki:
 
 Jeden seed to wstępne porównanie, nie pomiar zmienności między treningami.
 
+`prepare.py` przygotowuje oddzielną kopię źródeł V8 i kandydackie konfiguracje
+QR, IQN, Q, FQF oraz discrete SAC. Zapisuje skróty źródeł, konfiguracji, mapy
+i referencji; nie uruchamia gry. SAC, TQC, PPO i REDQ pozostają jawnie
+zablokowane do czasu kwalifikacji sterowania ciągłego. Dodatkowe Q, FQF,
+discrete SAC i REDQ pochodzą ze starszych konfiguracji 2 048 000 kroków;
+generator oznacza je jako eksploracyjne i zmienia budżet na 7 168 000 oraz
+nagrodę na wspólną dla zespołowego QR. Discrete SAC nie należał do głównej
+piątki kampanii zespołowej.
+
+Przykładowe przygotowanie z katalogu repo w WSL, przy użyciu zachowanego profilu
+na tym komputerze (wybierz **nowe** katalogi docelowe):
+
+```bash
+python -m experiments.headless_comparison_prototype.prepare \
+  --source "$PWD" \
+  --native-template /home/kuba/tmrl-full-qr-20261022-011/worker-scaling698/a3-seed17/qr.yaml \
+  --destination /home/kuba/nowy-headless-comparison \
+  --artifacts /mnt/c/Users/szulc/nowy-headless-comparison/artifacts
+```
+
+Przygotowanie nie kwalifikuje środowiska ani nie tworzy kolejki do odpalenia.
+Należy powtórzyć je po zamrożeniu końcowej wersji kodu oraz referencji.
+
 Prototyp kolejki jest w `tools/headless_campaign_queue`. Z katalogu repo można
 sprawdzić obecny plan poleceniem:
 
@@ -41,5 +64,8 @@ python -m tools.headless_campaign_queue experiments/headless_comparison_prototyp
 
 Obecnie celowo zgłosi brak gotowości, również z `--execute`: manifest nie
 zawiera zweryfikowanych komend dla headless. Ogólna kolejka wymaga osobnego,
-kompletnego manifestu i nie zapewnia jeszcze automatycznego wznowienia,
-ochrony przed uśpieniem ani weryfikacji zakończenia budżetu treningowego.
+kompletnego manifestu i zaufanego wrappera potwierdzającego wynik. Wznowienie
+jest ograniczone do przerw między ukończonymi zadaniami po sprawdzeniu dowodów;
+nie wznawia przerwanego treningu. Eksperymentalny wrapper Windows zapobiega
+bezczynnemu uśpieniu podczas pracy, ale nie wymuszonemu restartowi ani uśpieniu.
+Rzeczywisty trening i jego odtworzenie nadal wymagają kwalifikacji.
