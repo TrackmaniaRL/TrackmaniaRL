@@ -1,4 +1,4 @@
-# Support status for 1.2.17
+# Support status for 1.3.0
 
 Tests verify contracts and failure handling. They do not prove fast driving on
 unseen maps. The [algorithm matrix](../readme/algorithms.md) is authoritative for

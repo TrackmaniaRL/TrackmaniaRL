@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 1.2.17
+## 1.3.0
 
 - Bind qualified V8 deployments, backend sources and assets to preparation and
   evaluation, and reject incomplete or unclean native process closures.

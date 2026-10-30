@@ -21,9 +21,6 @@ existing implementation. Historical `full_qr` import paths remain valid, so a
 renamed factory path is an explicit new run configuration, not a checkpoint
 migration. The V8 wire profile and native source pins keep their original names.
 
-For an illustrative client-side replay, see the [TICK CPU-search demonstration](../docs/headless-tick-demonstration.md).
-It is not a measure of synchronized execution or autonomous model performance.
-
 ## Install and prerequisites
 
 Use Python 3.12 on Linux or WSL. Install the release containing this feature,
@@ -32,12 +29,12 @@ not an older PyPI release that predates it. For a wheel built from this PR, run:
 ```bash
 python3.12 -m venv .venv
 . .venv/bin/activate
-python -m pip install /path/to/trackmaniarl-1.2.17-py3-none-any.whl
+python -m pip install /path/to/trackmaniarl-1.3.0-py3-none-any.whl
 ```
 
 Replace the wheel path with the actual built filename. For distributed training,
 install the `distributed` extra from the same wheel, for example
-`python -m pip install '/path/to/trackmaniarl-1.2.17-py3-none-any.whl[distributed]'`.
+`python -m pip install '/path/to/trackmaniarl-1.3.0-py3-none-any.whl[distributed]'`.
 Choose a Torch installation appropriate for your host separately if the default does not match
 its CPU or CUDA setup. See the [Python quickstart](python-quickstart.md) for
 normal installation and [engineering tools](../experiments/full_qr/README.md)
