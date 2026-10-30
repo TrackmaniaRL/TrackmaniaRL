@@ -37,7 +37,18 @@ def episode(config,folder,geometry,act,*,deadline,training=False,prefix_controls
             if goal:
                 dt=(info['actual_goal_ms']-round(float(raw[0])*30000))/1000
                 if not 0<dt<=.01:raise RuntimeError('Goal outside measured physics interval')
-            reward=shaped_reward(progress,next_progress,dt=dt,goal=goal,failure=failed)
+            try:
+                reward=shaped_reward(progress,next_progress,dt=dt,goal=goal,failure=failed)
+            except ValueError as error:
+                # Reject this measured attempt, never invent a reward or a finish.
+                # Training retains its exception/discard path. Evaluation records
+                # the failure and advances only after the normal closure checks.
+                if training or str(error)!='unphysical progress jump; discard transition':
+                    raise
+                report.update(status='INVALID_PROGRESS',actual_goal_ms=None,error=repr(error),
+                              race_ms=info['race_ms'],previous_progress_m=progress,
+                              rejected_progress_m=next_progress,measured_dt=dt)
+                break
             if not prefix:
                 report['policy_steps']+=1
                 decisions.append(dict(race_ms=info['race_ms'],action=action,reward=reward,

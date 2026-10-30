@@ -28,6 +28,36 @@ class Environment:
 
 
 class EpisodeTests(unittest.TestCase):
+    def test_invalid_progress_counts_as_failed_trial_and_next_trial_runs(self):
+        geometry=np.array([[x,0,0] for x in range(150)])
+        with tempfile.TemporaryDirectory() as directory,patch.dict(sys.modules,environment=SimpleNamespace(FallEnvironment=Environment)):
+            first=Path(directory)/'first';second=Path(directory)/'second'
+            with patch('tools.record_rl1168.episodes.shaped_reward',side_effect=ValueError('unphysical progress jump; discard transition')):
+                failed=episode({},first,geometry,lambda state:0,deadline=time.monotonic()+5)
+            success=episode({},second,geometry,lambda state:0,deadline=time.monotonic()+5)
+            rows=[failed,success]
+            self.assertEqual(len(rows),2)
+            self.assertEqual(sum(r['status']=='NATIVE_GOAL' for r in rows),1)
+            self.assertEqual(failed['status'],'INVALID_PROGRESS')
+            self.assertIsNone(failed['actual_goal_ms'])
+            self.assertTrue(failed['clean_closure'])
+            self.assertEqual(json.loads((first/'result.json').read_text())['status'],'INVALID_PROGRESS')
+
+    def test_invalid_progress_does_not_hide_bad_closure(self):
+        class BadClosure(Environment):
+            def close(self):
+                super().close()
+                p=self.settings.trace_dir/'native-supervisor.json'
+                d=json.loads(p.read_text());d['cleanupErrors']=['test failure'];p.write_text(json.dumps(d))
+        with tempfile.TemporaryDirectory() as directory,patch.dict(sys.modules,environment=SimpleNamespace(FallEnvironment=BadClosure)),patch('tools.record_rl1168.episodes.shaped_reward',side_effect=ValueError('unphysical progress jump; discard transition')):
+            with self.assertRaisesRegex(RuntimeError,'closure failed'):
+                episode({},directory,np.array([[x,0,0] for x in range(150)]),lambda state:0,deadline=time.monotonic()+5)
+
+    def test_unrelated_evaluation_error_still_raises(self):
+        with tempfile.TemporaryDirectory() as directory,patch.dict(sys.modules,environment=SimpleNamespace(FallEnvironment=Environment)),patch('tools.record_rl1168.episodes.shaped_reward',side_effect=ValueError('nonfinite reward input')):
+            with self.assertRaisesRegex(ValueError,'nonfinite'):
+                episode({},directory,np.array([[x,0,0] for x in range(150)]),lambda state:0,deadline=time.monotonic()+5)
+
     def test_goal_reward_uses_measured_partial_final_tick(self):
         with tempfile.TemporaryDirectory() as directory,patch.dict(sys.modules,environment=SimpleNamespace(FallEnvironment=Environment)):
             rows=[]

@@ -13,8 +13,8 @@ from trackmaniarl.algorithms.value_based.updater import ValueUpdater
 
 class RetainingUpdater(ValueUpdater):
     """One Adam step on the sum of TD and retention losses, not two momenta steps."""
-    def __init__(self,learner,demo):
-        super().__init__(learner);self.demo=demo;self.retention_loss=0.;self.anchor_errors=0
+    def __init__(self,learner,demo,weight=2.):
+        super().__init__(learner);self.demo=demo;self.retention_loss=0.;self.anchor_errors=0;self.weight=weight
 
     def _objective_loss(self,forward):
         loss=super()._objective_loss(forward)
@@ -27,11 +27,13 @@ class RetainingUpdater(ValueUpdater):
         anchor=(q+margin).max(-1).values.sub(correct).clamp_min(0).mean()
         self.retention_loss=float(anchor.detach())
         self.anchor_errors=int((q.argmax(-1)!=y).sum().detach())
-        return loss+2.*anchor
+        return loss+self.weight*anchor
 
 
 class Learner:
-    def __init__(self,initializer,*,device='cuda',seed=1168):
+    def __init__(self,initializer,*,device='cuda',seed=1168,retention_weight=2.):
+        if not np.isfinite(retention_weight) or retention_weight<0:raise ValueError('invalid retention weight')
+        self.retention_weight=float(retention_weight)
         self.rng=random.Random(seed)
         self.learner=DiscreteValueLearner(build_model(),seed=seed,learning_rate=2e-6,
             target_update_interval=500,execution={'device':device,'precision':'float32'})
@@ -90,10 +92,10 @@ class Learner:
             next_observations=torch.from_numpy(np.stack(nxt)),terminated=torch.tensor(done,dtype=torch.bool),
             truncated=torch.zeros(batch_size,dtype=torch.bool),bootstrap_discounts=torch.tensor(discounts,dtype=torch.float32),
             transition_ids=chosen,metadata={'gamma':1.,'return_lengths':list(horizons),'return_horizon_max':50})
-        updater=RetainingUpdater(self.learner,self.demo)
+        updater=RetainingUpdater(self.learner,self.demo if self.retention_weight else None,self.retention_weight)
         metrics,_=updater.update(batch)
-        if self.demo is not None:self.imitation_updates+=1
-        metrics=dict(metrics,auxiliary_margin=updater.retention_loss,auxiliary_weight=2.,optimizer_steps=1,
+        if self.demo is not None and self.retention_weight:self.imitation_updates+=1
+        metrics=dict(metrics,auxiliary_margin=updater.retention_loss,auxiliary_weight=self.retention_weight,optimizer_steps=1,
                      anchor_errors_before_update=updater.anchor_errors)
         if not all(torch.isfinite(p).all() for p in self.learner.model.parameters()):raise ValueError('nonfinite RL weights')
         return dict(metrics)
@@ -101,7 +103,7 @@ class Learner:
     def checkpoint(self):
         return dict(schema='full-control-native-QR1168/retention-v2',state_role='unqualified_learning_candidate',learner=self.learner.state_dict(),
             replay=list(self.replay),episode_ids=list(self.episode_ids),episode=self.episode,
-            transitions=self.transitions,RL_updates=self.learner.update_count,
+            retention_weight=self.retention_weight,transitions=self.transitions,RL_updates=self.learner.update_count,
             BC_initialization_updates=self.bc_updates,auxiliary_imitation_updates=self.imitation_updates,
             rng=self.rng.getstate(),torch_rng=torch.get_rng_state(),
             cuda_rng=torch.cuda.get_rng_state_all() if torch.cuda.is_available() else None,

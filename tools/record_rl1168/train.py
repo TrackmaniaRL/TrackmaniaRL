@@ -24,20 +24,26 @@ def main():
     parser.add_argument('output',type=Path)
     parser.add_argument('--until-utc',required=True)
     parser.add_argument('--seed',type=int,default=1168)
+    parser.add_argument('--retention-weight',type=float,default=2.,help='Ablation only: 2 baseline, .2 weak retention, 0 pure TD')
     parser.add_argument('--functional-test',action='store_true',help='hard cap180s,2training episodes,32updates,2evals')
+    parser.add_argument('--max-updates',type=int,default=None)
+    parser.add_argument('--evaluation-reserve',type=int,default=1200)
+    parser.add_argument('--evaluation-only',action='store_true')
     args=parser.parse_args()
+    if args.max_updates is not None and args.max_updates<=0:raise ValueError('positive update cap required')
+    if args.evaluation_reserve<60:raise ValueError('evaluation reserve too short')
     end=datetime.fromisoformat(args.until_utc.replace('Z','+00:00'))
     if end.tzinfo is None:raise ValueError('UTC offset required')
     budget=(end-datetime.now(timezone.utc)).total_seconds()
     if args.functional_test:
         if not 60<=budget<=180:raise ValueError('functional test requires60..180s')
-    elif not 1800<=budget<=36000:raise ValueError('new explicit budget must be30min–10h; old budget is never extended')
+    elif not (600 if args.evaluation_only else 1800)<=budget<=36000:raise ValueError('new explicit budget must be30min–10h; old budget is never extended')
     args.output.mkdir(exist_ok=False)
-    started=time.monotonic();deadline=started+budget;training_end=deadline-(60 if args.functional_test else 1200)
+    started=time.monotonic();deadline=started+budget;training_end=deadline-(60 if args.functional_test else args.evaluation_reserve)
     report=dict(status='preparing',public_WR_claim=False,deadline_utc=end.isoformat(),
                 budget_seconds=budget,training_episodes=0,new_real_transitions=0,RL_updates=0,
                 best_full_start_goal_ms=None,initialization_goal_ms=17601,evaluation=[],bounded_functional_test=args.functional_test,
-                retention_contract=dict(optimizer_steps_per_update=1,learning_rate=2e-6,anchor_weight=2.,
+                retention_contract=dict(optimizer_steps_per_update=1,learning_rate=2e-6,anchor_weight=args.retention_weight,
                     anchor_margin=2.,anchor_rows='all1761',updates_per_transition=.05,max_updates_per_episode=64,
                     candidate_gate='greedy full-start clean NativeGoal<=accepted time before actor replacement',
                     candidate_check_every_episodes=2,initial_actor_RL_updates=0))
@@ -71,10 +77,10 @@ def main():
         import numpy as np
         import torch
         torch.set_num_threads(2);torch.manual_seed(args.seed)
-        private=Path('/home/kuba/tmrl-full-qr-20261022-011')/(args.output.parent.name+'-'+args.output.name)
+        private=Path('/home/kuba/tmrl-full-qr-20261022-011')/(args.output.parent.name+'-'+args.output.name+'-'+hashlib.sha256(str(args.output.resolve()).encode()).hexdigest()[:10])
         private.mkdir(mode=0o700,exist_ok=False);config=isolate_runtime(config,private)
         initial=torch.load(args.preparation/'initialization.pt',map_location='cpu',weights_only=True)
-        learner=Learner(initial,device='cuda',seed=args.seed)
+        learner=Learner(initial,device='cuda',seed=args.seed,retention_weight=args.retention_weight)
         learner.configure_demonstrations(args.preparation/'demonstrations-TRAINING-ONLY.npz')
         geometry=np.load(args.preparation/'route-geometry.npy',allow_pickle=False)
         with np.load(args.preparation/'demonstrations-TRAINING-ONLY.npz',allow_pickle=False) as data:
@@ -83,7 +89,9 @@ def main():
         write(args.output/'provenance.json',dict(initialization=receipt,qualification=proof,
             plan=plan,seed=args.seed,teacher_prefixes_training_only=True,static_reference_geometry=True,
             code={p.name:sha(p) for p in Path(__file__).parent.glob('*.py')},native_config=config))
-        while time.monotonic()<training_end and not(args.output/'STOP').exists():
+        while not args.evaluation_only and time.monotonic()<training_end and not(args.output/'STOP').exists():
+            if args.max_updates is not None and learner.learner.update_count>=args.max_updates:
+                report['stop_reason']='matched_RL_update_cap';break
             if args.functional_test and report['training_episodes']>=2:break
             if any(shutil.disk_usage(p).free<g*2**30 for p,g in [('/mnt/c',10),('/mnt/f',4),(str(private),4)]):
                 raise RuntimeError('disk reserve')
@@ -104,10 +112,11 @@ def main():
                     action=ACTIONS.index((steering,gas,brake))
                 handoff_steps+=1
                 return action
+            pending_transitions=[]
             try:
                 result=episode(config,folder,geometry,training_action,
                     deadline=training_end,training=True,prefix_controls=prefix,
-                    on_transition=learner.add,stop_file=args.output/'STOP')
+                    on_transition=lambda *row:pending_transitions.append(row),stop_file=args.output/'STOP')
                 archive_closed_trace(private,result['trace_dir'],folder/'native-trace.tar.gz')
                 failures=0
             except ValueError as error:
@@ -117,6 +126,7 @@ def main():
                 report['training_episodes']+=1
                 if failures>=3:raise
                 continue
+            for row in pending_transitions:learner.add(*row)
             report['training_episodes']+=1
             goal=result.get('actual_goal_ms')
             rl_updates=learner.accepted_RL_updates
@@ -128,6 +138,7 @@ def main():
                 report.update(best_full_start_goal_ms=goal,best_driving_policy=str(best),best_policy_sha256=sha(best))
             for _ in range(min(16 if args.functional_test else 64,max(1,int(result['policy_steps']*.05)))):
                 if time.monotonic()>=training_end or(args.output/'STOP').exists():break
+                if args.max_updates is not None and learner.learner.update_count>=args.max_updates:break
                 metrics=learner.update()
                 if metrics:report['retention_diagnostics']={k:metrics[k] for k in ('auxiliary_margin','anchor_errors_before_update','optimizer_steps')}
             # Keep the proven actor serving collection while the candidate learns.
@@ -155,6 +166,7 @@ def main():
                 RL_updates=learner.learner.update_count,auxiliary_imitation_updates=learner.imitation_updates,
                 elapsed_seconds=time.monotonic()-started)
             write(args.output/'state.json',report)
+        if args.evaluation_only:report['stop_reason']='BC_control_evaluation_only'
         report.setdefault('stop_reason','operator_STOP' if(args.output/'STOP').exists() else 'functional_test_episode_cap' if args.functional_test else 'training_budget_reserve')
         # Final trials are frozen and include ALL failures in the denominator.
         # Select the actual driving snapshot, never the weights updated afterwards.
@@ -175,9 +187,10 @@ def main():
         report['status']='evaluating';write(args.output/'state.json',report)
         for trial in range(2 if args.functional_test else 100):
             if time.monotonic()>=deadline-10 or(args.output/'STOP').exists():break
+            if any(shutil.disk_usage(p).free<g*2**30 for p,g in [('/mnt/c',10),('/mnt/f',4),(str(private),4)]):raise RuntimeError('disk reserve during evaluation')
             eval_rng=random.Random(args.seed+100000+trial);epsilon=0. if trial==0 else .005
             row=episode(config,args.output/f'evaluation-{trial:03d}',geometry,
-                lambda state:learner.action(state,epsilon,eval_rng),deadline=deadline-10)
+                lambda state:learner.action(state,epsilon,eval_rng),deadline=deadline-10,stop_file=args.output/'STOP')
             archive_closed_trace(private,row['trace_dir'],args.output/f'evaluation-{trial:03d}'/'native-trace.tar.gz')
             row.update(trial=trial,seed=args.seed+100000+trial,epsilon=epsilon)
             report['evaluation'].append(row);write(args.output/'state.json',report)

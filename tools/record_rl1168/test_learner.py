@@ -7,6 +7,23 @@ from tools.record_rl1168.learner import Learner
 
 
 class LearnerTests(unittest.TestCase):
+    def test_zero_retention_is_pure_td_even_with_demonstrations(self):
+        torch.set_num_threads(2)
+        learner=Learner(dict(state=build_model().state_dict(),BC_updates=0),device='cpu',retention_weight=0.)
+        x=torch.randn(160,47);y=torch.arange(160)%68
+        learner.demo=(x,y)
+        for i in range(160):learner.add(x[i].numpy(),int(y[i]),.1,x[i].numpy(),i==159)
+        metrics=learner.update()
+        self.assertEqual(learner.imitation_updates,0)
+        self.assertEqual(metrics['auxiliary_weight'],0.)
+        self.assertEqual(metrics['auxiliary_margin'],0.)
+        self.assertEqual(learner.learner.update_count,1)
+
+    def test_invalid_retention_rejected(self):
+        for weight in [-1.,float('nan'),float('inf')]:
+            with self.assertRaises(ValueError):
+                Learner({},device='cpu',retention_weight=weight)
+
     def test_joint_retention_has_only_one_adam_step(self):
         torch.set_num_threads(2);torch.manual_seed(1168)
         learner=Learner(dict(state=build_model().state_dict(),BC_updates=0),device='cpu')
