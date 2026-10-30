@@ -2,13 +2,36 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from tools.headless_campaign_queue.qualification_audit import ALLOWED_DIFFERENCES, differences, matching_restore
 from tools.headless_campaign_queue.qualification_restore import audit, equal, sha
 from tools.headless_campaign_queue.qualification_readiness import assess
+from tools.headless_campaign_queue.qualification_bridge import compare_maps, verify_training_change
 
 
 class QualificationTests(unittest.TestCase):
+    def test_source_bridge_rejects_unknown_file_change(self):
+        with self.assertRaisesRegex(ValueError, "unrecognized source change"):
+            compare_maps({"trackmaniarl/algorithm.py": "a"}, {"trackmaniarl/algorithm.py": "b"})
+
+    def test_shutdown_bridge_checks_actual_contents(self):
+        anchor = "from trackmaniarl.trackmania.demonstrations import resolve_demonstration_paths\n"
+        original = anchor + "\n_join_during_shutdown(processes.actor, timeout=10)\n"
+        updated = anchor + "\n# Actor teardown includes native environment close, trace archiving, sender\n# drain and background-worker joins. Its internal sender and worker grace\n# periods are each 10 s, so the launcher's bound must exceed their sum.\n_ACTOR_SHUTDOWN_GRACE_S = 60.0\n\n_join_during_shutdown(processes.actor, timeout=_ACTOR_SHUTDOWN_GRACE_S)\n"
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            old, new = root / "old.py", root / "new.py"
+            old.write_text(original, encoding="utf-8")
+            new.write_text(updated, encoding="utf-8")
+            with patch("tools.headless_campaign_queue.qualification_bridge.OLD_TRAINING", sha(old)), patch("tools.headless_campaign_queue.qualification_bridge.NEW_TRAINING", sha(new)):
+                verify_training_change(old, new)
+                altered = updated + "\nextra_change = True\n"
+                new.write_text(altered, encoding="utf-8")
+                with patch("tools.headless_campaign_queue.qualification_bridge.NEW_TRAINING", sha(new)):
+                    with self.assertRaisesRegex(ValueError, "more than"):
+                        verify_training_change(old, new)
+
     def test_detects_unexpected_recipe_difference(self):
         full = {"training": {"warmup_transitions": 10000, "gamma": 0.995}, "run_id": "full"}
         short = {"training": {"warmup_transitions": 256, "gamma": 0.9}, "run_id": "short"}
