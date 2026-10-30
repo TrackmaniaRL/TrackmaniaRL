@@ -5,6 +5,7 @@ import unittest
 
 from tools.headless_campaign_queue.qualification_audit import ALLOWED_DIFFERENCES, differences, matching_restore
 from tools.headless_campaign_queue.qualification_restore import audit, equal, sha
+from tools.headless_campaign_queue.qualification_readiness import assess
 
 
 class QualificationTests(unittest.TestCase):
@@ -32,6 +33,25 @@ class QualificationTests(unittest.TestCase):
         self.assertIsNone(matching_restore(records, "qr", "fp", "config", "different-receipt", "checkpoint"))
         self.assertIsNone(matching_restore(records, "qr", "fp", "config", "receipt", "different-checkpoint"))
         self.assertEqual(matching_restore(records, "qr", "fp", "config", "receipt", "checkpoint"), {"path": "/audit/report.json", "sha256": "report"})
+
+    def test_first_campaign_readiness_does_not_require_prior_full_budget(self):
+        ids = ["qr", "iqn", "sac", "tqc", "ppo"]
+        draft = {"jobs": [{"id": name} for name in ids]}
+        inventory = {"results": [{"id": name, "status": "insufficient_evidence", "short_receipt": {"sha256": "x"}, "same_checkpoint_restore": {"sha256": "y"}, "missing": ["full-budget qualification"]} for name in ids]}
+        physical = {name: {"status": "PASS"} for name in ids}
+        report = assess(inventory, physical, draft)
+        self.assertEqual(report["status"], "READY_FOR_FIRST_CAMPAIGN")
+        self.assertFalse(report["automatic_launch_authorized"])
+        self.assertTrue(any("not proof of full-budget" in item for item in report["limitations"]))
+
+    def test_missing_same_checkpoint_restore_or_source_blocks(self):
+        ids = ["qr", "iqn", "sac", "tqc", "ppo"]
+        draft = {"jobs": [{"id": name} for name in ids]}
+        inventory = {"results": [{"id": name, "short_receipt": {"sha256": "x"}, "same_checkpoint_restore": None if name == "qr" else {"sha256": "y"}} for name in ids]}
+        physical = {name: {"status": "FAIL" if name == "sac" else "PASS"} for name in ids}
+        report = assess(inventory, physical, draft)
+        self.assertEqual(report["status"], "NOT_READY")
+        self.assertEqual({item["id"] for item in report["missing"]}, {"qr", "sac"})
 
     def test_refuses_nonqualification_receipt_before_creating_output(self):
         import trackmaniarl
