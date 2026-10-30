@@ -125,6 +125,35 @@ def test_failed_actor_requests_emergency_save_instead_of_drain() -> None:
     assert not stop.drain_requested()
 
 
+def test_actor_gets_time_to_close_native_environment_and_drain_workers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clock = [0.0]
+    monkeypatch.setattr("trackmaniarl.commands.training.monotonic", lambda: clock[0])
+
+    class SlowActor(_ShutdownProcess):
+        terminated = False
+
+        def join(self, *, timeout: float) -> None:
+            clock[0] += timeout
+            if clock[0] >= 12:
+                self.alive = False
+
+        def terminate(self) -> None:
+            self.terminated = True
+            super().terminate()
+
+    actor = SlowActor()
+    learner = _ShutdownProcess()
+    learner.alive = False
+    stop = ProcessStopSignal(multiprocessing.get_context("spawn"))
+    processes = _LocalProcesses(learner, actor, stop, "unused", actor_shutdown=threading.Event())
+    assert not _shutdown_local_processes(processes)
+    assert clock[0] >= 12
+    assert not actor.terminated
+    assert actor.exitcode == 0
+
+
 def test_shutdown_timeout_is_not_reported_as_a_successful_save(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
