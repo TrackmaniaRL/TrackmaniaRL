@@ -7,6 +7,16 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[2]
 
 
+def test_tick_replay_description_does_not_bundle_game_media() -> None:
+    assert not (ROOT / "docs/assets/headless-tick-cpu-search.gif").exists()
+    assert not (ROOT / "docs/assets/headless-tick-cpu-search-preview.jpg").exists()
+    guide = " ".join((ROOT / "docs/headless-tick-demonstration.md").read_text().split())
+    assert "CPU-search input sequence replayed" in guide
+    assert "does not show an autonomous policy" in guide
+    assert "does not establish synchronized stepping" in guide
+    assert "do not include the recording or screenshots of the game" in guide
+
+
 def test_neural_gif_is_bounded_looping_and_has_no_private_metadata() -> None:
     path = ROOT / "docs/assets/trackmaniarl-neural-flow.gif"
     assert path.stat().st_size < 10 * 1024**2

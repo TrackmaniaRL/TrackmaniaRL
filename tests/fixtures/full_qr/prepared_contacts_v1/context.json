@@ -1,0 +1,168 @@
+{
+  "origin": "synthetic",
+  "context": {
+    "pid": 127,
+    "birth": 550,
+    "module_base": 268435456,
+    "vehicle": 131072,
+    "physical_state": 262144,
+    "tracer_tid": 129,
+    "normalization_owner": 393216,
+    "normalization_header": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "normalization_thresholds": "00002042000020410000a0410000c842",
+    "wheel_models": [
+      327684,
+      327728,
+      327772,
+      327816
+    ]
+  },
+  "sha256": "c8f53f8d9eb68b21b4f2c613bb2b782a5c45643202b90f9d9148a1b1e4260542",
+  "expected": [
+    {
+      "sequence": 1,
+      "native_time": 26800,
+      "event_time": 26805,
+      "wheel_index": -1,
+      "wheel_category": null,
+      "material": 9,
+      "normal": [
+        1.0,
+        0.0,
+        0.0
+      ],
+      "point": [
+        1.0,
+        2.0,
+        3.0
+      ],
+      "contact_velocity": [
+        80.0,
+        0.0,
+        0.0
+      ],
+      "normalization_thresholds": [
+        40.0,
+        10.0,
+        20.0,
+        100.0
+      ]
+    },
+    {
+      "sequence": 2,
+      "native_time": 26800,
+      "event_time": 26805,
+      "wheel_index": 0,
+      "wheel_category": 0,
+      "material": 9,
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "point": [
+        1.0,
+        2.0,
+        3.0
+      ],
+      "contact_velocity": [
+        0.0,
+        0.5,
+        0.0
+      ],
+      "normalization_thresholds": [
+        40.0,
+        10.0,
+        20.0,
+        100.0
+      ]
+    },
+    {
+      "sequence": 3,
+      "native_time": 26800,
+      "event_time": 26805,
+      "wheel_index": 1,
+      "wheel_category": 1,
+      "material": 9,
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "point": [
+        1.0,
+        2.0,
+        3.0
+      ],
+      "contact_velocity": [
+        0.0,
+        0.5,
+        0.0
+      ],
+      "normalization_thresholds": [
+        40.0,
+        10.0,
+        20.0,
+        100.0
+      ]
+    },
+    {
+      "sequence": 4,
+      "native_time": 26800,
+      "event_time": 26805,
+      "wheel_index": 2,
+      "wheel_category": 0,
+      "material": 9,
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "point": [
+        1.0,
+        2.0,
+        3.0
+      ],
+      "contact_velocity": [
+        0.0,
+        0.5,
+        0.0
+      ],
+      "normalization_thresholds": [
+        40.0,
+        10.0,
+        20.0,
+        100.0
+      ]
+    },
+    {
+      "sequence": 5,
+      "native_time": 26800,
+      "event_time": 26805,
+      "wheel_index": 3,
+      "wheel_category": 1,
+      "material": 9,
+      "normal": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "point": [
+        1.0,
+        2.0,
+        3.0
+      ],
+      "contact_velocity": [
+        0.0,
+        0.5,
+        0.0
+      ],
+      "normalization_thresholds": [
+        40.0,
+        10.0,
+        20.0,
+        100.0
+      ]
+    }
+  ]
+}

@@ -40,13 +40,21 @@ class _PreparedBatch:
 
 
 class _BatchPrefetcher:
-    """Checkpoint-safe batch source without speculative sampler or transfer state."""
+    """Batch source; optional samplers own and quiesce their bounded lookahead."""
 
     def __init__(self, run: ResolvedRun) -> None:
         self.run = run
+        binder = getattr(type(run.sampler), "bind_batch_preparer", None)
+        if callable(binder):
+            learner = getattr(run, "learner", None)
+            binder(run.sampler, getattr(learner, "prepare_batch", None))
 
     def next(self, request: BatchRequest) -> tuple[TrainingBatch, float, float]:
         prepared = self._prepare(request)
+        timings = getattr(type(self.run.sampler), "prefetch_timings", None)
+        if callable(timings):
+            preparation_s, wait_s = timings(self.run.sampler)
+            return prepared.batch, preparation_s, wait_s
         return prepared.batch, prepared.preparation_s, 0.0
 
     def _prepare(self, request: BatchRequest) -> _PreparedBatch:
@@ -55,7 +63,9 @@ class _BatchPrefetcher:
         return _PreparedBatch(batch, perf_counter() - started)
 
     def close(self) -> None:
-        return
+        closer = getattr(type(self.run.sampler), "close_prefetch", None)
+        if callable(closer):
+            closer(self.run.sampler)
 
 
 class _MetricAccumulator:

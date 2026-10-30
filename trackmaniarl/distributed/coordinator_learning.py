@@ -39,7 +39,6 @@ logger = logging.getLogger("trackmaniarl.distributed.coordinator")
 class _LearningLoop:
     coordinator: Coordinator
     prefetcher: _BatchPrefetcher
-    ready: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,13 +51,7 @@ class _PreparedUpdate:
 
 
 def learn(coordinator: Coordinator) -> None:
-    spec = coordinator.run.spec.training
-    footprint = spec.batch_size * spec.sequence_length + spec.n_step - 1
-    loop = _LearningLoop(
-        coordinator,
-        _BatchPrefetcher(coordinator.run),
-        max(spec.warmup_transitions, footprint),
-    )
+    loop = _LearningLoop(coordinator, _BatchPrefetcher(coordinator.run))
     try:
         while _learning_needed(loop):
             if not _learning_step(loop):
@@ -73,7 +66,7 @@ def _learning_needed(loop: _LearningLoop) -> bool:
         return False
     can_drain_credit = (
         coordinator._evaluation_stop_reason is None
-        and len(coordinator.run.replay_store) >= loop.ready
+        and len(coordinator.run.replay_store) >= _minimum_replay_size(coordinator)
         and coordinator.counters.update_credit >= 1.0
     )
     journal_pending = coordinator.journal.has_rows_after(
@@ -88,19 +81,24 @@ def _learning_step(loop: _LearningLoop) -> bool:
     coordinator._drain_rollouts(ROLLOUT_QUEUE_MAXSIZE)
     if coordinator._evaluation_stop_reason is not None:
         return False
-    if _ready_to_update(loop):
+    if ready_to_update(coordinator):
         _perform_update(loop)
     else:
         sleep(0.005)
     return True
 
 
-def _ready_to_update(loop: _LearningLoop) -> bool:
-    coordinator = loop.coordinator
+def _minimum_replay_size(coordinator: Coordinator) -> int:
+    training = coordinator.run.spec.training
+    footprint = training.batch_size * training.sequence_length + training.n_step - 1
+    return max(training.warmup_transitions, footprint)
+
+
+def ready_to_update(coordinator: Coordinator) -> bool:
     return (
-        coordinator._can_update()
-        and len(coordinator.run.replay_store) >= loop.ready
-        and coordinator.counters.update_credit >= 1.0
+        coordinator.counters.update_credit >= 1.0
+        and len(coordinator.run.replay_store) >= _minimum_replay_size(coordinator)
+        and coordinator._can_update()
     )
 
 

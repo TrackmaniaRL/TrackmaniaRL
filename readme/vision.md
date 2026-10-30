@@ -1,11 +1,20 @@
 # Camera vision with every RL algorithm
 
-This guide applies to TrackmaniaRL 1.2.16 with RunSpec 2.0.
+This guide applies to TrackmaniaRL 1.2.17 with RunSpec 2.0.
 
 Camera observations are independent of the RL algorithm. All public RL learners
 support image models: Q/DQN, QR-DQN, IQN, FQF, SAC, REDQ, TQC, stable discrete SAC
 and PPO. The same `VisionFeaturePipeline` and `VisionSensorEncoder` supply images
 and CNN features across these families.
+
+The native headless `NativeSchematicVisionPipeline` offers a separate input: it
+renders a road-ribbon diagram from supplied route geometry and measured vehicle
+pose. **It is not a Trackmania camera image** and does not depict game scenery,
+materials, opponents or other unprovided objects. It may expose the supplied
+route geometry to the policy; disclose that information when reporting results.
+Its optional `numba` raster backend is installed with `trackmaniarl[native-vision]`;
+the default NumPy renderer does not require it. Matching schematic pixels does
+not establish parity with the Windows client or a real camera.
 
 The Trackmania template generates these complete camera configurations:
 

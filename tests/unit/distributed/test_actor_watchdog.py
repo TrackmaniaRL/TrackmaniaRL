@@ -53,7 +53,11 @@ def test_collection_arms_watchdog_before_prewarm(
 ) -> None:
     now = [5.0]
     watchdog = ProgressWatchdog(clock=lambda: now[0])
-    runtime = SimpleNamespace(watchdog=watchdog)
+    runtime = SimpleNamespace(
+        watchdog=watchdog,
+        spec=SimpleNamespace(training=SimpleNamespace(max_episode_steps=100)),
+    )
+    monkeypatch.setattr(actor_collection, "validate_endpoint_step_limit", lambda *_: None)
 
     def observe_armed(context: actor_collection.CollectionContext) -> bool:
         assert context.runtime is runtime

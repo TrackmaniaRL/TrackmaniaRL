@@ -252,10 +252,32 @@ def _policy_response(coordinator: Coordinator, profile: int, current: int) -> di
         "epsilon": coordinator._epsilon(profile),
         "collect_allowed": (
             not spec.strict_update_budget
-            or coordinator.counters.update_credit < spec.max_update_credit
+            or _outstanding_update_credit(coordinator) < spec.max_update_credit
         ),
         "stop": coordinator._should_stop(),
     }
+
+
+def _outstanding_update_credit(coordinator: Coordinator) -> float:
+    """Include durable rows deferred to let the learner catch up.
+
+    A partial/summary row can overestimate debt, which only pauses collection
+    earlier. No SQL lock is acquired while the policy holds the coordinator
+    lock. Wakeups remain tracked until their corresponding row is ingested.
+    """
+    pending = len(getattr(coordinator, "_journal_enqueued_at", {}))
+    queue = getattr(coordinator, "_rollouts", None)
+    if queue is not None:
+        pending += queue.qsize()
+    credit = float(coordinator.counters.update_credit)
+    if pending:
+        spec = coordinator.run.spec
+        credit += (
+            pending
+            * spec.distributed.rollout_chunk_transitions
+            * spec.training.updates_per_transition
+        )
+    return credit
 
 
 def heartbeat(

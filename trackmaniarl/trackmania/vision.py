@@ -74,3 +74,41 @@ class VisionFeaturePipeline:
 
     def synthetic_observation(self) -> np.ndarray[Any, Any]:
         return np.zeros((self.config.height, self.config.width, 3), dtype=np.uint8)
+
+
+class PreparedVisionFeaturePipeline:
+    """Unwrap native prepared stacks without rendering or advancing camera history.
+
+    Native actors own their history; the SDK collector/learner must not stack an
+    already stacked observation again. The image-only tensor feeds the existing
+    VisionSensorEncoder. This class never falls back to desktop capture.
+    """
+
+    def __init__(self, config: VisionConfig | Mapping[str, Any] | None = None) -> None:
+        self.config = VisionConfig.model_validate({} if config is None else config)
+        self._shape = (self.config.channels, self.config.height, self.config.width)
+        self.observation_space = spaces.Box(0.0, 1.0, shape=self._shape, dtype=np.float32)
+        self._collator = GymnasiumObservationCollator(self.observation_space)
+
+    def reset_episode(self) -> None:
+        pass
+
+    def transform_observation(self, observation: Any) -> torch.Tensor:
+        if not isinstance(observation, Mapping) or set(observation) != {"images"}:
+            raise ValueError("native vision requires exactly the prepared images sensor")
+        images = observation["images"]
+        if (
+            not isinstance(images, torch.Tensor)
+            or images.dtype != torch.float32
+            or tuple(images.shape) != self._shape
+            or not bool(torch.isfinite(images).all())
+            or bool(((images < 0) | (images > 1)).any())
+        ):
+            raise ValueError("prepared images must match finite float32 CHW stacks in [0, 1]")
+        return images
+
+    def collate(self, transitions: list[Transition]) -> dict[str, Any]:
+        return dict(self._collator.collate_transitions(transitions))
+
+    def synthetic_observation(self) -> dict[str, torch.Tensor]:
+        return {"images": torch.zeros(self._shape, dtype=torch.float32)}

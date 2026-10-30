@@ -1,6 +1,6 @@
 # TrackmaniaRL SDK Guide
 
-This guide describes the public SDK in package version 1.2.16.
+This guide describes the public SDK in package version 1.2.17.
 
 Start with the runnable [Python quickstart](python-quickstart.md).
 The [public API guide](public-api.md) distinguishes supported imports and

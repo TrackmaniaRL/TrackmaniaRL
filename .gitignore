@@ -225,6 +225,7 @@ output/
 /experiments/*
 !/experiments/sub37/
 !/experiments/activation_film/
+!/experiments/full_qr/
 !/experiments/tmrl_test_comparison/
 
 # Local training projects and validation outputs

@@ -488,4 +488,18 @@ def _outcome_summary(info: Mapping[str, Any], termination: str) -> dict[str, flo
         "termination/time_limit": float(termination == "time_limit"),
         "termination/max_steps": float(termination == "max_steps"),
         "termination/telemetry_error": float(termination == "telemetry_error"),
+        **_native_episode_clock_summary(info),
     }
+
+
+def _native_episode_clock_summary(info: Mapping[str, Any]) -> dict[str, float | str]:
+    """Keep actual cross-process clock witnesses; absent timing stays absent."""
+    keys = ("episode_started_monotonic", "episode_observed_monotonic")
+    if any(key not in info for key in keys):
+        return {}
+    result: dict[str, float | str] = {f"timing/{key}": float(info[key]) for key in keys}
+    for key in ("actor", "episode"):
+        value = info.get(key)
+        if isinstance(value, str) and value:
+            result[f"headless/environment_{key}"] = value
+    return result

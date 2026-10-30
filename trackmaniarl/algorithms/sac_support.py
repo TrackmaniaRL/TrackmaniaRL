@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
 
@@ -113,7 +114,7 @@ def restore_entropy_state(target: EntropyRestoreTarget, state: Mapping[str, Any]
     if target.optimizer is None:
         raise RuntimeError("learned entropy requires an optimizer")
     target.log_alpha.data.copy_(saved_alpha.to(target.device))
-    target.optimizer.load_state_dict(dict(saved_optimizer))
+    target.optimizer.load_state_dict(deepcopy(dict(saved_optimizer)))
 
 
 def freeze_modules(modules: Any) -> None:

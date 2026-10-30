@@ -72,8 +72,7 @@ class ValueUpdater:
     def update(self, batch: TrainingBatch) -> tuple[Mapping[str, float], PriorityUpdate]:
         started = perf_counter()
         prepared = self._batch_step(batch)
-        forward = self._forward_step(prepared)
-        losses = self._loss_step(forward)
+        forward, losses = self._forward_losses(prepared)
         priorities = value_updates.priorities(self.learner, losses.priority)
         priority_update = PriorityUpdate(prepared.view.priority_transition_ids(), priorities)
         diagnostics = self._diagnostics(forward, losses.priority)
@@ -86,6 +85,10 @@ class ValueUpdater:
         metrics.update(diagnostics)
         self._optional_metrics(metrics, losses, gradients)
         return metrics, priority_update
+
+    def _forward_losses(self, batch: _BatchStep) -> tuple[_ForwardStep, _LossStep]:
+        forward = self._forward_step(batch)
+        return forward, self._loss_step(forward)
 
     def _batch_step(self, batch: TrainingBatch) -> _BatchStep:
         batch = self.learner._batch(batch)

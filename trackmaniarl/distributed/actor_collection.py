@@ -14,7 +14,11 @@ import torch
 import trackmaniarl.distributed.actor_watchdog as actor_watchdog
 from trackmaniarl.core.contracts import PolicyMode, ReplicablePolicy
 from trackmaniarl.core.data import Transition
-from trackmaniarl.core.environment_errors import EnvironmentPausedError
+from trackmaniarl.core.environment_errors import EnvironmentPausedError, EnvironmentResetError
+from trackmaniarl.core.observation_endpoints import (
+    prepare_bootstrap_observation,
+    validate_endpoint_step_limit,
+)
 from trackmaniarl.core.pytree import tree_map
 from trackmaniarl.distributed.actor_errors import ActorEnvironmentError
 from trackmaniarl.distributed.actor_metrics import EpisodeMetrics, summarize_episode
@@ -76,13 +80,14 @@ class PolicyStep:
 
 @dataclass(frozen=True, slots=True)
 class ResetRetry:
-    exception: TimeoutError | ConnectionError
+    exception: TimeoutError | ConnectionError | EnvironmentResetError
     attempt: int
     attempts: int
     delay: float
 
 
 def collect(runtime: CollectionRuntime, environment: Any, pipeline: Any) -> None:
+    validate_endpoint_step_limit(pipeline, environment, runtime.spec.training.max_episode_steps)
     actor_watchdog.arm(runtime)
     context = CollectionContext(runtime, environment, pipeline)
     if not _prewarm_initial_policy(context):
@@ -184,6 +189,13 @@ def _take_training_step(
     next_observation, reward, terminated, truncated, info = _step_environment(context, action)
     environment_s = monotonic() - started
     final_step = step_index == context.runtime.spec.training.max_episode_steps - 1
+    if (
+        final_step
+        and not terminated
+        and not truncated
+        and getattr(context.pipeline, "requires_environment_endpoint", False) is True
+    ):
+        raise ActorEnvironmentError("environment endpoint required before actor step limit")
     return PolicyStep(
         step_index,
         action,
@@ -223,7 +235,9 @@ def _record_training_step(
     metrics.record_diagnostics(step.action, state.policy, step.info, policy_info=step.policy_info)
     metrics.record_phase("diagnostics", monotonic() - started)
     started = monotonic()
-    next_prepared = context.pipeline.transform_observation(step.next_observation)
+    next_prepared = prepare_bootstrap_observation(
+        context.pipeline, step.next_observation, flags=(step.terminated, step.truncated)
+    )
     metrics.record_phase("preprocessing", monotonic() - started)
     started = monotonic()
     context.buffers.transitions.append(_transition(state, step, next_prepared))
@@ -320,7 +334,7 @@ def reset_environment(runtime: CollectionRuntime, request: EnvironmentReset) -> 
     for attempt in range(attempts):
         try:
             return _reset_when_available(runtime, request)
-        except (TimeoutError, ConnectionError) as exc:
+        except (TimeoutError, ConnectionError, EnvironmentResetError) as exc:
             if attempt == attempts - 1:
                 return _handle_reset_exhaustion(runtime, exc, request)
             _log_reset_retry(runtime, ResetRetry(exc, attempt, attempts, delay))
@@ -355,7 +369,7 @@ def _reset_when_available(runtime: CollectionRuntime, request: EnvironmentReset)
 
 def _handle_reset_exhaustion(
     runtime: CollectionRuntime,
-    exc: TimeoutError | ConnectionError,
+    exc: TimeoutError | ConnectionError | EnvironmentResetError,
     request: EnvironmentReset,
 ) -> None:
     reason = (

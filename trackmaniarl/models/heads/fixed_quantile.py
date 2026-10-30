@@ -36,6 +36,9 @@ class FixedQuantileHead(nn.Module):
         self.feature_dim = config.feature_dim
         self.action_count = config.action_count
         self.quantile_count = config.quantile_count
+        # Execution-only opt-in; parameters, quantile locations and checkpoint
+        # names are unchanged. Sparse selection remains the default.
+        self.dense_cuda_selected = False
         self.advantage = nn.Linear(config.feature_dim, config.action_count * config.quantile_count)
         self.value = (
             nn.Linear(config.feature_dim, config.quantile_count) if config.dueling else None
@@ -59,6 +62,18 @@ class FixedQuantileHead(nn.Module):
         actions: torch.Tensor,
     ) -> torch.Tensor:
         self._validate_support(support)
+        if (
+            self.dense_cuda_selected
+            and features.is_cuda
+            and features.dtype == self.advantage.weight.dtype == torch.float32
+            and actions.dtype == torch.int64
+            and features.numel() // self.feature_dim >= 64
+        ):
+            # Large CUDA batches favor GEMM and its dense backward over a
+            # batch-sized gather of weights followed by deterministic scatter.
+            values = self.evaluate_all(features, support)
+            indices = actions[..., None, None].expand(*actions.shape, self.quantile_count, 1)
+            return values.gather(-1, indices).squeeze(-1)
         quantiles = torch.arange(self.quantile_count, device=actions.device)
         rows = actions.unsqueeze(-1) + self.action_count * quantiles
         selected_weight = self.advantage.weight[rows]

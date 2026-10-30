@@ -28,7 +28,16 @@ CORE_DEPENDENCIES = frozenset(
     {"gymnasium", "numpy", "pydantic", "pyyaml", "tensordict", "torch", "zstandard"}
 )
 PUBLIC_EXTRAS = frozenset(
-    {"all", "distributed", "mamba", "orchestrator", "trackmania", "vision", "wandb"}
+    {
+        "all",
+        "distributed",
+        "mamba",
+        "native-vision",
+        "orchestrator",
+        "trackmania",
+        "vision",
+        "wandb",
+    }
 )
 
 
@@ -110,6 +119,10 @@ def _wheel_required_members(version: str) -> set[str]:
         "trackmaniarl/project/openplanet/README.md",
         "trackmaniarl/project/openplanet/TrackmaniaRL_Connect.as",
         "trackmaniarl/project/openplanet/info.toml",
+        "trackmaniarl/trackmania/native_headless/_runtime/portable_profile.json",
+        "trackmaniarl/trackmania/native_headless/_runtime/immediate_profile.json",
+        "trackmaniarl/trackmania/native_headless/_runtime/native_input_v7/v6-to-v7.patch",
+        "trackmaniarl/trackmania/native_headless/_runtime/native_input_v7/README.md",
         f"{dist_info}/entry_points.txt",
         f"{dist_info}/licenses/LICENSE",
         f"{dist_info}/licenses/NOTICE",
@@ -151,6 +164,23 @@ def _wheel_dependency_errors(metadata: Message) -> list[str]:
         invalid.append("Requires-Dist contains a direct URL")
     if any("vgamepad" in requirement.lower() for requirement in requirements):
         invalid.append("Requires-Dist contains vgamepad")
+    for extra in ("native-vision", "all"):
+        matches = [
+            match
+            for requirement in requirements
+            if (
+                match := re.fullmatch(
+                    r"\s*numba\s*([^;]+)\s*;\s*extra\s*==\s*['\"]([^'\"]+)['\"]\s*",
+                    requirement,
+                    flags=re.IGNORECASE,
+                )
+            )
+            and match.group(2).lower() == extra
+            and {specifier.strip() for specifier in match.group(1).split(",")}
+            == {">=0.64", "<0.69"}
+        ]
+        if len(matches) != 1:
+            invalid.append(f"Requires-Dist is missing numba bounds for extra {extra}")
     if not any(
         "libevdev>=0.13;" in requirement.lower()
         and "extra == 'trackmania'" in requirement.lower().replace('"', "'")
@@ -164,7 +194,16 @@ def _validate_wheel(archive: Path, version: str) -> None:
     validate_archive_privacy(archive)
     dist_info = f"trackmaniarl-{version}.dist-info"
     with zipfile.ZipFile(archive) as package:
-        _require_members(set(package.namelist()), _wheel_required_members(version), archive)
+        names = set(package.namelist())
+        _require_members(names, _wheel_required_members(version), archive)
+        if any(name.startswith("trackmaniarl/project/openplanet/Headless") for name in names):
+            raise RuntimeError(f"{archive} includes repository-only Openplanet probes")
+        private_evidence = {
+            "trackmaniarl/trackmania/native_headless/_runtime/native_input_v7/" + name
+            for name in ("original-source-manifest.json", "build-receipt.json")
+        }
+        if names & private_evidence:
+            raise RuntimeError(f"{archive} includes private V7 source/build evidence")
         _validate_wheel_checkout_files(package, archive)
         metadata = email.parser.BytesParser().parsebytes(package.read(f"{dist_info}/METADATA"))
     _validate_wheel_metadata(metadata, archive, version)
@@ -184,6 +223,12 @@ def _validate_sdist(archive: Path, version: str) -> None:
     root = f"trackmaniarl-{version}"
     with tarfile.open(archive) as package:
         names = {member.name.replace("\\", "/") for member in package.getmembers()}
+        private_evidence = {
+            f"{root}/trackmaniarl/trackmania/native_headless/_runtime/native_input_v7/" + name
+            for name in ("original-source-manifest.json", "build-receipt.json")
+        }
+        if names & private_evidence:
+            raise RuntimeError(f"{archive} includes private V7 source/build evidence")
         _validate_sdist_checkout_files(package, archive, root)
     _require_members(names, _sdist_required_members(root), archive)
 

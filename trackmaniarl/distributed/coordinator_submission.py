@@ -49,8 +49,12 @@ def submit(
     message: BytesValue,
     context: grpc.ServicerContext[Any, Any],
 ) -> BytesValue:
-    value = coordinator._request(message, context)
-    _validate_submission(coordinator, value, context)
+    # Many concurrent tiny Tensor operations cause GIL handoff contention.
+    # Keep every decode/schema/numeric check, but serialize this CPU work.
+    # Release before taking coordinator/journal locks or serving responses.
+    with coordinator._submission_decode_lock:
+        value = coordinator._request(message, context)
+        _validate_submission(coordinator, value, context)
     submission = _submission(coordinator, value)
     if _hard_lagged(submission):
         return _reject_hard_lag(submission, context)
@@ -67,7 +71,9 @@ def _validate_submission(
     context: grpc.ServicerContext[Any, Any],
 ) -> None:
     try:
-        _validate_submit_payload(value, coordinator.codec)
+        _validate_submit_payload(
+            value, coordinator.codec, pipeline=getattr(coordinator.run, "feature_pipeline", None)
+        )
     except WirePayloadTooLargeError as exc:
         context.abort(
             grpc.StatusCode.RESOURCE_EXHAUSTED,

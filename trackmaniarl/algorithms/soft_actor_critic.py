@@ -236,8 +236,8 @@ class SoftActorCritic(TorchLearnerBase):
         assert self.model is not None
         self.model.load_state_dict(state["model"])
         self.target_model.load_state_dict(state["target_model"])
-        self.actor_optimizer.load_state_dict(state["actor_optimizer"])
-        self.critic_optimizer.load_state_dict(state["critic_optimizer"])
+        self.actor_optimizer.load_state_dict(deepcopy(state["actor_optimizer"]))
+        self.critic_optimizer.load_state_dict(deepcopy(state["critic_optimizer"]))
         entropy = EntropyRestoreTarget(self.log_alpha, self.alpha_optimizer, self.device)
         restore_entropy_state(entropy, state)
         self._restore_scaler(state["scaler"])

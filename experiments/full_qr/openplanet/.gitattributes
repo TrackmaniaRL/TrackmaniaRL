@@ -1,0 +1,3 @@
+# Preserve the exact source bytes bound by local collector receipts.
+Headless*/Main.as -text -whitespace
+Headless*/info.toml -text -whitespace
