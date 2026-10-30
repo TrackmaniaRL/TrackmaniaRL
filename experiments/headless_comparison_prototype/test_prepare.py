@@ -84,6 +84,17 @@ def test_generate_discrete_configs_and_explicitly_block_continuous(
     q = yaml.safe_load((tmp_path / "out/campaign-configs/q-s17.yaml").read_text())
     assert q["training"]["total_transitions"] == 7_168_000
     assert "additional exploratory" in q["metadata"]["scope"]
+    with pytest.raises(ValueError, match="requires both qualified analog references"):
+        module.prepare(
+            module.Preparation(
+                source,
+                template,
+                tmp_path / "unqualified",
+                tmp_path / "artifacts",
+                shared_analog_for_discrete=True,
+            )
+        )
+    assert not (tmp_path / "unqualified").exists()
     manifest_data = json.loads(manifest.read_text())
     manifest_data["runtime_root"] = str(runtime)
     manifest.write_text(json.dumps(manifest_data), encoding="utf-8")

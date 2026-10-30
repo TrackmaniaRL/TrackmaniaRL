@@ -39,6 +39,11 @@ class Preparation:
     artifacts: Path
     analog_manifest: Path | None = None
     analog_manifest_sha256: str | None = None
+    analog_finish: Path | None = None
+    analog_finish_sha256: str | None = None
+    analog_motor: Path | None = None
+    analog_motor_sha256: str | None = None
+    shared_analog_for_discrete: bool = False
 
 
 def prepare(settings: Preparation) -> dict:
@@ -87,6 +92,7 @@ def prepare(settings: Preparation) -> dict:
     boundary = BoundaryGeometry(geometry, expected_map_uid=UID)
     boundary.validate_map(map_path)
     analog_root = analog_map = None
+    analog_refs = None
     if settings.analog_manifest is not None:
         analog_manifest = settings.analog_manifest.resolve(strict=True)
         if (
@@ -107,8 +113,53 @@ def prepare(settings: Preparation) -> dict:
                 raise ValueError("analog asset hash or size mismatch")
         analog_map = analog_root / analog_data["roles"]["map"]
         boundary.validate_map(analog_map)
+        supplied = (
+            settings.analog_finish,
+            settings.analog_finish_sha256,
+            settings.analog_motor,
+            settings.analog_motor_sha256,
+        )
+        if any(item is not None for item in supplied):
+            if any(item is None for item in supplied):
+                raise ValueError("both analog references and their SHA256 pins are required")
+            from trackmaniarl.trackmania.native_headless.full_qr.finish_reference import (
+                load_reference,
+            )
+            from trackmaniarl.trackmania.native_headless.full_qr.motor_qualification import (
+                load_motor_reference,
+            )
+
+            finish_path = settings.analog_finish.resolve(strict=True)
+            motor_path = settings.analog_motor.resolve(strict=True)
+            finish = load_reference(finish_path, settings.analog_finish_sha256)
+            motor = load_motor_reference(motor_path, settings.analog_motor_sha256)
+            pins = {
+                role: analog_data["assets"][relative]["sha256"]
+                for role, relative in analog_data["roles"].items()
+            }
+            if finish.map_uid != UID or any(pins.get(k) != v for k, v in finish.asset_pins.items()):
+                raise ValueError("analog finish reference does not bind this runtime")
+            if any(pins.get(k) != v for k, v in motor.asset_pins.items()):
+                raise ValueError("analog motor reference does not bind this runtime")
+            analog_refs = {
+                "finish_reference_path": str(finish_path),
+                "finish_reference_sha256": settings.analog_finish_sha256,
+                "motor_reference_path": str(motor_path),
+                "motor_reference_sha256": settings.analog_motor_sha256,
+            }
     elif settings.analog_manifest_sha256 is not None:
         raise ValueError("analog manifest required alongside its hash")
+    elif any(
+        (
+            settings.analog_finish,
+            settings.analog_finish_sha256,
+            settings.analog_motor,
+            settings.analog_motor_sha256,
+        )
+    ):
+        raise ValueError("analog references require the analog manifest")
+    if settings.shared_analog_for_discrete and analog_refs is None:
+        raise ValueError("shared analog runtime requires both qualified analog references")
     event["class_path"] = (
         "trackmaniarl.trackmania.native_headless.full_qr.native_events:QualifiedNativeEvents"
     )
@@ -129,10 +180,20 @@ def prepare(settings: Preparation) -> dict:
     receipt = build_source_deployment(source, destination)
     component_dir = destination / "experiments" / "headless_comparison_prototype"
     component_dir.mkdir(parents=True)
-    shutil.copy2(source / "experiments/headless_comparison_prototype/ppo_native.py", component_dir)
+    for name in ("ppo_native.py", "campaign_draft.py", "prepare_qualification.py"):
+        shutil.copy2(source / "experiments/headless_comparison_prototype" / name, component_dir)
+    shutil.copytree(
+        source / "tools/headless_campaign_queue",
+        destination / "tools/headless_campaign_queue",
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
+    )
     source_files = sorted(
         path
-        for root in (destination / "trackmaniarl", destination / "experiments")
+        for root in (
+            destination / "trackmaniarl",
+            destination / "experiments",
+            destination / "tools",
+        )
         for path in root.rglob("*")
         if path.is_file()
     )
@@ -183,6 +244,15 @@ def prepare(settings: Preparation) -> dict:
         )
         n["trace_archive_root"] = str(artifacts / "native-archives" / name)
         n["geometry_path"] = str(geometry)
+        if settings.shared_analog_for_discrete and name not in ("sac", "tqc", "ppo", "redq"):
+            n["runtime"]["runtime_root"] = str(analog_root)
+            n["runtime"]["asset_manifest"] = str(settings.analog_manifest)
+            n["runtime"]["work_dir"] = str(
+                analog_root / "build/server-probe" / destination.name / name
+            )
+            n["asset_manifest_sha256"] = settings.analog_manifest_sha256
+            n["event_source"]["kwargs"] = analog_refs.copy()
+            config["metadata"]["shared_analog_shim"] = "discrete contract; qualification pending"
         if name == "ppo":
             n["observation_pipeline"] = {
                 "class_path": (
@@ -202,6 +272,8 @@ def prepare(settings: Preparation) -> dict:
             "kwargs": {"config": n},
         }
         config["evaluation"]["maps"][0].update(map_path=str(map_path), geometry_path=str(geometry))
+        if settings.shared_analog_for_discrete and name not in ("sac", "tqc", "ppo", "redq"):
+            config["evaluation"]["maps"][0]["map_path"] = str(analog_map)
         config["metadata"]["backend"] = "native-headless-experimental"
         if name in ("sac", "tqc", "ppo", "redq"):
             job = {
@@ -225,10 +297,18 @@ def prepare(settings: Preparation) -> dict:
                     "ExperimentalContinuousEnvironmentFactory"
                 )
                 config["evaluation"]["maps"][0]["map_path"] = str(analog_map)
-                config["metadata"]["qualification"] = (
-                    "BLOCKED: finish/motor references bind the old shim"
-                )
-                file = configs / f"{name}-s17.yaml.blocked"
+                if analog_refs is not None:
+                    n["event_source"]["kwargs"] = analog_refs.copy()
+                    job["status"] = "candidate_not_qualified"
+                    config["metadata"]["qualification"] = (
+                        "reference pins verified; full run qualification pending"
+                    )
+                else:
+                    config["metadata"]["qualification"] = (
+                        "BLOCKED: finish/motor references bind the old shim"
+                    )
+                suffix = "" if analog_refs is not None else ".blocked"
+                file = configs / f"{name}-s17.yaml{suffix}"
                 file.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
                 RunSpec.from_yaml(file)
                 job.update(config=str(file), config_sha256=_sha(file))
@@ -270,6 +350,11 @@ def main() -> None:
     parser.add_argument("--artifacts", required=True, type=Path)
     parser.add_argument("--analog-manifest", type=Path)
     parser.add_argument("--analog-manifest-sha256")
+    parser.add_argument("--analog-finish", type=Path)
+    parser.add_argument("--analog-finish-sha256")
+    parser.add_argument("--analog-motor", type=Path)
+    parser.add_argument("--analog-motor-sha256")
+    parser.add_argument("--shared-analog-for-discrete", action="store_true")
     args = parser.parse_args()
     settings = Preparation(
         args.source,
@@ -278,6 +363,11 @@ def main() -> None:
         args.artifacts,
         args.analog_manifest,
         args.analog_manifest_sha256,
+        args.analog_finish,
+        args.analog_finish_sha256,
+        args.analog_motor,
+        args.analog_motor_sha256,
+        args.shared_analog_for_discrete,
     )
     result = prepare(settings)
     print(json.dumps({"status": result["status"], "jobs": result["jobs"]}, indent=2))
