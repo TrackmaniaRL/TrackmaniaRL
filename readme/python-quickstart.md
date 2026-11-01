@@ -33,7 +33,16 @@ factory contract can construct a real environment.
 
 ## Train from a configuration
 
-Create and install a starter project in a directory outside the library checkout:
+Install [uv](https://docs.astral.sh/uv/) if you do not have it, then create a
+starter project in a directory outside the library checkout. The generated project
+selects CUDA PyTorch wheels on Windows and Linux. For a CPU-only project generated
+from the released CLI, after `init` and before `uv sync`, change
+`index = "pytorch-cuda"` to `index = "pytorch-cpu"` in the generated
+`pyproject.toml` under `[tool.uv.sources]`. A project generated from a local
+checkout can also inherit the checkout's Torch source and constraints, so that
+change alone may not resolve the build. Consult the
+[PyTorch installation guide](https://pytorch.org/get-started/locally/) for other
+builds.
 
 ```bash
 trackmaniarl init my-agent --template starter

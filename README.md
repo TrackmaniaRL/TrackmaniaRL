@@ -15,7 +15,7 @@ samplers and learners, then use the same configuration from Python or the CLI.
 The Python package and game integration support Windows and desktop Linux. On Linux,
 Trackmania runs through Proton and is not officially supported by Ubisoft Nadeo, so
 the game setup is experimental. WSL is not a supported game host.
-TrackmaniaRL 1.2.x requires Python 3.12 and uses RunSpec 2.0 and checkpoint schema 2.0.
+TrackmaniaRL 1.3.0 requires Python 3.12 and uses RunSpec 2.0 and checkpoint schema 2.0.
 
 ## Installation
 
@@ -27,8 +27,9 @@ pip install trackmaniarl
 
 Optional integrations are available as extras, for example
 `pip install "trackmaniarl[vision,wandb,distributed]"`.
-See [platform and PyTorch setup](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/performance.md)
-for CPU and GPU installation details.
+See [PyTorch installation](https://pytorch.org/get-started/locally/) for a build
+suited to your system, and [performance guidance](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/performance.md)
+for training and GPU tuning.
 
 ## Train across computers
 
@@ -70,7 +71,11 @@ for a complete example that needs no game, GPU, map assets or tracking account.
 
 ## Train in Trackmania
 
-Create a separate project for your maps, models, configurations and training data:
+Install [uv](https://docs.astral.sh/uv/), then create a separate project for
+your maps, models, configurations and training data. On Windows, `uv sync` may
+install or repair the system-wide ViGEmBus driver; read the
+[game setup guide](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/quickstart.md)
+before running it.
 
 ```bash
 trackmaniarl init my-agent --template trackmania
@@ -92,17 +97,16 @@ the Windows game client. See the guide for its strict clock and map limits.
 
 ![Full drive alongside road, car and context branches, residual blocks, action values and changing steering and pedal controls](https://raw.githubusercontent.com/TrackmaniaRL/TrackmaniaRL/main/docs/assets/trackmaniarl-neural-flow.gif)
 
-This full drive shows a selected evaluation lap from the contributor's strongest
-checkpoint for this map. The contributor reports approximately 12 wall-clock hours
-of training before the recording; capturing and rendering the film did not update
-its weights. The panel is an architecture showcase: it follows map-relative road
-geometry, a 60-value car/physics vector and 29 engineered driving-context values
-through the model to action scores and selected controls. The changing activation
-colours show real tensor values, but they are not feature attribution and individual
-cells are not intended to explain a decision by themselves. This selected lap uses
-the map-specific `neighbors` action filter. It is neither an unassisted-policy
-benchmark nor evidence of generalization. See [the model and recording explanation](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/docs/activation-film.md)
-for provenance, the five-attempt film series and [GIF reproduction](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/docs/neural-flow-media.md).
+This animation shows one evaluation lap from the contributor's strongest checkpoint
+for this map. The contributor reports about 12 wall-clock hours of training;
+recording and rendering did not change the weights. The panel follows map-relative
+road geometry, a 60-value car/physics vector and 29 engineered driving-context
+values through the model to its action scores and controls. The colours show real
+tensor values, not feature attribution; individual cells do not explain the
+model's decisions. The lap uses a map-specific `neighbors` action
+filter, so it is not an unassisted-policy benchmark or evidence of generalization.
+See [the model and recording explanation](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/docs/activation-film.md)
+for provenance and the five-attempt film series, or the [GIF reproduction guide](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/docs/neural-flow-media.md).
 
 ## Documentation
 
