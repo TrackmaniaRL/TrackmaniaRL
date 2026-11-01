@@ -101,7 +101,7 @@ Telemetry-only DAgger and graph-recovery archives cannot supply missing camera f
 
 The Trackmania scaffold also generates `run-ALGORITHM-lidar.yaml` and
 `run-ALGORITHM-lidar-vision.yaml` for `q`, `qr`, `iqn`, `fqf`, `sac`, `redq`,
-`tqc`, `discrete-sac` and `ppo`. For example:
+`tqc`, `sd-sac` and `ppo`. For example:
 
 ```powershell
 uv run trackmaniarl validate run-sac-lidar-vision.yaml

@@ -98,8 +98,8 @@ the Windows game client. See the guide for its strict clock and map limits.
 ![Full drive alongside road, car and context branches, residual blocks, action values and changing steering and pedal controls](https://raw.githubusercontent.com/TrackmaniaRL/TrackmaniaRL/main/docs/assets/trackmaniarl-neural-flow.gif)
 
 This animation shows one evaluation lap from the contributor's strongest checkpoint
-for this map. The contributor reports about 12 wall-clock hours of training;
-recording and rendering did not change the weights. The panel follows map-relative
+for this map. The contributor reports approximately 12 wall-clock hours of
+training; capturing and rendering the film did not update its weights. The panel follows map-relative
 road geometry, a 60-value car/physics vector and 29 engineered driving-context
 values through the model to its action scores and controls. The colours show real
 tensor values, not feature attribution; individual cells do not explain the
@@ -110,16 +110,14 @@ for provenance and the five-attempt film series, or the [GIF reproduction guide]
 
 ## Documentation
 
-Start at the [documentation index](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/README.md).
+Browse the [documentation index](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/README.md) by reader goal:
 
-| Task | Guide |
+| Goal | Starting points |
 | --- | --- |
-| Learn the Python API | [Python quickstart](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/python-quickstart.md) · [SDK reference](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/sdk.md) |
-| Extend the library | [Public API](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/public-api.md) · [Examples](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/examples/README.md) |
-| Configure training | [Configuration](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/configuration.md) · [Algorithms](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/algorithms.md) |
-| Use images or demonstrations | [Vision and PPO](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/vision.md) · [Imitation learning](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/imitation-learning.md) |
-| Understand the runtime | [Architecture](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/docs/library-architecture.md) · [Distributed training](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/architecture.md) |
-| Diagnose a run | [Observability](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/observability.md) · [Troubleshooting](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/docs/troubleshooting.md) |
+| Learn by doing | [Python quickstart](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/python-quickstart.md) · [Game quickstart](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/quickstart.md) · [Examples](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/examples/README.md) |
+| Complete a task | [Vision and PPO](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/vision.md) · [Imitation learning](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/imitation-learning.md) · [Troubleshooting](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/docs/troubleshooting.md) |
+| Look up details | [Configuration](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/configuration.md) · [Algorithms](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/algorithms.md) · [Public API](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/public-api.md) · [SDK guide](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/sdk.md) · [Observability](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/observability.md) |
+| Understand how it works | [Library architecture](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/docs/library-architecture.md) · [Runtime architecture](https://github.com/TrackmaniaRL/TrackmaniaRL/blob/main/readme/architecture.md) |
 
 ## Development and research
 
