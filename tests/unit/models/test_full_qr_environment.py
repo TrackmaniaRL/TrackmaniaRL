@@ -328,6 +328,29 @@ def setup() -> tuple[FullQrEnvironment, Provider, Pipeline]:
     return environment, provider, pipeline
 
 
+@pytest.mark.parametrize(
+    ("action", "gas", "brake", "tap"),
+    [
+        (0, 0.0, 0.0, 0.0),
+        (1, 0.0, 1.0, 0.0),
+        (2, 0.0, 0.2, 1.0),
+        (3, 1.0, 0.0, 0.0),
+        (4, 1.0, 1.0, 0.0),
+        (5, 1.0, 0.2, 1.0),
+    ],
+)
+def test_native_control_metrics(action: int, gas: float, brake: float, tap: float) -> None:
+    environment, _, _ = setup()
+    try:
+        environment.reset()
+        info = environment.step(action)[4]
+        assert info["control_gas"] == gas
+        assert info["control_brake"] == pytest.approx(brake)
+        assert info["control_brake_tap"] == tap
+    finally:
+        environment.close()
+
+
 def test_sdk_mapping_collision_delivery_and_fresh_reset_history() -> None:
     environment, provider, pipeline = setup()
     initial, info = environment.reset(seed=17)
