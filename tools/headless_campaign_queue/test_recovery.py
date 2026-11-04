@@ -3,16 +3,45 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from tools.headless_campaign_queue.recovery import (
     inspect_journal,
     reject_pending_spool,
     snapshot_journal,
     validate_state,
+    evaluate_copy,
 )
 
 
 class RecoveryTests(unittest.TestCase):
+    def test_evaluation_freshness_checked_before_resolver_creates_directory(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp)
+            checkpoint = base / "checkpoint.pt"
+            checkpoint.write_bytes(b"checkpoint")
+            evaluation = SimpleNamespace(maps=[object()], trials_per_map=30)
+            spec = SimpleNamespace(run_id="run", artifacts_dir=Path("artifacts"), evaluation=evaluation)
+            spec.model_copy = lambda update: SimpleNamespace(**{**spec.__dict__, **update})
+            expected = base / "artifacts" / "run-recovery-evaluation"
+            run = SimpleNamespace(run_dir=expected, logger=Mock())
+
+            def resolve(*args, **kwargs):
+                expected.mkdir(parents=True)
+                return run
+
+            with patch("trackmaniarl.core.runtime.resolve_run", side_effect=resolve), patch(
+                "trackmaniarl.commands.evaluation._configure_evaluation_stop", side_effect=RuntimeError("reached evaluator")
+            ):
+                with self.assertRaisesRegex(RuntimeError, "reached evaluator"):
+                    evaluate_copy(spec, base, checkpoint, base / "STOP", {})
+            run.logger.close.assert_called_once()
+            with patch("trackmaniarl.core.runtime.resolve_run") as resolver:
+                with self.assertRaisesRegex(ValueError, "fresh"):
+                    evaluate_copy(spec, base, checkpoint, base / "STOP", {})
+                resolver.assert_not_called()
+
     def test_sqlite_backup_preserves_committed_uncheckpointed_wal_rows(self):
         with tempfile.TemporaryDirectory() as temp:
             source = Path(temp) / "journal.db"

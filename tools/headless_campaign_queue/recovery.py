@@ -497,9 +497,13 @@ def evaluate_copy(spec, base: Path, checkpoint: Path, stop: Path, report: dict) 
         raise ValueError("a pinned single-map, 30-trial evaluation suite is required")
     eval_id = spec.run_id + "-recovery-evaluation"
     eval_spec = spec.model_copy(update={"run_id": eval_id})
-    run = resolve_run(eval_spec, base_dir=base)
-    if run.run_dir.exists():
+    eval_dir = (base / eval_spec.artifacts_dir / eval_id).resolve()
+    if eval_dir.exists():
         raise ValueError("evaluation output must be fresh")
+    run = resolve_run(eval_spec, base_dir=base)
+    if run.run_dir.resolve() != eval_dir:
+        run.logger.close()
+        raise ValueError("resolved evaluation directory differs from preflight")
     report["status"] = "evaluating"
     atomic_json(base / "recovery.json", report)
     checkpoint_sha = sha(checkpoint)

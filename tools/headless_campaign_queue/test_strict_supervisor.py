@@ -23,9 +23,11 @@ def make_fixture(tmp_path):
     checkpoint = tmp_path / 'checkpoint.pt'
     checkpoint.write_bytes(b'checkpoint')
     evaluation = tmp_path / 'evaluation.json'
-    evaluation.write_text(json.dumps({'checkpoint': str(checkpoint), 'checkpoint_sha256': sha(checkpoint),
+    evaluation.write_text(json.dumps({'checkpoint': str(checkpoint), 'checkpoint_sha256': sha(checkpoint), 'status': 'complete', 'expected_trials': 30,
         'trials': [{'map_id': 'map', 'map_uid': 'uid', 'trial_index': i,
-                    'telemetry_error': None, 'controller_error': None} for i in range(30)]}))
+                    'telemetry_error': None, 'controller_error': None, 'finished': True,
+                    'finish_time_s': 34.0, 'termination_reason': 'finished', 'steps': 680,
+                    'progress_pct': 100.0, 'reward': 1.0} for i in range(30)]}))
     receipt_path = tmp_path / 'receipt.json'
     receipt = {'job_id': 'sac', 'status': 'completed', 'qualification_only': False,
         'manifest_sha256': 'manifest', 'process_pid': 42, 'requested_transitions': 100,
@@ -46,7 +48,7 @@ def test_valid_receipt_and_artifacts(tmp_path):
     assert supervisor.verify_completion(job, 'manifest', 42, codec=FakeCodec(state))['accepted_transitions'] == 101
 
 
-@pytest.mark.parametrize('change', ['budget', 'fingerprint', 'trials', 'checkpoint_hash', 'pid'])
+@pytest.mark.parametrize('change', ['budget', 'fingerprint', 'trials', 'checkpoint_hash', 'pid', 'no_outcome', 'bad_time'])
 def test_bad_evidence_is_rejected(tmp_path, change):
     job, receipt, state, evaluation = make_fixture(tmp_path)
     if change == 'budget': state['distributed']['transitions'] = 99
@@ -55,8 +57,23 @@ def test_bad_evidence_is_rejected(tmp_path, change):
         doc = json.loads(evaluation.read_text()); doc['trials'].pop(); evaluation.write_text(json.dumps(doc))
         receipt['evaluation_sha256'] = sha(evaluation); Path(job['receipt']).write_text(json.dumps(receipt))
     elif change == 'checkpoint_hash': Path(receipt['checkpoint']).write_bytes(b'tampered')
+    elif change in ('no_outcome', 'bad_time'):
+        doc = json.loads(evaluation.read_text())
+        if change == 'no_outcome': del doc['trials'][0]['finished']
+        else: doc['trials'][0]['finish_time_s'] = 0
+        evaluation.write_text(json.dumps(doc))
+        receipt['evaluation_sha256'] = sha(evaluation); Path(job['receipt']).write_text(json.dumps(receipt))
     pid = 43 if change == 'pid' else 42
     with pytest.raises(ValueError): supervisor.verify_completion(job, 'manifest', pid, codec=FakeCodec(state))
+
+
+def test_valid_unsuccessful_trial_is_not_discarded(tmp_path):
+    job, receipt, state, evaluation = make_fixture(tmp_path)
+    doc = json.loads(evaluation.read_text())
+    doc['trials'][0].update(finished=False, finish_time_s=None, termination_reason='no_progress', progress_pct=12.5)
+    evaluation.write_text(json.dumps(doc))
+    receipt['evaluation_sha256'] = sha(evaluation); Path(job['receipt']).write_text(json.dumps(receipt))
+    assert supervisor.verify_completion(job, 'manifest', 42, codec=FakeCodec(state))['accepted_transitions'] == 101
 
 
 def test_group_audit_retries_then_passes(monkeypatch):

@@ -6,6 +6,7 @@ job is preserved for explicit audited recovery; no automatic replay is claimed.
 from __future__ import annotations
 
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -54,6 +55,26 @@ def verify_completion(job: dict, digest: str, pid: int, *, codec=None) -> dict:
         raise ValueError('receipt and checkpoint transition counters differ')
     evaluation = json.loads(Path(receipt['evaluation']).read_text(encoding='utf-8'))
     validate_evaluation(evaluation, Path(receipt['checkpoint']), job['map_id'], job['map_uid'], 30)
+    if evaluation.get('status') != 'complete' or evaluation.get('expected_trials') != 30:
+        raise ValueError('evaluation suite is incomplete')
+    for trial in evaluation['trials']:
+        finished = trial.get('finished')
+        reason = trial.get('termination_reason')
+        steps = trial.get('steps')
+        progress = trial.get('progress_pct')
+        reward = trial.get('reward')
+        finish_time = trial.get('finish_time_s')
+        if (type(finished) is not bool or not isinstance(reason, str) or not reason.strip()
+            or reason == 'unknown' or type(steps) is not int or steps <= 0
+            or isinstance(progress, bool) or not isinstance(progress, (int, float))
+            or not math.isfinite(progress) or not 0 <= progress <= 100
+            or isinstance(reward, bool) or not isinstance(reward, (int, float)) or not math.isfinite(reward)):
+            raise ValueError('evaluation trial outcome missing or invalid')
+        if finished and (reason != 'finished' or isinstance(finish_time, bool)
+            or not isinstance(finish_time, (int, float)) or not math.isfinite(finish_time) or finish_time <= 0):
+            raise ValueError('finished evaluation trial has invalid finish time or reason')
+        if not finished and reason == 'finished':
+            raise ValueError('unfinished evaluation trial has finished reason')
     if evaluation.get('checkpoint_sha256') != receipt['checkpoint_sha256']:
         raise ValueError('evaluation checkpoint hash mismatch')
     if any('telemetry_error' not in trial or 'controller_error' not in trial or
