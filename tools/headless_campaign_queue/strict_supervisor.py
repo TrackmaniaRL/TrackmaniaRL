@@ -17,7 +17,7 @@ import time
 
 from tools.headless_campaign_queue.__main__ import atomic_json, now, verify_receipt
 from tools.headless_campaign_queue.recovery import process_identity, reject_live_competitors, reject_surviving_group
-from tools.headless_campaign_queue.verify_artifacts import validate_checkpoint, validate_evaluation
+from tools.headless_campaign_queue.verify_artifacts import validate_checkpoint, validate_evaluation, validate_drained_journal
 
 
 def wsl_host_free_bytes() -> int | None:
@@ -101,6 +101,14 @@ def verify_completion(job: dict, digest: str, pid: int, *, codec=None) -> dict:
                                  on_policy=job['on_policy'], max_overshoot=job['max_overshoot'])
     if actual != receipt['transitions']:
         raise ValueError('receipt and checkpoint transition counters differ')
+    stop_file = job.get('stop_file')
+    if not isinstance(stop_file, str) or not Path(stop_file).is_absolute() or Path(stop_file).exists():
+        raise ValueError('missing or active stop file')
+    if not job['on_policy']:
+        run_dir = job.get('run_dir')
+        if not isinstance(run_dir, str) or not Path(run_dir).is_absolute():
+            raise ValueError('missing trusted artifact run directory')
+        validate_drained_journal(Path(run_dir), state)
     evaluation = json.loads(Path(receipt['evaluation']).read_text(encoding='utf-8'))
     validate_evaluation(evaluation, Path(receipt['checkpoint']), job['map_id'], job['map_uid'], 30)
     verify_trial_outcomes(evaluation)

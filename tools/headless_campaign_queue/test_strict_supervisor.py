@@ -1,6 +1,7 @@
 import hashlib
 import json
 import shutil
+import sqlite3
 from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
@@ -23,6 +24,12 @@ class FakeCodec:
 
 
 def make_fixture(tmp_path):
+    journal = tmp_path / 'distributed' / 'rollouts.sqlite3'
+    journal.parent.mkdir(exist_ok=True)
+    with sqlite3.connect(journal) as db:
+        db.execute('CREATE TABLE metadata (key TEXT, value TEXT)')
+        db.executemany('INSERT INTO metadata VALUES (?,?)', [('journal_id', 'fixture'), ('pruned_through', '0')])
+        db.execute('CREATE TABLE chunks (id INTEGER)')
     checkpoint = tmp_path / 'checkpoint.pt'
     checkpoint.write_bytes(b'checkpoint')
     evaluation = tmp_path / 'evaluation.json'
@@ -39,9 +46,11 @@ def make_fixture(tmp_path):
         'evaluation_sha256': sha(evaluation), 'run_fingerprint': 'fingerprint'}
     receipt_path.write_text(json.dumps(receipt))
     job = {'id': 'sac', 'receipt': str(receipt_path), 'transitions': 100, 'max_overshoot': 2,
-           'run_fingerprint': 'fingerprint', 'map_id': 'map', 'map_uid': 'uid', 'on_policy': False}
+           'run_fingerprint': 'fingerprint', 'map_id': 'map', 'map_uid': 'uid', 'on_policy': False,
+           'run_dir': str(tmp_path), 'stop_file': str(tmp_path / 'stop')}
     state = {'run_fingerprint': 'fingerprint', 'learner': {'weights': 1},
-             'distributed': {'transitions': 101, 'updates': 1, 'update_credit': 0},
+             'distributed': {'transitions': 101, 'updates': 1, 'update_credit': 0, 'journal_applied_frontier': 0},
+             'journal_id': 'fixture',
              'replay_store': {}, 'sampler': {}}
     return job, receipt, state, evaluation
 
@@ -49,6 +58,22 @@ def make_fixture(tmp_path):
 def test_valid_receipt_and_artifacts(tmp_path):
     job, _, state, _ = make_fixture(tmp_path)
     assert supervisor.verify_completion(job, 'manifest', 42, codec=FakeCodec(state))['accepted_transitions'] == 101
+
+
+@pytest.mark.parametrize('case', ['journal', 'spool', 'stop'])
+def test_undrained_or_stopped_job_cannot_advance(tmp_path, case):
+    job, _, state, _ = make_fixture(tmp_path)
+    if case == 'journal':
+        with sqlite3.connect(tmp_path / 'distributed' / 'rollouts.sqlite3') as db:
+            db.execute('INSERT INTO chunks VALUES (1)')
+    elif case == 'spool':
+        spool = tmp_path / 'actors' / 'actor' / 'spool'
+        spool.mkdir(parents=True)
+        (spool / '1.rollout').write_bytes(b'not acknowledged')
+    else:
+        Path(job['stop_file']).touch()
+    with pytest.raises(ValueError):
+        supervisor.verify_completion(job, 'manifest', 42, codec=FakeCodec(state))
 
 
 @pytest.mark.parametrize('change', ['budget', 'fingerprint', 'trials', 'checkpoint_hash', 'pid', 'no_outcome', 'bad_time'])
