@@ -48,6 +48,36 @@ multiple ties can make a change rate sensitive to this convention. The tool does
 not verify provenance or produce scores from models. Preserve the input, output,
 collection script, fingerprints and configuration for reproducibility.
 
+The prior isolated IQN investigation produced aligned tensors using
+`/home/kuba/tmrl-iqn-causal-debug-20261102-001/grid_probe.py`: its `build_run`
+constructs a CPU learner and loads each checkpoint's learner state, while
+`grid_values` evaluates expected action values on the same `replay-probe.pt`
+observations. It writes `grid-values-<checkpoint>.pt` dictionaries. Its paths,
+checkpoint set and runtime directories are hard-coded to that investigation;
+inspect and adapt a copy in a new isolated directory before use. Never point its
+output or native work directory at an active run. CPU inference and checkpoint
+loading consume resources; run only when they will not compete with training.
+
+For grids already produced by that script, export one shared grid key, e.g.:
+
+```console
+python -m tools.headless_campaign_queue.export_grid_scores \
+  grid-values-340.pt grid-values-365.pt paired.json --key 32 \
+  --state-set-sha256 HASH --before-checkpoint-sha256 HASH \
+  --after-checkpoint-sha256 HASH
+python -m tools.headless_campaign_queue.policy_stability paired.json report.json
+```
+
+The exporter hashes the two grid files but **cannot verify** that the claimed
+state set, action order and checkpoint hashes actually produced them; preserve
+the original collection evidence. Index labels are not physical control labels.
+Only load trusted tensor files. The prior `bellman_probe.py` calculates one-step
+TD quantities from replay; those are not realized on-policy returns and must not
+be entered as `before_return` or `after_return`. The existing native backend has
+not been demonstrated to restore an arbitrary recorded state for matched
+rollouts. Until that capability is proven, leave the return fields absent; full
+return calibration and periodic automatic collection remain future work.
+
 The 2026-11-02 isolated IQN diagnosis found update-induced action-ranking
 fragility and a contribution from encoder/head updates. Lower learning rate,
 freezing the encoder, five-step returns and extra quantiles did not establish
