@@ -250,7 +250,7 @@ def test_failed_opt_in_recovery_keeps_lock_and_does_not_start_next(tmp_path, mon
     assert json.loads((output / 'strict-state.json').read_text())['status'] == 'blocked_requires_audit'
 
 
-@pytest.mark.parametrize('stage', ['training', 'evaluation'])
+@pytest.mark.parametrize('stage', ['training', 'evaluation', 'wal_finalization'])
 def test_recover_interrupted_selects_last_checkpoint_and_audits_final(tmp_path, monkeypatch, stage):
     from tools.headless_campaign_queue import recovery, verify_artifacts, job as job_module, disk_guard
     config = tmp_path / 'source.yaml'; config.write_text('source')
@@ -270,17 +270,21 @@ def test_recover_interrupted_selects_last_checkpoint_and_audits_final(tmp_path, 
     monkeypatch.setattr(recovery, 'reject_live_competitors', lambda: None)
     def prepare(config_arg, checkpoint, destination, config_sha, **kwargs):
         assert checkpoint == initial and config_arg == config and config_sha == sha(config)
-        assert kwargs['stage'] == stage
+        assert kwargs['stage'] == ('training' if stage == 'wal_finalization' else stage)
         calls.append('prepare'); destination.mkdir()
         clone = destination / 'recovery.yaml'; clone.write_text('clone')
-        return {'recovery_config': str(clone), 'checkpoint': str(initial), 'fingerprint': 'fp'}
+        return {'recovery_config': str(clone), 'checkpoint': str(initial), 'fingerprint': 'fp', 'stage': stage}
     monkeypatch.setattr(recovery, 'prepare', prepare)
     monkeypatch.setattr(disk_guard, 'check_disk_space', lambda *a: None)
     monkeypatch.setattr(job_module, 'monitor_disk', lambda *a: nullcontext())
-    monkeypatch.setattr('trackmaniarl.core.builtins.TorchCheckpointCodec.load', lambda *a: {'distributed': {'transitions': 99 if stage == 'training' else 101}})
+    monkeypatch.setattr('trackmaniarl.core.builtins.TorchCheckpointCodec.load', lambda *a: {'distributed': {'transitions': 101 if stage == 'evaluation' else 99}})
     monkeypatch.setattr(recovery, 'validate_state', lambda *a, **kw: {'updates': 2, 'transitions': 101})
     monkeypatch.setattr(verify_artifacts, 'validate_drained_journal', lambda *a: calls.append('journal'))
     monkeypatch.setattr(recovery, 'evaluate_copy', lambda *a: calls.append('evaluate'))
+    def finalize(*args):
+        calls.append('finalize')
+        args[4]['checkpoint'] = str(final)
+    monkeypatch.setattr(recovery, 'finalize_replayed_budget', finalize)
     monkeypatch.setattr(supervisor, 'verify_recovered_completion', lambda *a: (calls.append('verify') or {'accepted_transitions': 101}))
     class Process:
         pid = 42
@@ -310,7 +314,10 @@ def test_recover_interrupted_selects_last_checkpoint_and_audits_final(tmp_path, 
     monkeypatch.setattr(supervisor, 'uses_root_filesystem', lambda _: True)
     result = supervisor.recover_interrupted(job, tmp_path, entry, state, tmp_path / 'state.json')
     assert result['accepted_transitions'] == 101
-    assert calls == (['prepare', 'journal', 'evaluate', 'verify'] if stage == 'training' else ['prepare', 'evaluate', 'verify'])
+    expected = {'training': ['prepare', 'journal', 'evaluate', 'verify'],
+                'evaluation': ['prepare', 'evaluate', 'verify'],
+                'wal_finalization': ['prepare', 'finalize', 'evaluate', 'verify']}
+    assert calls == expected[stage]
     assert entry['recovery']['status'] == 'verified'
     stop.touch()
     with pytest.raises(ValueError, match='stop request'):

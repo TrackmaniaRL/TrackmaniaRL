@@ -157,7 +157,7 @@ def verify_recovered_completion(job: dict, report_path: Path, *, codec=None) -> 
     report = json.loads(report_path.read_text(encoding='utf-8'))
     if (report.get('kind') != 'isolated-full-recovery-v1'
         or report.get('status') != 'evaluation_verified_queue_pending'
-        or report.get('stage') not in ('training', 'evaluation')
+        or report.get('stage') not in ('training', 'evaluation', 'wal_finalization')
         or report.get('fingerprint') != job['run_fingerprint']
         or report.get('config_sha256') != job['config_sha256']
         or report.get('offline_restore_proof', {}).get('status') != 'PASS'
@@ -180,6 +180,12 @@ def verify_recovered_completion(job: dict, report_path: Path, *, codec=None) -> 
         raise ValueError('recovery evidence hash mismatch')
     if report.get('stage') == 'evaluation' and checkpoint_sha != report['source_checkpoint_sha256']:
         raise ValueError('evaluation-only recovery changed checkpoint')
+    if report.get('stage') == 'wal_finalization':
+        preserved = Path(report.get('preserved_checkpoint', ''))
+        if (not preserved.is_absolute() or preserved.is_symlink() or not preserved.is_file()
+            or sha(preserved) != report['source_checkpoint_sha256']
+            or report.get('preserved_checkpoint_sha256') != report['source_checkpoint_sha256']):
+            raise ValueError('replayed recovery source copy is missing or changed')
     from trackmaniarl.core.fingerprint import run_fingerprint
     from trackmaniarl.core.spec import RunSpec
     if (run_fingerprint(RunSpec.from_yaml(source_config), source_config.parent) != job['run_fingerprint']
@@ -275,6 +281,15 @@ def recover_interrupted(job: dict, output: Path, entry: dict, state: dict, state
     clone_spec = RunSpec.from_yaml(clone_config)
     check_disk_space(clone_spec, destination)
     recovery_stop = destination / 'STOP'
+    if report['stage'] == 'wal_finalization':
+        entry['recovery']['status'] = 'finalizing_replayed_budget'
+        atomic_json(state_path, state)
+        with monitor_disk(clone_spec, destination, recovery_stop):
+            recovery.finalize_replayed_budget(clone_spec, destination, Path(report['checkpoint']),
+                                             job['run_fingerprint'], report, job['max_overshoot'], recovery_stop, stop)
+        if recovery_stop.exists() or stop.exists():
+            raise ValueError('stop requested during replayed budget finalization')
+        stage = 'evaluation'
     if stage == 'evaluation':
         entry['recovery']['status'] = 'evaluating'
         atomic_json(state_path, state)

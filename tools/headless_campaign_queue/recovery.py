@@ -435,9 +435,9 @@ def prepare(
         cloned, destination, copied_checkpoint, state, fingerprint, target_journal, frontier
     )
     if stage == "training" and proof["transitions_after_wal"] >= spec.training.total_transitions:
-        raise ValueError(
-            "recovered WAL already meets budget; finalization must be handled separately"
-        )
+        if on_policy or proof["transitions_after_wal"] > spec.training.total_transitions + max_overshoot:
+            raise ValueError("recovered WAL exceeds the accepted budget")
+        stage = "wal_finalization"
     if stage == "evaluation" and not on_policy:
         from tools.headless_campaign_queue.verify_artifacts import validate_drained_journal
 
@@ -477,6 +477,104 @@ def prepare(
     }
     atomic_json(destination / "recovery.json", report)
     return report
+
+
+def finish_replayed_coordinator(coordinator, target: int, max_overshoot: int) -> Path:
+    """Drain earned updates without an actor, then durably save the full state.
+
+    Only use on a private restored copy after producer shutdown and spool audit.
+    This path performs no collection and does not grant an update-credit exemption.
+    """
+    import math
+    from trackmaniarl.distributed.coordinator_learning import _minimum_replay_size
+
+    counters = coordinator.counters
+    if not target <= counters.transitions <= target + max_overshoot:
+        raise ValueError("replayed transitions outside accepted budget")
+    if coordinator.journal.has_rows_after(counters.journal_applied_frontier):
+        raise ValueError("journal replay left pending rows")
+    credit = counters.update_credit
+    if isinstance(credit, bool) or not isinstance(credit, (int, float)) or not math.isfinite(credit) or credit < 0:
+        raise ValueError("invalid replayed update credit")
+    if credit >= 1 and len(coordinator.run.replay_store) < _minimum_replay_size(coordinator):
+        raise ValueError("insufficient replay to drain update credit")
+    if getattr(coordinator.external_stop, "wait_for_actor_drain", False):
+        raise ValueError("offline finalization cannot wait for an actor")
+    if coordinator._has_active_actor() or coordinator._server is not None:
+        raise ValueError("offline finalization cannot run with an actor or server")
+    if coordinator._external_stop_requested():
+        raise ValueError("offline finalization stopped")
+    coordinator._learn()
+    if coordinator._external_stop_requested() or counters.transitions < target or counters.update_credit >= 1 or coordinator.journal.has_rows_after(counters.journal_applied_frontier):
+        raise ValueError("replayed budget finalization did not drain updates and journal")
+    checkpoint = coordinator._checkpoint()
+    coordinator._checkpoint_writer.wait()
+    if not checkpoint.is_file():
+        raise ValueError("final checkpoint was not written")
+    return checkpoint
+
+
+def finalize_replayed_budget(spec, base: Path, checkpoint: Path, fingerprint: str, report: dict, max_overshoot: int, stop: Path, original_stop: Path) -> Path:
+    """Restore the prepared private copy and finalize replayed budget offline."""
+    from trackmaniarl.core.builtins import TorchCheckpointCodec
+    from trackmaniarl.core.fingerprint import run_fingerprint
+    from trackmaniarl.core.runtime import resolve_run
+    from trackmaniarl.distributed.coordinator import Coordinator
+    from trackmaniarl.distributed.coordinator_types import CoordinatorConfig, ReplayRestoreMode
+    from tools.headless_campaign_queue.verify_artifacts import validate_drained_journal
+
+    if report.get("stage") != "wal_finalization" or run_fingerprint(spec, base) != fingerprint:
+        raise ValueError("replayed finalization provenance mismatch")
+    source_hash = sha(checkpoint)
+    journal = base / "artifacts" / spec.run_id / "distributed" / "rollouts.sqlite3"
+    if (source_hash != report.get("source_checkpoint_sha256") or
+            sha(Path(report["recovery_config"])) != report.get("recovery_config_sha256") or
+            journal.is_symlink() or not journal.is_file() or
+            sha(journal) != report.get("journal", {}).get("snapshot_sha256")):
+        raise ValueError("prepared recovery inputs changed after the restore audit")
+    # Keep the cloned starting checkpoint even if the final update number is unchanged.
+    preserved = checkpoint.with_name("source-" + checkpoint.name)
+    if preserved.exists():
+        raise ValueError("preserved source checkpoint already exists")
+    shutil.copyfile(checkpoint, preserved)
+    if sha(preserved) != source_hash or sha(checkpoint) != source_hash:
+        raise ValueError("checkpoint changed during preservation")
+    components = spec.components.model_copy(update={"additional_loggers": ()})
+    offline_spec = spec.model_copy(update={"components": components})
+    if run_fingerprint(offline_spec, base) != fingerprint:
+        raise ValueError("offline finalization changes training fingerprint")
+    run = resolve_run(offline_spec, base_dir=base)
+    coordinator = None
+    try:
+        class FileStop:
+            def is_set(self):
+                return stop.exists() or original_stop.exists()
+
+        coordinator = Coordinator(run, CoordinatorConfig(
+            bind="127.0.0.1:0", token="offline-recovery-audit-token-123456789",
+            fingerprint=fingerprint, resume_checkpoint=checkpoint, restore_mode=ReplayRestoreMode.FULL,
+            external_stop=FileStop(),
+        ))
+        coordinator._prepare_training()
+        coordinator.restore_checkpoint(checkpoint, ReplayRestoreMode.FULL)
+        expected = report["offline_restore_proof"]
+        if (coordinator.counters.transitions != expected["transitions_after_wal"] or
+                coordinator.counters.journal_applied_frontier != expected["journal_frontier_after_wal"]):
+            raise ValueError("replayed state differs from independent restore proof")
+        final = finish_replayed_coordinator(coordinator, spec.training.total_transitions, max_overshoot)
+        final_state = TorchCheckpointCodec().load(final)
+        validate_state(final_state, fingerprint, spec.training.total_transitions, False,
+                       stage="evaluation", max_overshoot=max_overshoot)
+        validate_drained_journal(run.run_dir, final_state)
+        report.update(checkpoint=str(final), preserved_checkpoint=str(preserved),
+                      preserved_checkpoint_sha256=source_hash,
+                      status="training_verified_evaluation_pending")
+        atomic_json(base / "recovery.json", report)
+        return final
+    finally:
+        if coordinator is not None:
+            coordinator._close_runtime()
+        run.logger.close()
 
 
 def evaluate_copy(spec, base: Path, checkpoint: Path, stop: Path, report: dict) -> int:
