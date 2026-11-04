@@ -199,6 +199,7 @@ def _ingest_evaluation_summary(
         "finish_rate": coordinator.counters.evaluation_finishes / coordinator.counters.evaluations,
         **bucket_metrics,
         "actor_id": value["actor_id"],
+        **_episode_provenance(coordinator, value, phase="evaluation"),
     }
     coordinator.run.logger.log("eval/episode", payload, step=coordinator.counters.updates)
 
@@ -292,6 +293,25 @@ def _episode_payload(
         "best_finish_time_s": coordinator.counters.best_finish_time_s,
         "actor_id": value["actor_id"],
         "replay_size": len(coordinator.run.replay_store),
+        **_episode_provenance(coordinator, value, phase="training"),
+    }
+
+
+def _episode_provenance(
+    coordinator: Coordinator, value: Mapping[str, Any], *, phase: str
+) -> dict[str, Any]:
+    """Record the coordinator's exact count after the entire chunk is ingested.
+
+    This is an ingestion snapshot, not the global transition count at which
+    the actor finished its episode: chunks and actors can arrive asynchronously.
+    """
+    return {
+        "phase": phase,
+        "metric_segment_id": coordinator._metric_segment_id,
+        "actor_session_id": value["session_id"],
+        "actor_chunk_sequence": value["sequence"],
+        "accepted_transitions_at_ingest": coordinator.counters.transitions,
+        "accepted_transitions_semantics": "after_entire_submitted_chunk",
     }
 
 
