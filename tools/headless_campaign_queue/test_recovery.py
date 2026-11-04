@@ -16,6 +16,21 @@ from tools.headless_campaign_queue.recovery import (
 
 
 class RecoveryTests(unittest.TestCase):
+    def test_cli_blocks_normal_resume_when_replayed_wal_reaches_budget(self):
+        from tools.headless_campaign_queue import recovery
+        with tempfile.TemporaryDirectory() as temp:
+            home = Path(temp)
+            args = ["recovery", "--config", str(home / "run.yaml"), "--config-sha256", "x",
+                    "--checkpoint", str(home / "model.pt"), "--destination", str(home / "out"),
+                    "--stage", "training", "--execute"]
+            with patch("sys.argv", args), patch.object(Path, "home", return_value=home), \
+                 patch.object(recovery, "reject_live_competitors"), \
+                 patch.object(recovery, "prepare", return_value={"stage": "wal_finalization"}), \
+                 patch.object(recovery.subprocess, "Popen") as popen:
+                self.assertEqual(recovery.main(), 2)
+                popen.assert_not_called()
+            self.assertFalse((home / ".trackmaniarl-headless-campaign.lock").exists())
+
     def test_evaluation_freshness_checked_before_resolver_creates_directory(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp)

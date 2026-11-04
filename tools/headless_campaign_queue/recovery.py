@@ -667,6 +667,11 @@ def main() -> int:
         if not args.execute:
             print(json.dumps(report))
             return 0
+        # prepare may discover that replayed WAL already reached the target.
+        # This standalone CLI cannot safely finalize and audit that path yet;
+        # never start the normal actor-backed resume in its place.
+        if report.get("stage") != args.stage:
+            raise ValueError("replayed WAL requires audited budget finalization")
         reject_live_competitors()
         stop = args.destination / "STOP"
         if (
