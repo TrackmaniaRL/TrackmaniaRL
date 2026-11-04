@@ -254,7 +254,10 @@ class FullQrEnvironment:
         return observation, result
 
     def _record_step_info(
-        self, step: FullQrStep | FullQrTerminalStep, result: RewardResult, action: int | ContinuousControl
+        self,
+        step: FullQrStep | FullQrTerminalStep,
+        result: RewardResult,
+        action: int | ContinuousControl,
     ) -> dict[str, Any]:
         assert self._reward is not None
         assert self._events is not None

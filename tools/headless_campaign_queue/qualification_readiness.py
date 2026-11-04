@@ -3,6 +3,7 @@
 This command is read-only except for its new output file. It never launches,
 creates a runnable manifest, or claims full-budget or desktop-client parity.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -20,7 +21,9 @@ def physical_sources(config: Path, expected_uid: str) -> dict[str, Any]:
     from trackmaniarl.trackmania.native_headless.config import NativeRuntimeConfig
     from trackmaniarl.trackmania.native_headless.full_qr.factory import verify_bound_assets
     from trackmaniarl.trackmania.native_headless.full_qr.finish_reference import load_reference
-    from trackmaniarl.trackmania.native_headless.full_qr.motor_qualification import load_motor_reference
+    from trackmaniarl.trackmania.native_headless.full_qr.motor_qualification import (
+        load_motor_reference,
+    )
 
     spec = RunSpec.from_yaml(config)
     component = spec.components.environment
@@ -34,17 +37,26 @@ def physical_sources(config: Path, expected_uid: str) -> dict[str, Any]:
     geometry = BoundaryGeometry(Path(value["geometry_path"]), expected_map_uid=expected_uid)
     geometry.validate_map(assets.paths["map"])
     event = value["event_source"]
-    if event["class_path"] != "trackmaniarl.trackmania.native_headless.full_qr.native_events:QualifiedNativeEvents":
+    if (
+        event["class_path"]
+        != "trackmaniarl.trackmania.native_headless.full_qr.native_events:QualifiedNativeEvents"
+    ):
         raise ValueError("qualified source binding required")
     kwargs = event["kwargs"]
-    finish_path, motor_path = Path(kwargs["finish_reference_path"]), Path(kwargs["motor_reference_path"])
+    finish_path, motor_path = (
+        Path(kwargs["finish_reference_path"]),
+        Path(kwargs["motor_reference_path"]),
+    )
     finish = load_reference(finish_path, kwargs["finish_reference_sha256"])
     motor = load_motor_reference(motor_path, kwargs["motor_reference_sha256"])
     pins = {role: sha(path) for role, path in assets.paths.items()}
     finish_roles = {"server", "map", "shim"}
-    if (finish.map_uid != expected_uid or set(finish.asset_pins) != finish_roles
-            or any(finish.asset_pins[role] != pins[role] for role in finish_roles)
-            or dict(motor.asset_pins) != pins):
+    if (
+        finish.map_uid != expected_uid
+        or set(finish.asset_pins) != finish_roles
+        or any(finish.asset_pins[role] != pins[role] for role in finish_roles)
+        or dict(motor.asset_pins) != pins
+    ):
         raise ValueError("reference sources do not bind to configured assets and map")
     raw_motor = read_object(motor_path)
     native_replays = raw_motor.get("native_replays")
@@ -58,18 +70,29 @@ def physical_sources(config: Path, expected_uid: str) -> dict[str, Any]:
                 raise ValueError("native motor replay evidence changed")
             replay_pins[name] = entry["sha256"]
     continuous = component.class_path.endswith(":ExperimentalContinuousEnvironmentFactory")
-    if continuous and (value.get("allow_experimental_continuous") is not True or value.get("continuous_shim_sha256") != pins["shim"]):
+    if continuous and (
+        value.get("allow_experimental_continuous") is not True
+        or value.get("continuous_shim_sha256") != pins["shim"]
+    ):
         raise ValueError("experimental continuous shim pin missing or mismatched")
-    return {"asset_manifest_sha256": value["asset_manifest_sha256"], "asset_pins": pins,
-            "finish_reference_sha256": kwargs["finish_reference_sha256"],
-            "motor_reference_sha256": kwargs["motor_reference_sha256"],
-            "native_replay_sha256": replay_pins, "continuous_experimental": continuous}
+    return {
+        "asset_manifest_sha256": value["asset_manifest_sha256"],
+        "asset_pins": pins,
+        "finish_reference_sha256": kwargs["finish_reference_sha256"],
+        "motor_reference_sha256": kwargs["motor_reference_sha256"],
+        "native_replay_sha256": replay_pins,
+        "continuous_experimental": continuous,
+    }
 
 
 def assess(inventory: dict, physical: dict[str, dict], draft: dict) -> dict:
     rows = inventory["results"]
     expected = [job["id"] for job in draft["jobs"]]
-    if len(expected) < 5 or len(set(expected)) != len(expected) or {"qr", "iqn", "sac", "tqc", "ppo"} - set(expected):
+    if (
+        len(expected) < 5
+        or len(set(expected)) != len(expected)
+        or {"qr", "iqn", "sac", "tqc", "ppo"} - set(expected)
+    ):
         raise ValueError("draft lacks the complete team comparison")
     if [row.get("id") for row in rows] != expected:
         raise ValueError("evidence inventory does not match draft jobs")
@@ -88,9 +111,15 @@ def assess(inventory: dict, physical: dict[str, dict], draft: dict) -> dict:
             missing.append("configured physical and Finish sources")
         if missing:
             reasons.append({"id": name, "missing": missing})
-        details.append({"id": name, "short_receipt": row.get("short_receipt"),
-                        "same_checkpoint_restore": row.get("same_checkpoint_restore"),
-                        "physical": source, "short_full_config_differences": row.get("config_differences", [])})
+        details.append(
+            {
+                "id": name,
+                "short_receipt": row.get("short_receipt"),
+                "same_checkpoint_restore": row.get("same_checkpoint_restore"),
+                "physical": source,
+                "short_full_config_differences": row.get("config_differences", []),
+            }
+        )
     return {
         "kind": "headless-first-campaign-readiness-v1",
         "status": "NOT_READY" if reasons else "READY_FOR_FIRST_CAMPAIGN",
@@ -110,6 +139,7 @@ def assess(inventory: dict, physical: dict[str, dict], draft: dict) -> dict:
 
 def build(draft_path: Path, short_manifest: Path, restore_reports: list[Path]) -> dict:
     import importlib
+
     import tools.headless_campaign_queue.qualification_audit as inventory_module
     from trackmaniarl.core.spec import RunSpec
 
@@ -118,7 +148,9 @@ def build(draft_path: Path, short_manifest: Path, restore_reports: list[Path]) -
     namespace = importlib.import_module("experiments")
     namespace_roots = {Path(path).resolve() for path in getattr(namespace, "__path__", ())}
     if not namespace_roots or any(not root.is_relative_to(deployment) for root in namespace_roots):
-        raise ValueError("experiments namespace is contaminated by paths outside the frozen deployment")
+        raise ValueError(
+            "experiments namespace is contaminated by paths outside the frozen deployment"
+        )
     inventory = audit(draft_path, short_manifest, restore_reports)
     physical: dict[str, dict] = {}
     cache: dict[str, dict] = {}
@@ -131,12 +163,23 @@ def build(draft_path: Path, short_manifest: Path, restore_reports: list[Path]) -
                 raise ValueError("config changed after evidence inventory")
             component = RunSpec.from_yaml(config).components.environment
             bound = component.kwargs["config"]
-            runtime = {k: v for k, v in bound["runtime"].items() if k not in {"trace_dir", "work_dir"}}
-            key = json.dumps({"class": component.class_path, "runtime": runtime,
-                              "assets": bound["asset_manifest_sha256"], "geometry": bound["geometry_path"],
-                              "map": bound["expected_map_uid"], "source": bound["event_source"],
-                              "analog": bound.get("allow_experimental_continuous"),
-                              "shim": bound.get("continuous_shim_sha256")}, sort_keys=True, default=str)
+            runtime = {
+                k: v for k, v in bound["runtime"].items() if k not in {"trace_dir", "work_dir"}
+            }
+            key = json.dumps(
+                {
+                    "class": component.class_path,
+                    "runtime": runtime,
+                    "assets": bound["asset_manifest_sha256"],
+                    "geometry": bound["geometry_path"],
+                    "map": bound["expected_map_uid"],
+                    "source": bound["event_source"],
+                    "analog": bound.get("allow_experimental_continuous"),
+                    "shim": bound.get("continuous_shim_sha256"),
+                },
+                sort_keys=True,
+                default=str,
+            )
             if key not in cache:
                 cache[key] = physical_sources(config, draft["map_uid"])
             result = cache[key]
@@ -144,9 +187,15 @@ def build(draft_path: Path, short_manifest: Path, restore_reports: list[Path]) -
         except Exception as exc:
             physical[name] = {"status": "FAIL", "error": f"{type(exc).__name__}: {exc}"}
     result = assess(inventory, physical, draft)
-    result.update(auditor_sha256=sha(Path(__file__)), inventory_code_sha256=sha(Path(inventory_module.__file__)),
-                  draft_sha256=sha(draft_path), short_manifest_sha256=sha(short_manifest),
-                  restore_reports=[{"path": str(path.resolve()), "sha256": sha(path)} for path in restore_reports])
+    result.update(
+        auditor_sha256=sha(Path(__file__)),
+        inventory_code_sha256=sha(Path(inventory_module.__file__)),
+        draft_sha256=sha(draft_path),
+        short_manifest_sha256=sha(short_manifest),
+        restore_reports=[
+            {"path": str(path.resolve()), "sha256": sha(path)} for path in restore_reports
+        ],
+    )
     return result
 
 

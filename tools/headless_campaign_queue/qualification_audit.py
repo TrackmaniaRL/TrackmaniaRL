@@ -1,14 +1,16 @@
 """Read and inventory evidence; never promote a draft or start a job."""
+
 from __future__ import annotations
 
 import argparse
-from collections.abc import Mapping
 import hashlib
 import json
-from pathlib import Path
 import shutil
 import tempfile
+from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
+
 
 def sha(path: Path) -> str:
     digest = hashlib.sha256()
@@ -18,13 +20,21 @@ def sha(path: Path) -> str:
     return digest.hexdigest()
 
 
-ALLOWED_DIFFERENCES = frozenset({
-    "run_id", "artifacts_dir", "training.total_transitions", "training.checkpoint_milestones",
-    "training.warmup_transitions", "evaluation.trials_per_map", "components.additional_loggers",
-    "components.environment.kwargs.config.runtime.trace_dir",
-    "components.environment.kwargs.config.runtime.work_dir",
-    "components.environment.kwargs.config.trace_archive_root", "metadata.qualification_purpose",
-})
+ALLOWED_DIFFERENCES = frozenset(
+    {
+        "run_id",
+        "artifacts_dir",
+        "training.total_transitions",
+        "training.checkpoint_milestones",
+        "training.warmup_transitions",
+        "evaluation.trials_per_map",
+        "components.additional_loggers",
+        "components.environment.kwargs.config.runtime.trace_dir",
+        "components.environment.kwargs.config.runtime.work_dir",
+        "components.environment.kwargs.config.trace_archive_root",
+        "metadata.qualification_purpose",
+    }
+)
 
 
 def differences(full: Any, short: Any, path: str = "") -> list[dict]:
@@ -49,14 +59,26 @@ def read_object(path: Path) -> dict:
     return value
 
 
-def matching_restore(restores: list[dict], name: str, short_fp: str, config_sha: str, receipt_sha: str, checkpoint_sha: str) -> dict | None:
+def matching_restore(
+    restores: list[dict],
+    name: str,
+    short_fp: str,
+    config_sha: str,
+    receipt_sha: str,
+    checkpoint_sha: str,
+) -> dict | None:
     for restore in restores:
         value = restore["report"]
         source = value.get("source_sha256", {})
-        if (value.get("kind") == "headless-qualification-offline-restore-v1" and value.get("status") == "PASS"
-                and value.get("job_id") == name and value.get("run_fingerprint") == short_fp
-                and source.get("checkpoint") == checkpoint_sha and source.get("receipt") == receipt_sha
-                and source.get("config") == config_sha):
+        if (
+            value.get("kind") == "headless-qualification-offline-restore-v1"
+            and value.get("status") == "PASS"
+            and value.get("job_id") == name
+            and value.get("run_fingerprint") == short_fp
+            and source.get("checkpoint") == checkpoint_sha
+            and source.get("receipt") == receipt_sha
+            and source.get("config") == config_sha
+        ):
             return {"path": restore["path"], "sha256": restore["sha256"]}
     return None
 
@@ -74,7 +96,9 @@ def audit(draft_path: Path, short_manifest_path: Path, restore_reports: list[Pat
     if not Path(trackmaniarl.__file__).resolve().is_relative_to(deployment):
         raise ValueError("audit must use the frozen candidate deployment")
     candidate_manifest = deployment / "campaign-preparation.json"
-    if sha(candidate_manifest) != draft.get("candidate_manifest_sha256") or sha(candidate_manifest) != short_manifest.get("candidate_manifest_sha256"):
+    if sha(candidate_manifest) != draft.get("candidate_manifest_sha256") or sha(
+        candidate_manifest
+    ) != short_manifest.get("candidate_manifest_sha256"):
         raise ValueError("draft and short configs use different source deployments")
     candidate = read_object(candidate_manifest)
     for name, digest in candidate["source_file_sha256"].items():
@@ -91,16 +115,31 @@ def audit(draft_path: Path, short_manifest_path: Path, restore_reports: list[Pat
     results = []
     for job in draft["jobs"]:
         name = job["id"]
-        row: dict[str, Any] = {"id": name, "status": "insufficient_evidence", "full_config_sha256": job["config_sha256"], "full_fingerprint": job["run_fingerprint"], "short_receipt": None, "same_checkpoint_restore": None, "native_action_parity": "not_evidenced"}
+        row: dict[str, Any] = {
+            "id": name,
+            "status": "insufficient_evidence",
+            "full_config_sha256": job["config_sha256"],
+            "full_fingerprint": job["run_fingerprint"],
+            "short_receipt": None,
+            "same_checkpoint_restore": None,
+            "native_action_parity": "not_evidenced",
+        }
         try:
             short = short_jobs[name]
             full_path, short_path = Path(job["config"]), Path(short["config"])
             if not full_path.resolve(strict=True).is_relative_to(deployment):
                 raise ValueError("full config outside deployment")
-            if sha(full_path) != job["config_sha256"] or short.get("candidate_config_sha256") != job["config_sha256"] or sha(short_path) != short["config_sha256"]:
+            if (
+                sha(full_path) != job["config_sha256"]
+                or short.get("candidate_config_sha256") != job["config_sha256"]
+                or sha(short_path) != short["config_sha256"]
+            ):
                 raise ValueError("candidate/short config hash mismatch")
             full, small = RunSpec.from_yaml(full_path), RunSpec.from_yaml(short_path)
-            full_fp, short_fp = run_fingerprint(full, full_path.parent), run_fingerprint(small, short_path.parent)
+            full_fp, short_fp = (
+                run_fingerprint(full, full_path.parent),
+                run_fingerprint(small, short_path.parent),
+            )
             if full_fp != job["run_fingerprint"]:
                 raise ValueError("full fingerprint mismatch")
             diff = differences(full.model_dump(mode="json"), small.model_dump(mode="json"))
@@ -116,22 +155,56 @@ def audit(draft_path: Path, short_manifest_path: Path, restore_reports: list[Pat
                     failure = read_object(failed)
                     if failure.get("algorithm") != name:
                         raise ValueError("failure artifact algorithm mismatch")
-                    row["short_failure"] = {"path": str(failed.resolve()), "sha256": sha(failed), "details": failure}
-                row["missing"] = ["short completed receipt", "same-checkpoint restore", "native action parity"]
+                    row["short_failure"] = {
+                        "path": str(failed.resolve()),
+                        "sha256": sha(failed),
+                        "details": failure,
+                    }
+                row["missing"] = [
+                    "short completed receipt",
+                    "same-checkpoint restore",
+                    "native action parity",
+                ]
                 results.append(row)
                 continue
             receipt = read_object(receipt_path)
-            if receipt.get("job_id") != name or receipt.get("status") != "completed" or receipt.get("qualification_only") is not True or receipt.get("run_fingerprint") != short_fp:
+            if (
+                receipt.get("job_id") != name
+                or receipt.get("status") != "completed"
+                or receipt.get("qualification_only") is not True
+                or receipt.get("run_fingerprint") != short_fp
+            ):
                 raise ValueError("short receipt identity mismatch")
-            requested, actual, limit = receipt.get("requested_transitions"), receipt.get("transitions"), receipt.get("max_overshoot")
-            if type(requested) is not int or type(actual) is not int or type(limit) is not int or requested != small.training.total_transitions or limit < 0 or not requested <= actual <= requested + limit:
+            requested, actual, limit = (
+                receipt.get("requested_transitions"),
+                receipt.get("transitions"),
+                receipt.get("max_overshoot"),
+            )
+            if (
+                type(requested) is not int
+                or type(actual) is not int
+                or type(limit) is not int
+                or requested != small.training.total_transitions
+                or limit < 0
+                or not requested <= actual <= requested + limit
+            ):
                 raise ValueError("short receipt budget mismatch")
             cp, evaluation = Path(receipt["checkpoint"]), Path(receipt["evaluation"])
             run_root = (short_path.parent / small.artifacts_dir / small.run_id).resolve()
-            eval_root = (short_path.parent / small.artifacts_dir / (small.run_id + "-final-evaluation")).resolve()
-            if cp.is_symlink() or cp.resolve().parent != run_root / "checkpoints" or sha(cp) != receipt["checkpoint_sha256"]:
+            eval_root = (
+                short_path.parent / small.artifacts_dir / (small.run_id + "-final-evaluation")
+            ).resolve()
+            if (
+                cp.is_symlink()
+                or cp.resolve().parent != run_root / "checkpoints"
+                or sha(cp) != receipt["checkpoint_sha256"]
+            ):
                 raise ValueError("short checkpoint identity or hash mismatch")
-            if evaluation.is_symlink() or evaluation.resolve() != eval_root / "evaluation.json" or sha(evaluation) != receipt["evaluation_sha256"]:
+            if (
+                evaluation.is_symlink()
+                or evaluation.resolve() != eval_root / "evaluation.json"
+                or sha(evaluation) != receipt["evaluation_sha256"]
+            ):
                 raise ValueError("short evaluation identity or hash mismatch")
             # The codec materializes a temporary file beside its input. Work on
             # a private copy so auditing never writes into the source run.
@@ -143,31 +216,82 @@ def audit(draft_path: Path, short_manifest_path: Path, restore_reports: list[Pat
                 state = TorchCheckpointCodec().load(copy)
             on_policy = name == "ppo"
             counters = state.get("counters" if on_policy else "distributed")
-            if state.get("run_fingerprint") != short_fp or not isinstance(counters, Mapping) or counters.get("transitions") != actual or not isinstance(state.get("learner"), Mapping):
+            if (
+                state.get("run_fingerprint") != short_fp
+                or not isinstance(counters, Mapping)
+                or counters.get("transitions") != actual
+                or not isinstance(state.get("learner"), Mapping)
+            ):
                 raise ValueError("receipt and checkpoint transitions differ")
-            if not on_policy and (not isinstance(state.get("replay_store"), Mapping) or not isinstance(state.get("sampler"), Mapping)):
+            if not on_policy and (
+                not isinstance(state.get("replay_store"), Mapping)
+                or not isinstance(state.get("sampler"), Mapping)
+            ):
                 raise ValueError("short checkpoint missing replay or sampler")
             eval_data = read_object(evaluation)
             map_spec = small.evaluation.maps[0]
             trials = eval_data.get("trials")
-            if eval_data.get("checkpoint") != str(cp) or not isinstance(trials, list) or len(trials) != small.evaluation.trials_per_map:
+            if (
+                eval_data.get("checkpoint") != str(cp)
+                or not isinstance(trials, list)
+                or len(trials) != small.evaluation.trials_per_map
+            ):
                 raise ValueError("short evaluation trial count or checkpoint mismatch")
-            if any(not isinstance(trial, Mapping) or type(trial.get("trial_index")) is not int for trial in trials):
+            if any(
+                not isinstance(trial, Mapping) or type(trial.get("trial_index")) is not int
+                for trial in trials
+            ):
                 raise ValueError("short evaluation trial shape mismatch")
-            expected_trials = {(map_spec.id, map_spec.expected_map_uid, n) for n in range(small.evaluation.trials_per_map)}
-            observed = {(trial.get("map_id"), trial.get("map_uid"), trial.get("trial_index")) for trial in trials}
+            expected_trials = {
+                (map_spec.id, map_spec.expected_map_uid, n)
+                for n in range(small.evaluation.trials_per_map)
+            }
+            observed = {
+                (trial.get("map_id"), trial.get("map_uid"), trial.get("trial_index"))
+                for trial in trials
+            }
             if observed != expected_trials:
                 raise ValueError("short evaluation trial identities mismatch")
-            if any(row_.get("telemetry_error") or row_.get("controller_error") for row_ in eval_data["trials"]):
+            if any(
+                row_.get("telemetry_error") or row_.get("controller_error")
+                for row_ in eval_data["trials"]
+            ):
                 raise ValueError("short evaluation contains runtime errors")
-            row["short_receipt"] = {"path": str(receipt_path.resolve()), "sha256": sha(receipt_path), "checkpoint_sha256": sha(cp), "evaluation_sha256": sha(evaluation), "accepted_transitions": actual}
-            row["same_checkpoint_restore"] = matching_restore(restores, name, short_fp, sha(short_path), sha(receipt_path), receipt["checkpoint_sha256"])
-            row["missing"] = (["same-checkpoint restore"] if row["same_checkpoint_restore"] is None else []) + ["native action parity", "full-budget qualification"]
+            row["short_receipt"] = {
+                "path": str(receipt_path.resolve()),
+                "sha256": sha(receipt_path),
+                "checkpoint_sha256": sha(cp),
+                "evaluation_sha256": sha(evaluation),
+                "accepted_transitions": actual,
+            }
+            row["same_checkpoint_restore"] = matching_restore(
+                restores,
+                name,
+                short_fp,
+                sha(short_path),
+                sha(receipt_path),
+                receipt["checkpoint_sha256"],
+            )
+            row["missing"] = (
+                ["same-checkpoint restore"] if row["same_checkpoint_restore"] is None else []
+            ) + ["native action parity", "full-budget qualification"]
         except Exception as exc:
             row["status"] = "invalid_or_incomplete"
             row["error"] = f"{type(exc).__name__}: {exc}"
         results.append(row)
-    return {"kind": "headless-campaign-evidence-inventory-v1", "status": "not_qualified", "draft_sha256": sha(draft_path), "short_manifest_sha256": sha(short_manifest_path), "deployment": str(deployment), "results": results, "limitations": ["short-run evidence is not full-budget qualification", "native actuator parity and same-checkpoint restore require separate evidence", "this report cannot make the draft runnable"]}
+    return {
+        "kind": "headless-campaign-evidence-inventory-v1",
+        "status": "not_qualified",
+        "draft_sha256": sha(draft_path),
+        "short_manifest_sha256": sha(short_manifest_path),
+        "deployment": str(deployment),
+        "results": results,
+        "limitations": [
+            "short-run evidence is not full-budget qualification",
+            "native actuator parity and same-checkpoint restore require separate evidence",
+            "this report cannot make the draft runnable",
+        ],
+    }
 
 
 def main() -> int:
@@ -183,7 +307,11 @@ def main() -> int:
     with args.output.open("x", encoding="utf-8") as stream:
         json.dump(report, stream, indent=2)
         stream.write("\n")
-    print(json.dumps({"status": report["status"], "jobs": len(report["results"]), "sha256": sha(args.output)}))
+    print(
+        json.dumps(
+            {"status": report["status"], "jobs": len(report["results"]), "sha256": sha(args.output)}
+        )
+    )
     return 0
 
 

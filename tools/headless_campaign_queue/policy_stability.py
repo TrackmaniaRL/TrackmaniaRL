@@ -38,9 +38,12 @@ def analyze(data: dict) -> dict:
     """
     actions = data.get("actions")
     observations = data.get("observations")
-    if (not isinstance(actions, list) or len(actions) < 2
-            or any(not isinstance(a, str) or not a for a in actions)
-            or len(set(actions)) != len(actions)):
+    if (
+        not isinstance(actions, list)
+        or len(actions) < 2
+        or any(not isinstance(a, str) or not a for a in actions)
+        or len(set(actions)) != len(actions)
+    ):
         raise ValueError("actions must contain at least two unique nonempty strings")
     if not isinstance(observations, list) or not observations:
         raise ValueError("observations must be a nonempty list")
@@ -72,16 +75,21 @@ def analyze(data: dict) -> dict:
                 target = _number(row[f"{phase}_return"], f"{row['id']} {phase}_return")
                 errors[phase].append(ordered[0] - target)
         changes += winners["before"] != winners["after"]
-        differences.append(max(
-            abs(x - y) for x, y in zip(scores["before"], scores["after"], strict=True)
-        ))
+        differences.append(
+            max(abs(x - y) for x, y in zip(scores["before"], scores["after"], strict=True))
+        )
 
     def summary(values: list[float]) -> dict:
         if not values:
             return {"count": 0}
-        return {"count": len(values), "mean": sum(values) / len(values),
-                "median": _quantile(values, 0.5), "p90": _quantile(values, 0.9),
-                "min": min(values), "max": max(values)}
+        return {
+            "count": len(values),
+            "mean": sum(values) / len(values),
+            "median": _quantile(values, 0.5),
+            "p90": _quantile(values, 0.9),
+            "min": min(values),
+            "max": max(values),
+        }
 
     return {
         "schema_version": 1,

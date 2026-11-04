@@ -3,6 +3,7 @@
 This is evidence about exact source bytes, not a claim of behavioral equivalence.
 Unknown changes, files, or hash pairs fail closed.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -13,20 +14,45 @@ OLD_TRAINING = "e8227fd66d196a0dca191dae4a01a195d1b0d1ca98a58b89419c2c9321c00396
 NEW_TRAINING = "98c3a44b84506fae9e935f2b2029b2eb555d08ed35f7def1386137c91ad78b1b"
 TRAINING = "trackmaniarl/commands/training.py"
 ALLOWED_TOOL_HASHES = {
-    "tools/headless_campaign_queue/README.md": {"baa94f6068bfdf1b71109fc590b575558579fd9fc5d542ca2b21037056b9faa1"},
-    "tools/headless_campaign_queue/campaign.py": {"09b27665c5589240a280fcae558a7e96af7c04508550f3de36de61dd7ce9c885"},
+    "tools/headless_campaign_queue/README.md": {
+        "baa94f6068bfdf1b71109fc590b575558579fd9fc5d542ca2b21037056b9faa1"
+    },
+    "tools/headless_campaign_queue/campaign.py": {
+        "09b27665c5589240a280fcae558a7e96af7c04508550f3de36de61dd7ce9c885"
+    },
     "tools/headless_campaign_queue/disk_guard.py": {None},
-    "tools/headless_campaign_queue/job.py": {"99b2c0f34c013abe2ef9bc79f9d84e257137885e74d03f31f0badf884de40c32"},
+    "tools/headless_campaign_queue/job.py": {
+        "99b2c0f34c013abe2ef9bc79f9d84e257137885e74d03f31f0badf884de40c32"
+    },
     "tools/headless_campaign_queue/qualification_bridge.py": {None},
     "tools/headless_campaign_queue/qualification_manifest.py": {None},
-    "tools/headless_campaign_queue/test_campaign.py": {"fea820d893447d8a7608dde8d9880460998c218bd2992cc840aff16d77cdb603"},
+    "tools/headless_campaign_queue/test_campaign.py": {
+        "fea820d893447d8a7608dde8d9880460998c218bd2992cc840aff16d77cdb603"
+    },
     "tools/headless_campaign_queue/test_disk_guard.py": {None},
-    "tools/headless_campaign_queue/test_job.py": {"628f944bd93560ad011673077e5930836b23d80094728e34c29f763f3489a963"},
-    "tools/headless_campaign_queue/windows_wsl.ps1": {"db1c740eb0ec7e55ab449ed181fe1b02357b4ca4e2992eefc23ff626b8d77a84"},
-    "tools/headless_campaign_queue/qualification_audit.py": {None, "2e6c3ebbdf0b16e8fab4a99922d22dec302035294dadb86775328c5b5fc4aba5"},
-    "tools/headless_campaign_queue/qualification_readiness.py": {None, "2b0644a220346cfec576897fec20eeeb4523f0ebd43f09f654757bf538f4b493"},
-    "tools/headless_campaign_queue/qualification_restore.py": {None, "0b6f7b261b18d2fe3fb6cdc174f3381275e5e0d05d59ab60f44ffb093b48951a"},
-    "tools/headless_campaign_queue/test_qualification.py": {None, "73de1b52defaab0f3f52d987319351e0980dc3c7eafe14d5677bb92584195391", "0e003a378b40235cb229ef57c2d8bdb3058f71e8ba0a0d04edf5d82cb6b9dcbb"},
+    "tools/headless_campaign_queue/test_job.py": {
+        "628f944bd93560ad011673077e5930836b23d80094728e34c29f763f3489a963"
+    },
+    "tools/headless_campaign_queue/windows_wsl.ps1": {
+        "db1c740eb0ec7e55ab449ed181fe1b02357b4ca4e2992eefc23ff626b8d77a84"
+    },
+    "tools/headless_campaign_queue/qualification_audit.py": {
+        None,
+        "2e6c3ebbdf0b16e8fab4a99922d22dec302035294dadb86775328c5b5fc4aba5",
+    },
+    "tools/headless_campaign_queue/qualification_readiness.py": {
+        None,
+        "2b0644a220346cfec576897fec20eeeb4523f0ebd43f09f654757bf538f4b493",
+    },
+    "tools/headless_campaign_queue/qualification_restore.py": {
+        None,
+        "0b6f7b261b18d2fe3fb6cdc174f3381275e5e0d05d59ab60f44ffb093b48951a",
+    },
+    "tools/headless_campaign_queue/test_qualification.py": {
+        None,
+        "73de1b52defaab0f3f52d987319351e0980dc3c7eafe14d5677bb92584195391",
+        "0e003a378b40235cb229ef57c2d8bdb3058f71e8ba0a0d04edf5d82cb6b9dcbb",
+    },
 }
 TARGET_TOOL_HASHES = {
     "tools/headless_campaign_queue/README.md": "e61eebbd518d7b0edcb269ccd6f138c9996244a856d82a01638304c563ff283a",
@@ -81,8 +107,13 @@ def verify_training_change(old: Path, new: Path) -> None:
     prior = "_join_during_shutdown(processes.actor, timeout=10)"
     if original.count(anchor) != 1 or original.count(prior) != 1:
         raise ValueError("unexpected original shutdown implementation")
-    replacement = anchor + "\n# Actor teardown includes native environment close, trace archiving, sender\n# drain and background-worker joins. Its internal sender and worker grace\n# periods are each 10 s, so the launcher's bound must exceed their sum.\n_ACTOR_SHUTDOWN_GRACE_S = 60.0\n"
-    expected = original.replace(anchor, replacement).replace(prior, "_join_during_shutdown(processes.actor, timeout=_ACTOR_SHUTDOWN_GRACE_S)")
+    replacement = (
+        anchor
+        + "\n# Actor teardown includes native environment close, trace archiving, sender\n# drain and background-worker joins. Its internal sender and worker grace\n# periods are each 10 s, so the launcher's bound must exceed their sum.\n_ACTOR_SHUTDOWN_GRACE_S = 60.0\n"
+    )
+    expected = original.replace(anchor, replacement).replace(
+        prior, "_join_during_shutdown(processes.actor, timeout=_ACTOR_SHUTDOWN_GRACE_S)"
+    )
     if expected != updated:
         raise ValueError("training.py contains more than the pinned shutdown change")
 
@@ -96,7 +127,11 @@ def compare_maps(old: dict[str, str], new: dict[str, str]) -> list[dict]:
         if path == TRAINING:
             if (before, after) != (OLD_TRAINING, NEW_TRAINING):
                 raise ValueError("unrecognized training source transition")
-        elif path not in ALLOWED_TOOL_HASHES or before not in ALLOWED_TOOL_HASHES[path] or after != TARGET_TOOL_HASHES[path]:
+        elif (
+            path not in ALLOWED_TOOL_HASHES
+            or before not in ALLOWED_TOOL_HASHES[path]
+            or after != TARGET_TOOL_HASHES[path]
+        ):
             raise ValueError(f"unrecognized source change: {path}")
         changes.append({"path": path, "before_sha256": before, "after_sha256": after})
     return changes
@@ -108,6 +143,11 @@ def compare(old: Path, new: Path) -> dict:
     changes = compare_maps(old_files, new_files)
     if old_files.get(TRAINING) != new_files.get(TRAINING):
         verify_training_change(old / TRAINING, new / TRAINING)
-    return {"old_deployment": str(old.resolve()), "new_deployment": str(new.resolve()),
-            "old_manifest_sha256": old_manifest, "new_manifest_sha256": new_manifest,
-            "changes": changes, "limitation": "The timeout change is documented, not proof of identical runtime behavior."}
+    return {
+        "old_deployment": str(old.resolve()),
+        "new_deployment": str(new.resolve()),
+        "old_manifest_sha256": old_manifest,
+        "new_manifest_sha256": new_manifest,
+        "changes": changes,
+        "limitation": "The timeout change is documented, not proof of identical runtime behavior.",
+    }

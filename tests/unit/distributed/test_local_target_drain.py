@@ -14,9 +14,15 @@ def _coordinator(stop: ProcessStopSignal) -> SimpleNamespace:
         _evaluation_stop_reason=None,
         counters=SimpleNamespace(transitions=100, update_credit=0.0, journal_applied_frontier=0),
         run=SimpleNamespace(
-            spec=SimpleNamespace(training=SimpleNamespace(total_transitions=100, batch_size=1,
-                                                           sequence_length=1, n_step=1,
-                                                           warmup_transitions=1)),
+            spec=SimpleNamespace(
+                training=SimpleNamespace(
+                    total_transitions=100,
+                    batch_size=1,
+                    sequence_length=1,
+                    n_step=1,
+                    warmup_transitions=1,
+                )
+            ),
             replay_store=[],
         ),
         journal=SimpleNamespace(has_rows_after=lambda _: False),

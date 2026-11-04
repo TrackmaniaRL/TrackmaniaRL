@@ -372,7 +372,10 @@ def prepare(
     base = config.parent
     run_dir = (base / spec.artifacts_dir / spec.run_id).resolve(strict=True)
     checkpoint_dir = (
-        base / (getattr(spec, "checkpoint_root", None) or spec.artifacts_dir) / spec.run_id / "checkpoints"
+        base
+        / (getattr(spec, "checkpoint_root", None) or spec.artifacts_dir)
+        / spec.run_id
+        / "checkpoints"
     ).resolve(strict=True)
     if destination.resolve().is_relative_to(run_dir) or run_dir.is_relative_to(
         destination.resolve()
@@ -435,7 +438,10 @@ def prepare(
         cloned, destination, copied_checkpoint, state, fingerprint, target_journal, frontier
     )
     if stage == "training" and proof["transitions_after_wal"] >= spec.training.total_transitions:
-        if on_policy or proof["transitions_after_wal"] > spec.training.total_transitions + max_overshoot:
+        if (
+            on_policy
+            or proof["transitions_after_wal"] > spec.training.total_transitions + max_overshoot
+        ):
             raise ValueError("recovered WAL exceeds the accepted budget")
         stage = "wal_finalization"
     if stage == "evaluation" and not on_policy:
@@ -486,6 +492,7 @@ def finish_replayed_coordinator(coordinator, target: int, max_overshoot: int) ->
     This path performs no collection and does not grant an update-credit exemption.
     """
     import math
+
     from trackmaniarl.distributed.coordinator_learning import _minimum_replay_size
 
     counters = coordinator.counters
@@ -494,7 +501,12 @@ def finish_replayed_coordinator(coordinator, target: int, max_overshoot: int) ->
     if coordinator.journal.has_rows_after(counters.journal_applied_frontier):
         raise ValueError("journal replay left pending rows")
     credit = counters.update_credit
-    if isinstance(credit, bool) or not isinstance(credit, (int, float)) or not math.isfinite(credit) or credit < 0:
+    if (
+        isinstance(credit, bool)
+        or not isinstance(credit, (int, float))
+        or not math.isfinite(credit)
+        or credit < 0
+    ):
         raise ValueError("invalid replayed update credit")
     if credit >= 1 and len(coordinator.run.replay_store) < _minimum_replay_size(coordinator):
         raise ValueError("insufficient replay to drain update credit")
@@ -505,7 +517,12 @@ def finish_replayed_coordinator(coordinator, target: int, max_overshoot: int) ->
     if coordinator._external_stop_requested():
         raise ValueError("offline finalization stopped")
     coordinator._learn()
-    if coordinator._external_stop_requested() or counters.transitions < target or counters.update_credit >= 1 or coordinator.journal.has_rows_after(counters.journal_applied_frontier):
+    if (
+        coordinator._external_stop_requested()
+        or counters.transitions < target
+        or counters.update_credit >= 1
+        or coordinator.journal.has_rows_after(counters.journal_applied_frontier)
+    ):
         raise ValueError("replayed budget finalization did not drain updates and journal")
     checkpoint = coordinator._checkpoint()
     coordinator._checkpoint_writer.wait()
@@ -514,23 +531,35 @@ def finish_replayed_coordinator(coordinator, target: int, max_overshoot: int) ->
     return checkpoint
 
 
-def finalize_replayed_budget(spec, base: Path, checkpoint: Path, fingerprint: str, report: dict, max_overshoot: int, stop: Path, original_stop: Path) -> Path:
+def finalize_replayed_budget(
+    spec,
+    base: Path,
+    checkpoint: Path,
+    fingerprint: str,
+    report: dict,
+    max_overshoot: int,
+    stop: Path,
+    original_stop: Path,
+) -> Path:
     """Restore the prepared private copy and finalize replayed budget offline."""
+    from tools.headless_campaign_queue.verify_artifacts import validate_drained_journal
     from trackmaniarl.core.builtins import TorchCheckpointCodec
     from trackmaniarl.core.fingerprint import run_fingerprint
     from trackmaniarl.core.runtime import resolve_run
     from trackmaniarl.distributed.coordinator import Coordinator
     from trackmaniarl.distributed.coordinator_types import CoordinatorConfig, ReplayRestoreMode
-    from tools.headless_campaign_queue.verify_artifacts import validate_drained_journal
 
     if report.get("stage") != "wal_finalization" or run_fingerprint(spec, base) != fingerprint:
         raise ValueError("replayed finalization provenance mismatch")
     source_hash = sha(checkpoint)
     journal = base / "artifacts" / spec.run_id / "distributed" / "rollouts.sqlite3"
-    if (source_hash != report.get("source_checkpoint_sha256") or
-            sha(Path(report["recovery_config"])) != report.get("recovery_config_sha256") or
-            journal.is_symlink() or not journal.is_file() or
-            sha(journal) != report.get("journal", {}).get("snapshot_sha256")):
+    if (
+        source_hash != report.get("source_checkpoint_sha256")
+        or sha(Path(report["recovery_config"])) != report.get("recovery_config_sha256")
+        or journal.is_symlink()
+        or not journal.is_file()
+        or sha(journal) != report.get("journal", {}).get("snapshot_sha256")
+    ):
         raise ValueError("prepared recovery inputs changed after the restore audit")
     # Keep the cloned starting checkpoint even if the final update number is unchanged.
     preserved = checkpoint.with_name("source-" + checkpoint.name)
@@ -546,29 +575,50 @@ def finalize_replayed_budget(spec, base: Path, checkpoint: Path, fingerprint: st
     run = resolve_run(offline_spec, base_dir=base)
     coordinator = None
     try:
+
         class FileStop:
             def is_set(self):
                 return stop.exists() or original_stop.exists()
 
-        coordinator = Coordinator(run, CoordinatorConfig(
-            bind="127.0.0.1:0", token="offline-recovery-audit-token-123456789",
-            fingerprint=fingerprint, resume_checkpoint=checkpoint, restore_mode=ReplayRestoreMode.FULL,
-            external_stop=FileStop(),
-        ))
+        coordinator = Coordinator(
+            run,
+            CoordinatorConfig(
+                bind="127.0.0.1:0",
+                token="offline-recovery-audit-token-123456789",
+                fingerprint=fingerprint,
+                resume_checkpoint=checkpoint,
+                restore_mode=ReplayRestoreMode.FULL,
+                external_stop=FileStop(),
+            ),
+        )
         coordinator._prepare_training()
         coordinator.restore_checkpoint(checkpoint, ReplayRestoreMode.FULL)
         expected = report["offline_restore_proof"]
-        if (coordinator.counters.transitions != expected["transitions_after_wal"] or
-                coordinator.counters.journal_applied_frontier != expected["journal_frontier_after_wal"]):
+        if (
+            coordinator.counters.transitions != expected["transitions_after_wal"]
+            or coordinator.counters.journal_applied_frontier
+            != expected["journal_frontier_after_wal"]
+        ):
             raise ValueError("replayed state differs from independent restore proof")
-        final = finish_replayed_coordinator(coordinator, spec.training.total_transitions, max_overshoot)
+        final = finish_replayed_coordinator(
+            coordinator, spec.training.total_transitions, max_overshoot
+        )
         final_state = TorchCheckpointCodec().load(final)
-        validate_state(final_state, fingerprint, spec.training.total_transitions, False,
-                       stage="evaluation", max_overshoot=max_overshoot)
+        validate_state(
+            final_state,
+            fingerprint,
+            spec.training.total_transitions,
+            False,
+            stage="evaluation",
+            max_overshoot=max_overshoot,
+        )
         validate_drained_journal(run.run_dir, final_state)
-        report.update(checkpoint=str(final), preserved_checkpoint=str(preserved),
-                      preserved_checkpoint_sha256=source_hash,
-                      status="training_verified_evaluation_pending")
+        report.update(
+            checkpoint=str(final),
+            preserved_checkpoint=str(preserved),
+            preserved_checkpoint_sha256=source_hash,
+            status="training_verified_evaluation_pending",
+        )
         atomic_json(base / "recovery.json", report)
         return final
     finally:

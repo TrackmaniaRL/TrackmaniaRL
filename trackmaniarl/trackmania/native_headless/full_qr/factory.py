@@ -179,9 +179,13 @@ class FullQrEnvironmentFactory:
             self._driver_episode_limit,
             self._episode_reserve,
         )
-        trajectory = (geometry.reward_center if self._reward_reference is None else
-                      load_reward_reference(self._reward_reference, map_uid=geometry.map_uid,
-                                            map_sha256=geometry.map_sha256))
+        trajectory = (
+            geometry.reward_center
+            if self._reward_reference is None
+            else load_reward_reference(
+                self._reward_reference, map_uid=geometry.map_uid, map_sha256=geometry.map_sha256
+            )
+        )
         environment_settings = FullQrEnvironmentSettings(trajectory, self._reward, lease)
         events = self._source_class(**self._source_kwargs)
         provider = None

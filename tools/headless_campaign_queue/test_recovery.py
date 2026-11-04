@@ -7,26 +7,41 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from tools.headless_campaign_queue.recovery import (
+    evaluate_copy,
     inspect_journal,
     reject_pending_spool,
     snapshot_journal,
     validate_state,
-    evaluate_copy,
 )
 
 
 class RecoveryTests(unittest.TestCase):
     def test_cli_blocks_normal_resume_when_replayed_wal_reaches_budget(self):
         from tools.headless_campaign_queue import recovery
+
         with tempfile.TemporaryDirectory() as temp:
             home = Path(temp)
-            args = ["recovery", "--config", str(home / "run.yaml"), "--config-sha256", "x",
-                    "--checkpoint", str(home / "model.pt"), "--destination", str(home / "out"),
-                    "--stage", "training", "--execute"]
-            with patch("sys.argv", args), patch.object(Path, "home", return_value=home), \
-                 patch.object(recovery, "reject_live_competitors"), \
-                 patch.object(recovery, "prepare", return_value={"stage": "wal_finalization"}), \
-                 patch.object(recovery.subprocess, "Popen") as popen:
+            args = [
+                "recovery",
+                "--config",
+                str(home / "run.yaml"),
+                "--config-sha256",
+                "x",
+                "--checkpoint",
+                str(home / "model.pt"),
+                "--destination",
+                str(home / "out"),
+                "--stage",
+                "training",
+                "--execute",
+            ]
+            with (
+                patch("sys.argv", args),
+                patch.object(Path, "home", return_value=home),
+                patch.object(recovery, "reject_live_competitors"),
+                patch.object(recovery, "prepare", return_value={"stage": "wal_finalization"}),
+                patch.object(recovery.subprocess, "Popen") as popen,
+            ):
                 self.assertEqual(recovery.main(), 2)
                 popen.assert_not_called()
             self.assertFalse((home / ".trackmaniarl-headless-campaign.lock").exists())
@@ -37,7 +52,9 @@ class RecoveryTests(unittest.TestCase):
             checkpoint = base / "checkpoint.pt"
             checkpoint.write_bytes(b"checkpoint")
             evaluation = SimpleNamespace(maps=[object()], trials_per_map=30)
-            spec = SimpleNamespace(run_id="run", artifacts_dir=Path("artifacts"), evaluation=evaluation)
+            spec = SimpleNamespace(
+                run_id="run", artifacts_dir=Path("artifacts"), evaluation=evaluation
+            )
             spec.model_copy = lambda update: SimpleNamespace(**{**spec.__dict__, **update})
             expected = base / "artifacts" / "run-recovery-evaluation"
             run = SimpleNamespace(run_dir=expected, logger=Mock())
@@ -46,11 +63,15 @@ class RecoveryTests(unittest.TestCase):
                 expected.mkdir(parents=True)
                 return run
 
-            with patch("trackmaniarl.core.runtime.resolve_run", side_effect=resolve), patch(
-                "trackmaniarl.commands.evaluation._configure_evaluation_stop", side_effect=RuntimeError("reached evaluator")
+            with (
+                patch("trackmaniarl.core.runtime.resolve_run", side_effect=resolve),
+                patch(
+                    "trackmaniarl.commands.evaluation._configure_evaluation_stop",
+                    side_effect=RuntimeError("reached evaluator"),
+                ),
+                self.assertRaisesRegex(RuntimeError, "reached evaluator"),
             ):
-                with self.assertRaisesRegex(RuntimeError, "reached evaluator"):
-                    evaluate_copy(spec, base, checkpoint, base / "STOP", {})
+                evaluate_copy(spec, base, checkpoint, base / "STOP", {})
             run.logger.close.assert_called_once()
             with patch("trackmaniarl.core.runtime.resolve_run") as resolver:
                 with self.assertRaisesRegex(ValueError, "fresh"):

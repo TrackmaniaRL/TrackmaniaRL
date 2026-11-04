@@ -1,18 +1,24 @@
 """Experimental single-job wrapper. Never launch without native qualification."""
+
 from __future__ import annotations
 
 import argparse
 import hashlib
 import os
-from pathlib import Path
 import subprocess
 import sys
 import threading
 from contextlib import contextmanager
+from pathlib import Path
 
 from tools.headless_campaign_queue.__main__ import atomic_json
 from tools.headless_campaign_queue.disk_guard import check_disk_space
-from tools.headless_campaign_queue.verify_artifacts import final_checkpoint, validate_checkpoint, validate_drained_journal, validate_evaluation
+from tools.headless_campaign_queue.verify_artifacts import (
+    final_checkpoint,
+    validate_checkpoint,
+    validate_drained_journal,
+    validate_evaluation,
+)
 
 
 @contextmanager
@@ -52,9 +58,25 @@ def file_sha(path: Path) -> str:
     return digest.hexdigest()
 
 
-def execute(config: Path, receipt: Path, budget: int, stop: Path, *, max_overshoot: int, qualification_trials: int | None = None, expected_config_sha: str | None = None, expected_fingerprint: str | None = None) -> None:
+def execute(
+    config: Path,
+    receipt: Path,
+    budget: int,
+    stop: Path,
+    *,
+    max_overshoot: int,
+    qualification_trials: int | None = None,
+    expected_config_sha: str | None = None,
+    expected_fingerprint: str | None = None,
+) -> None:
     # Imports are deferred so merely inspecting the wrapper starts no environment.
-    from trackmaniarl.commands.evaluation import _BenchmarkArtifact, _configure_evaluation_stop, _evaluate_checkpoint, _has_runtime_errors, _validate_benchmark_artifact
+    from trackmaniarl.commands.evaluation import (
+        _BenchmarkArtifact,
+        _configure_evaluation_stop,
+        _evaluate_checkpoint,
+        _has_runtime_errors,
+        _validate_benchmark_artifact,
+    )
     from trackmaniarl.core.builtins import TorchCheckpointCodec
     from trackmaniarl.core.fingerprint import run_fingerprint
     from trackmaniarl.core.runtime import import_symbol, resolve_run
@@ -77,19 +99,32 @@ def execute(config: Path, receipt: Path, budget: int, stop: Path, *, max_oversho
     check_disk_space(spec, config.parent)
     if spec.training.total_transitions != budget or budget <= 0:
         raise ValueError("configuration budget mismatch")
-    if type(max_overshoot) is not int or max_overshoot < 0 or not spec.training.save_final_checkpoint:
+    if (
+        type(max_overshoot) is not int
+        or max_overshoot < 0
+        or not spec.training.save_final_checkpoint
+    ):
         raise ValueError("explicit nonnegative acceptance limit and final checkpoint required")
     evaluation = spec.evaluation
     expected_trials = 30 if qualification_trials is None else qualification_trials
     if type(expected_trials) is not int or not 1 <= expected_trials <= 30:
         raise ValueError("qualification trials must be between 1 and 30")
-    if evaluation is None or len(evaluation.maps) != 1 or evaluation.trials_per_map != expected_trials:
+    if (
+        evaluation is None
+        or len(evaluation.maps) != 1
+        or evaluation.trials_per_map != expected_trials
+    ):
         raise ValueError("evaluation map or trial count mismatch")
     if budget not in spec.training.checkpoint_milestones:
         raise ValueError("final milestone is not configured")
     base = config.parent
     run_dir = (base / spec.artifacts_dir / spec.run_id).resolve()
-    checkpoint_root = (base / (getattr(spec, "checkpoint_root", None) or spec.artifacts_dir) / spec.run_id / "checkpoints").resolve()
+    checkpoint_root = (
+        base
+        / (getattr(spec, "checkpoint_root", None) or spec.artifacts_dir)
+        / spec.run_id
+        / "checkpoints"
+    ).resolve()
     evaluation_id = f"{spec.run_id}-final-evaluation"
     evaluation_dir = (base / spec.artifacts_dir / evaluation_id).resolve()
     if run_dir.exists() or checkpoint_root.exists() or evaluation_dir.exists():
@@ -98,7 +133,9 @@ def execute(config: Path, receipt: Path, budget: int, stop: Path, *, max_oversho
     if expected_fingerprint is not None and expected_fingerprint != fingerprint:
         raise ValueError("source or configuration changed since campaign preflight")
     with monitor_disk(spec, base, stop):
-        code = subprocess.call([sys.executable, "-m", "trackmaniarl", "train", str(config), "--stop-file", str(stop)])
+        code = subprocess.call(
+            [sys.executable, "-m", "trackmaniarl", "train", str(config), "--stop-file", str(stop)]
+        )
     if code != 0 or stop.exists():
         raise RuntimeError("training interrupted or failed")
     if file_sha(config) != original_config_sha or run_fingerprint(spec, base) != fingerprint:
@@ -108,7 +145,9 @@ def execute(config: Path, receipt: Path, budget: int, stop: Path, *, max_oversho
         raise ValueError("off-policy campaign requires strict update budget")
     checkpoint, logged_update = final_checkpoint(run_dir, checkpoint_root, on_policy=on_policy)
     state = TorchCheckpointCodec().load(checkpoint)
-    actual = validate_checkpoint(state, fingerprint, budget, on_policy=on_policy, max_overshoot=max_overshoot)
+    actual = validate_checkpoint(
+        state, fingerprint, budget, on_policy=on_policy, max_overshoot=max_overshoot
+    )
     counters = state["counters" if on_policy else "distributed"]
     if counters["updates"] != logged_update:
         raise ValueError("final checkpoint update counter differs from completion log")
@@ -122,23 +161,52 @@ def execute(config: Path, receipt: Path, budget: int, stop: Path, *, max_oversho
         _configure_evaluation_stop(run, stop)
         with monitor_disk(spec, base, stop):
             trials, _, evaluated_checkpoint = _evaluate_checkpoint(run, checkpoint)
-        _validate_benchmark_artifact(_BenchmarkArtifact(trials, evaluated_checkpoint, evaluation, checkpoint))
+        _validate_benchmark_artifact(
+            _BenchmarkArtifact(trials, evaluated_checkpoint, evaluation, checkpoint)
+        )
         if _has_runtime_errors(trials):
             raise RuntimeError("final evaluation had runtime errors")
     finally:
         run.logger.close()
-    if stop.exists() or file_sha(config) != original_config_sha or run_fingerprint(spec, base) != fingerprint or file_sha(checkpoint) != checkpoint_sha:
-        raise RuntimeError("stop requested or source/configuration/checkpoint changed during evaluation")
+    if (
+        stop.exists()
+        or file_sha(config) != original_config_sha
+        or run_fingerprint(spec, base) != fingerprint
+        or file_sha(checkpoint) != checkpoint_sha
+    ):
+        raise RuntimeError(
+            "stop requested or source/configuration/checkpoint changed during evaluation"
+        )
     # Check exact identities again against the serialized artifact, not the gate.
     import json
+
     artifact_path = evaluation_dir / "evaluation.json"
     artifact = json.loads(artifact_path.read_text(encoding="utf-8"))
-    validate_evaluation(artifact, checkpoint, evaluation.maps[0].id, evaluation.maps[0].expected_map_uid, expected_trials)
-    atomic_json(receipt, {"job_id": job_id, "status": "completed", "requested_transitions": budget, "transitions": actual, "max_overshoot": max_overshoot,
-                          "checkpoint": str(checkpoint), "checkpoint_sha256": checkpoint_sha,
-                          "evaluation": str(artifact_path), "evaluation_sha256": file_sha(artifact_path),
-                          "run_fingerprint": fingerprint, "manifest_sha256": manifest,
-                          "process_pid": os.getpid(), "qualification_only": qualification_trials is not None})
+    validate_evaluation(
+        artifact,
+        checkpoint,
+        evaluation.maps[0].id,
+        evaluation.maps[0].expected_map_uid,
+        expected_trials,
+    )
+    atomic_json(
+        receipt,
+        {
+            "job_id": job_id,
+            "status": "completed",
+            "requested_transitions": budget,
+            "transitions": actual,
+            "max_overshoot": max_overshoot,
+            "checkpoint": str(checkpoint),
+            "checkpoint_sha256": checkpoint_sha,
+            "evaluation": str(artifact_path),
+            "evaluation_sha256": file_sha(artifact_path),
+            "run_fingerprint": fingerprint,
+            "manifest_sha256": manifest,
+            "process_pid": os.getpid(),
+            "qualification_only": qualification_trials is not None,
+        },
+    )
 
 
 def main() -> int:
@@ -150,10 +218,23 @@ def main() -> int:
     parser.add_argument("--stop-file", type=Path, required=True)
     parser.add_argument("--config-sha256")
     parser.add_argument("--run-fingerprint")
-    parser.add_argument("--qualification-trials", type=int, help="explicit qualification-only trial count; cannot satisfy the campaign queue")
+    parser.add_argument(
+        "--qualification-trials",
+        type=int,
+        help="explicit qualification-only trial count; cannot satisfy the campaign queue",
+    )
     args = parser.parse_args()
     try:
-        execute(args.config, args.receipt, args.budget, args.stop_file, max_overshoot=args.max_overshoot, qualification_trials=args.qualification_trials, expected_config_sha=args.config_sha256, expected_fingerprint=args.run_fingerprint)
+        execute(
+            args.config,
+            args.receipt,
+            args.budget,
+            args.stop_file,
+            max_overshoot=args.max_overshoot,
+            qualification_trials=args.qualification_trials,
+            expected_config_sha=args.config_sha256,
+            expected_fingerprint=args.run_fingerprint,
+        )
         return 0
     except (Exception, KeyboardInterrupt) as exc:
         print(f"Job failed: {type(exc).__name__}: {exc}", file=sys.stderr)

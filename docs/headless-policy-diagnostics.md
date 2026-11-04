@@ -49,7 +49,7 @@ not verify provenance or produce scores from models. Preserve the input, output,
 collection script, fingerprints and configuration for reproducibility.
 
 The prior isolated IQN investigation produced aligned tensors using
-`/home/kuba/tmrl-iqn-causal-debug-20261102-001/grid_probe.py`: its `build_run`
+a locally retained `grid_probe.py`: its `build_run`
 constructs a CPU learner and loads each checkpoint's learner state, while
 `grid_values` evaluates expected action values on the same `replay-probe.pt`
 observations. It writes `grid-values-<checkpoint>.pt` dictionaries. Its paths,

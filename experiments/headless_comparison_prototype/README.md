@@ -47,8 +47,8 @@ na tym komputerze (wybierz **nowe** katalogi docelowe):
 ```bash
 python -m experiments.headless_comparison_prototype.prepare \
   --source "$PWD" \
-  --native-template /home/kuba/tmrl-full-qr-20261022-011/worker-scaling698/a3-seed17/qr.yaml \
-  --destination /home/kuba/nowy-headless-comparison \
+  --native-template PATH_TO_NATIVE_TEMPLATE/qr.yaml \
+  --destination PATH_TO_NEW_COMPARISON \
   --artifacts /mnt/c/Users/szulc/nowy-headless-comparison/artifacts
 ```
 

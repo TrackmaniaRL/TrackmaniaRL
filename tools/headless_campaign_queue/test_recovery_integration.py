@@ -4,15 +4,20 @@ import shutil
 import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
+
 import pytest
 
+from tests.integration.runtime.distributed_runtime_support import _resolved_run
 from tests.integration.runtime.test_distributed_wal import (
     _append_journal_transitions,
     _close,
     _coordinator,
 )
-from tools.headless_campaign_queue.recovery import finish_replayed_coordinator, inspect_journal, snapshot_journal
-from tests.integration.runtime.distributed_runtime_support import _resolved_run
+from tools.headless_campaign_queue.recovery import (
+    finish_replayed_coordinator,
+    inspect_journal,
+    snapshot_journal,
+)
 from trackmaniarl.distributed.coordinator import Coordinator
 from trackmaniarl.distributed.coordinator_types import CoordinatorConfig
 
@@ -49,14 +54,26 @@ def test_isolated_full_restore_replays_wal_tail_once(tmp_path: Path) -> None:
     assert inspect_journal(journal, journal_id, 1)["pending_ids"] == [2]
 
 
-def test_replayed_budget_drains_credit_and_saves_full_checkpoint_without_touching_source(tmp_path: Path) -> None:
+def test_replayed_budget_drains_credit_and_saves_full_checkpoint_without_touching_source(
+    tmp_path: Path,
+) -> None:
     def make_coordinator(root):
-        run = _resolved_run(root, "wal-final", {
-            "total_transitions": 2, "warmup_transitions": 0,
-            "batch_size": 1, "sequence_length": 1, "n_step": 1,
-            "checkpoint_interval_updates": None,
-        })
-        return Coordinator(run, CoordinatorConfig("127.0.0.1:0", "test-token-123456789012345678901234", "fingerprint"))
+        run = _resolved_run(
+            root,
+            "wal-final",
+            {
+                "total_transitions": 2,
+                "warmup_transitions": 0,
+                "batch_size": 1,
+                "sequence_length": 1,
+                "n_step": 1,
+                "checkpoint_interval_updates": None,
+            },
+        )
+        return Coordinator(
+            run,
+            CoordinatorConfig("127.0.0.1:0", "test-token-123456789012345678901234", "fingerprint"),
+        )
 
     original = make_coordinator(tmp_path / "original")
     try:

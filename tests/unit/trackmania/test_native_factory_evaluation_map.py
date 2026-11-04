@@ -39,8 +39,12 @@ def factory_and_map(tmp_path, monkeypatch):
     instance._create_pipeline = Mock(return_value=object())
     instance._create_provider = Mock(return_value=object())
     instance._create_environment = Mock(return_value="environment")
-    monkeypatch.setattr(factory_module, "verify_bound_assets", lambda *_: SimpleNamespace(paths={"map": map_path}))
-    spec = EvaluationMapSpec(id="map", map_path=map_path, geometry_path=geometry, expected_map_uid="trackmaniarl-test")
+    monkeypatch.setattr(
+        factory_module, "verify_bound_assets", lambda *_: SimpleNamespace(paths={"map": map_path})
+    )
+    spec = EvaluationMapSpec(
+        id="map", map_path=map_path, geometry_path=geometry, expected_map_uid="trackmaniarl-test"
+    )
     return instance, spec
 
 
@@ -66,7 +70,9 @@ def test_rejects_wrong_map_binding_before_provider(factory_and_map, tmp_path, fi
 
 def test_rejects_evaluation_with_only_reward_points(factory_and_map, tmp_path):
     factory, _ = factory_and_map
-    spec = EvaluationMapSpec(id="map", reward_points_path=tmp_path / "points", expected_map_uid="trackmaniarl-test")
+    spec = EvaluationMapSpec(
+        id="map", reward_points_path=tmp_path / "points", expected_map_uid="trackmaniarl-test"
+    )
     with pytest.raises(ValueError, match="pinned map and geometry"):
         factory.create(seed=17, evaluation_map=spec)
     factory._create_provider.assert_not_called()
@@ -76,7 +82,9 @@ def test_rejects_runtime_map_that_differs_from_evaluation(factory_and_map, tmp_p
     factory, spec = factory_and_map
     different = tmp_path / "runtime-map"
     different.write_bytes(b"different runtime map")
-    monkeypatch.setattr(factory_module, "verify_bound_assets", lambda *_: SimpleNamespace(paths={"map": different}))
+    monkeypatch.setattr(
+        factory_module, "verify_bound_assets", lambda *_: SimpleNamespace(paths={"map": different})
+    )
     with pytest.raises(ValueError, match="checksum"):
         factory.create(seed=17, evaluation_map=spec)
     factory._create_provider.assert_not_called()
