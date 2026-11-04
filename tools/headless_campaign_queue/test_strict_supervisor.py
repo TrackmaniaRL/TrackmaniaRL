@@ -76,6 +76,32 @@ def test_valid_unsuccessful_trial_is_not_discarded(tmp_path):
     assert supervisor.verify_completion(job, 'manifest', 42, codec=FakeCodec(state))['accepted_transitions'] == 101
 
 
+def test_recovered_completion_rechecks_full_evidence(tmp_path, monkeypatch):
+    job, receipt, state, evaluation = make_fixture(tmp_path)
+    state['learner'] = {'optimizer': {}, 'rng': {'python': 1, 'numpy': 2, 'torch': 3}}
+    config, clone = tmp_path / 'source.yaml', tmp_path / 'recovery.yaml'
+    config.write_text('source'); clone.write_text('clone')
+    job['config_sha256'] = sha(config)
+    checkpoint = Path(receipt['checkpoint'])
+    original = tmp_path / 'original.pt'; original.write_bytes(checkpoint.read_bytes())
+    report = {'kind': 'isolated-full-recovery-v1', 'status': 'evaluation_verified_queue_pending',
+              'fingerprint': job['run_fingerprint'], 'config_sha256': sha(config),
+              'offline_restore_proof': {'status': 'PASS'}, 'on_policy': False,
+              'config': str(config), 'recovery_config': str(clone), 'recovery_config_sha256': sha(clone),
+              'source_checkpoint': str(original), 'checkpoint': str(checkpoint),
+              'source_checkpoint_sha256': sha(checkpoint), 'checkpoint_sha256': sha(checkpoint),
+              'evaluation': str(evaluation), 'evaluation_sha256': sha(evaluation)}
+    path = tmp_path / 'recovery.json'; path.write_text(json.dumps(report))
+    monkeypatch.setattr('tools.headless_campaign_queue.verify_artifacts.validate_drained_journal', lambda *args: None)
+    monkeypatch.setattr('trackmaniarl.core.spec.RunSpec.from_yaml', lambda *args: object())
+    monkeypatch.setattr('trackmaniarl.core.fingerprint.run_fingerprint', lambda *args: job['run_fingerprint'])
+    result = supervisor.verify_recovered_completion(job, path, codec=FakeCodec(state))
+    assert result['accepted_transitions'] == 101
+    original.write_bytes(b'tampered')
+    with pytest.raises(ValueError, match='hash mismatch'):
+        supervisor.verify_recovered_completion(job, path, codec=FakeCodec(state))
+
+
 def test_group_audit_retries_then_passes(monkeypatch):
     attempts = []
     def check(group):

@@ -55,6 +55,14 @@ def verify_completion(job: dict, digest: str, pid: int, *, codec=None) -> dict:
         raise ValueError('receipt and checkpoint transition counters differ')
     evaluation = json.loads(Path(receipt['evaluation']).read_text(encoding='utf-8'))
     validate_evaluation(evaluation, Path(receipt['checkpoint']), job['map_id'], job['map_uid'], 30)
+    verify_trial_outcomes(evaluation)
+    if evaluation.get('checkpoint_sha256') != receipt['checkpoint_sha256']:
+        raise ValueError('evaluation checkpoint hash mismatch')
+    return evidence
+
+
+def verify_trial_outcomes(evaluation: dict) -> None:
+    """Validate completed observations, allowing valid unsuccessful attempts."""
     if evaluation.get('status') != 'complete' or evaluation.get('expected_trials') != 30:
         raise ValueError('evaluation suite is incomplete')
     for trial in evaluation['trials']:
@@ -75,13 +83,65 @@ def verify_completion(job: dict, digest: str, pid: int, *, codec=None) -> dict:
             raise ValueError('finished evaluation trial has invalid finish time or reason')
         if not finished and reason == 'finished':
             raise ValueError('unfinished evaluation trial has finished reason')
-    if evaluation.get('checkpoint_sha256') != receipt['checkpoint_sha256']:
-        raise ValueError('evaluation checkpoint hash mismatch')
     if any('telemetry_error' not in trial or 'controller_error' not in trial or
            trial['telemetry_error'] is not None or trial['controller_error'] is not None
            for trial in evaluation['trials']):
         raise ValueError('evaluation runtime errors or missing error fields')
-    return evidence
+
+
+def verify_recovered_completion(job: dict, report_path: Path, *, codec=None) -> dict:
+    """Audit an isolated recovery result without editing source or admitting a job.
+
+    Call from the deployment matching job's fingerprint. This alone does not
+    acquire a lock, resume a queue, or establish trust in the producing process.
+    """
+    from tools.headless_campaign_queue.recovery import sha, validate_state
+    from tools.headless_campaign_queue.verify_artifacts import validate_drained_journal
+
+    report = json.loads(report_path.read_text(encoding='utf-8'))
+    if (report.get('kind') != 'isolated-full-recovery-v1'
+        or report.get('status') != 'evaluation_verified_queue_pending'
+        or report.get('fingerprint') != job['run_fingerprint']
+        or report.get('config_sha256') != job['config_sha256']
+        or report.get('offline_restore_proof', {}).get('status') != 'PASS'
+        or report.get('on_policy') is not job['on_policy']):
+        raise ValueError('recovery report does not match qualified job')
+    source_config = Path(report['config'])
+    clone_config = Path(report['recovery_config'])
+    checkpoint = Path(report['checkpoint'])
+    source_checkpoint = Path(report['source_checkpoint'])
+    evaluation_path = Path(report['evaluation'])
+    for path in (report_path, source_config, clone_config, checkpoint, source_checkpoint, evaluation_path):
+        if not path.is_absolute() or path.is_symlink() or not path.is_file():
+            raise ValueError('unsafe recovery evidence path')
+    checkpoint_sha = sha(checkpoint)
+    if (sha(source_config) != job['config_sha256']
+        or sha(clone_config) != report.get('recovery_config_sha256')
+        or sha(source_checkpoint) != checkpoint_sha
+        or checkpoint_sha != report.get('checkpoint_sha256')
+        or checkpoint_sha != report.get('source_checkpoint_sha256')
+        or sha(evaluation_path) != report.get('evaluation_sha256')):
+        raise ValueError('recovery evidence hash mismatch')
+    from trackmaniarl.core.fingerprint import run_fingerprint
+    from trackmaniarl.core.spec import RunSpec
+    if (run_fingerprint(RunSpec.from_yaml(source_config), source_config.parent) != job['run_fingerprint']
+        or run_fingerprint(RunSpec.from_yaml(clone_config), clone_config.parent) != job['run_fingerprint']):
+        raise ValueError('recovery source or runtime fingerprint mismatch')
+    if codec is None:
+        from trackmaniarl.core.builtins import TorchCheckpointCodec
+        codec = TorchCheckpointCodec()
+    state = codec.load(checkpoint)
+    counters = validate_state(state, job['run_fingerprint'], job['transitions'], job['on_policy'],
+                              stage='evaluation', max_overshoot=job['max_overshoot'])
+    if not job['on_policy']:
+        validate_drained_journal(checkpoint.parent.parent, state)
+    evaluation = json.loads(evaluation_path.read_text(encoding='utf-8'))
+    validate_evaluation(evaluation, checkpoint, job['map_id'], job['map_uid'], 30)
+    verify_trial_outcomes(evaluation)
+    if evaluation.get('checkpoint_sha256') != checkpoint_sha:
+        raise ValueError('evaluation checkpoint hash mismatch')
+    return {'report_sha256': sha(report_path), 'checkpoint_sha256': checkpoint_sha,
+            'evaluation_sha256': sha(evaluation_path), 'accepted_transitions': counters['transitions']}
 
 
 def run(plan: dict, digest: str, output: Path, global_lock: Path) -> int:
