@@ -1,6 +1,8 @@
 import hashlib
 import json
+from contextlib import nullcontext
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -85,6 +87,7 @@ def test_recovered_completion_rechecks_full_evidence(tmp_path, monkeypatch):
     checkpoint = Path(receipt['checkpoint'])
     original = tmp_path / 'original.pt'; original.write_bytes(checkpoint.read_bytes())
     report = {'kind': 'isolated-full-recovery-v1', 'status': 'evaluation_verified_queue_pending',
+              'stage': 'evaluation',
               'fingerprint': job['run_fingerprint'], 'config_sha256': sha(config),
               'offline_restore_proof': {'status': 'PASS'}, 'on_policy': False,
               'config': str(config), 'recovery_config': str(clone), 'recovery_config_sha256': sha(clone),
@@ -161,6 +164,93 @@ def test_verified_job_allows_next_and_releases_lock(tmp_path, monkeypatch):
     assert supervisor.run({'schema_version': 2, 'jobs': jobs}, 'manifest', output, lock) == 0
     assert len(started) == 2 and not lock.exists()
     assert json.loads((output / 'strict-state.json').read_text())['status'] == 'completed'
+
+
+def test_opt_in_recovery_is_audited_before_next_job(tmp_path, monkeypatch):
+    job, _, _, _ = make_fixture(tmp_path)
+    job.update(argv=['fake'], cwd=str(tmp_path))
+    jobs = [job, {**job, 'id': 'tqc'}]
+    started, recovered = [], []
+    class Process:
+        pid = 42
+        def wait(self): return 1 if len(started) == 1 else 0
+    monkeypatch.setattr(supervisor.subprocess, 'Popen', lambda *a, **kw: (started.append(a) or Process()))
+    monkeypatch.setattr(supervisor, 'process_identity', lambda _: {'pid': 42, 'process_group': 42, 'boot_id': 'boot', 'start_ticks': 1})
+    monkeypatch.setattr(supervisor, 'wait_for_group_exit', lambda *args: None)
+    monkeypatch.setattr(supervisor, 'reject_live_competitors', lambda: None)
+    def recover(job, output, entry, state, path):
+        assert len(started) == 1 and entry['status'] == 'failed_before_recovery'
+        recovered.append(job['id'])
+        return {'audited': True}
+    monkeypatch.setattr(supervisor, 'recover_interrupted', recover)
+    monkeypatch.setattr(supervisor, 'verify_completion', lambda *a: {'verified': True})
+    output, lock = tmp_path / 'output', tmp_path / 'global-lock'
+    assert supervisor.run({'schema_version': 2, 'jobs': jobs}, 'manifest', output, lock, auto_recover=True) == 0
+    assert len(started) == 2 and recovered == ['sac'] and not lock.exists()
+    saved = json.loads((output / 'strict-state.json').read_text())
+    assert saved['jobs'][0]['returncode'] == 1 and saved['jobs'][0]['evidence'] == {'audited': True}
+
+
+def test_failed_opt_in_recovery_keeps_lock_and_does_not_start_next(tmp_path, monkeypatch):
+    job, _, _, _ = make_fixture(tmp_path)
+    job.update(argv=['fake'], cwd=str(tmp_path))
+    started = []
+    class Process:
+        pid = 42
+        def wait(self): return 1
+    monkeypatch.setattr(supervisor.subprocess, 'Popen', lambda *a, **kw: (started.append(a) or Process()))
+    monkeypatch.setattr(supervisor, 'process_identity', lambda _: {'pid': 42, 'process_group': 42, 'boot_id': 'boot', 'start_ticks': 1})
+    monkeypatch.setattr(supervisor, 'wait_for_group_exit', lambda *args: None)
+    monkeypatch.setattr(supervisor, 'reject_live_competitors', lambda: None)
+    monkeypatch.setattr(supervisor, 'recover_interrupted', lambda *a: (_ for _ in ()).throw(ValueError('pending spool')))
+    output, lock = tmp_path / 'output', tmp_path / 'global-lock'
+    with pytest.raises(ValueError, match='pending spool'):
+        supervisor.run({'schema_version': 2, 'jobs': [job, {**job, 'id': 'tqc'}]}, 'manifest', output, lock, auto_recover=True)
+    assert len(started) == 1 and lock.exists()
+    assert json.loads((output / 'strict-state.json').read_text())['status'] == 'blocked_requires_audit'
+
+
+def test_recover_interrupted_selects_last_checkpoint_and_audits_final(tmp_path, monkeypatch):
+    from tools.headless_campaign_queue import recovery, verify_artifacts, job as job_module, disk_guard
+    config = tmp_path / 'source.yaml'; config.write_text('source')
+    stop = tmp_path / 'stop'
+    initial = tmp_path / 'initial.pt'; initial.write_bytes(b'initial')
+    final = tmp_path / 'final.pt'; final.write_bytes(b'final')
+    job = {'id': 'sac', 'cwd': str(tmp_path), 'on_policy': False, 'transitions': 100,
+           'max_overshoot': 2, 'run_fingerprint': 'fp', 'map_id': 'map', 'map_uid': 'uid',
+           'argv': ['python', '--config', str(config), '--stop-file', str(stop),
+                    '--config-sha256', sha(config), '--run-fingerprint', 'fp']}
+    spec = SimpleNamespace(artifacts_dir=Path('artifacts'), run_id='run', checkpoint_root=None)
+    monkeypatch.setattr('trackmaniarl.core.spec.RunSpec.from_yaml', lambda _: spec)
+    calls = []
+    monkeypatch.setattr(verify_artifacts, 'final_checkpoint', lambda *a, **kw: (initial, 1) if not calls else (final, 2))
+    monkeypatch.setattr(recovery, 'reject_live_competitors', lambda: None)
+    def prepare(config_arg, checkpoint, destination, config_sha):
+        assert checkpoint == initial and config_arg == config and config_sha == sha(config)
+        calls.append('prepare'); destination.mkdir()
+        clone = destination / 'recovery.yaml'; clone.write_text('clone')
+        return {'recovery_config': str(clone), 'checkpoint': str(initial), 'fingerprint': 'fp'}
+    monkeypatch.setattr(recovery, 'prepare', prepare)
+    monkeypatch.setattr(disk_guard, 'check_disk_space', lambda *a: None)
+    monkeypatch.setattr(job_module, 'monitor_disk', lambda *a: nullcontext())
+    monkeypatch.setattr('trackmaniarl.core.builtins.TorchCheckpointCodec.load', lambda *a: {})
+    monkeypatch.setattr(recovery, 'validate_state', lambda *a, **kw: {'updates': 2, 'transitions': 101})
+    monkeypatch.setattr(verify_artifacts, 'validate_drained_journal', lambda *a: calls.append('journal'))
+    monkeypatch.setattr(recovery, 'evaluate_copy', lambda *a: calls.append('evaluate'))
+    monkeypatch.setattr(supervisor, 'verify_recovered_completion', lambda *a: (calls.append('verify') or {'accepted_transitions': 101}))
+    class Process:
+        pid = 42
+        def wait(self): return 0
+    monkeypatch.setattr(supervisor.subprocess, 'Popen', lambda *a, **kw: Process())
+    monkeypatch.setattr(supervisor, 'process_identity', lambda _: {'pid': 42, 'process_group': 42, 'boot_id': 'boot', 'start_ticks': 1})
+    monkeypatch.setattr(supervisor, 'wait_for_group_exit', lambda *a: None)
+    entry, state = {}, {}
+    result = supervisor.recover_interrupted(job, tmp_path, entry, state, tmp_path / 'state.json')
+    assert result['accepted_transitions'] == 101 and calls == ['prepare', 'journal', 'evaluate', 'verify']
+    assert entry['recovery']['status'] == 'verified'
+    stop.touch()
+    with pytest.raises(ValueError, match='stop request'):
+        supervisor.recover_interrupted(job, tmp_path, {}, {}, tmp_path / 'state2.json')
 
 
 def test_recovery_shutdown_waits_for_group(monkeypatch):

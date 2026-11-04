@@ -101,6 +101,7 @@ def verify_recovered_completion(job: dict, report_path: Path, *, codec=None) -> 
     report = json.loads(report_path.read_text(encoding='utf-8'))
     if (report.get('kind') != 'isolated-full-recovery-v1'
         or report.get('status') != 'evaluation_verified_queue_pending'
+        or report.get('stage') not in ('training', 'evaluation')
         or report.get('fingerprint') != job['run_fingerprint']
         or report.get('config_sha256') != job['config_sha256']
         or report.get('offline_restore_proof', {}).get('status') != 'PASS'
@@ -117,11 +118,12 @@ def verify_recovered_completion(job: dict, report_path: Path, *, codec=None) -> 
     checkpoint_sha = sha(checkpoint)
     if (sha(source_config) != job['config_sha256']
         or sha(clone_config) != report.get('recovery_config_sha256')
-        or sha(source_checkpoint) != checkpoint_sha
+        or sha(source_checkpoint) != report.get('source_checkpoint_sha256')
         or checkpoint_sha != report.get('checkpoint_sha256')
-        or checkpoint_sha != report.get('source_checkpoint_sha256')
         or sha(evaluation_path) != report.get('evaluation_sha256')):
         raise ValueError('recovery evidence hash mismatch')
+    if report.get('stage') == 'evaluation' and checkpoint_sha != report['source_checkpoint_sha256']:
+        raise ValueError('evaluation-only recovery changed checkpoint')
     from trackmaniarl.core.fingerprint import run_fingerprint
     from trackmaniarl.core.spec import RunSpec
     if (run_fingerprint(RunSpec.from_yaml(source_config), source_config.parent) != job['run_fingerprint']
@@ -144,10 +146,95 @@ def verify_recovered_completion(job: dict, report_path: Path, *, codec=None) -> 
             'evaluation_sha256': sha(evaluation_path), 'accepted_transitions': counters['transitions']}
 
 
-def run(plan: dict, digest: str, output: Path, global_lock: Path) -> int:
+def recover_interrupted(job: dict, output: Path, entry: dict, state: dict, state_path: Path) -> dict:
+    """Attempt one isolated FULL recovery while the supervisor owns the lock.
+
+    A stopped job, an ambiguous checkpoint, pending spool or changed source fails
+    closed. The source is never edited. Return only after final evaluation audit.
+    """
+    from tools.headless_campaign_queue import recovery
+    from tools.headless_campaign_queue.disk_guard import check_disk_space
+    from tools.headless_campaign_queue.job import monitor_disk
+    from tools.headless_campaign_queue.verify_artifacts import final_checkpoint, validate_drained_journal
+    from trackmaniarl.core.builtins import TorchCheckpointCodec
+    from trackmaniarl.core.spec import RunSpec
+
+    argv = job['argv']
+    def arg(flag: str) -> str:
+        if argv.count(flag) != 1:
+            raise ValueError(f'missing or duplicate {flag}')
+        index = argv.index(flag)
+        if index + 1 >= len(argv):
+            raise ValueError(f'missing value for {flag}')
+        return argv[index + 1]
+
+    config = Path(arg('--config'))
+    stop = Path(arg('--stop-file'))
+    config_sha = arg('--config-sha256')
+    if not config.is_absolute() or not stop.is_absolute() or stop.exists():
+        raise ValueError('recovery blocked by stop request or unsafe paths')
+    if config_sha != recovery.sha(config) or arg('--run-fingerprint') != job['run_fingerprint']:
+        raise ValueError('qualified config changed')
+    spec = RunSpec.from_yaml(config)
+    run_dir = (config.parent / spec.artifacts_dir / spec.run_id).resolve()
+    checkpoint_dir = (config.parent / (getattr(spec, 'checkpoint_root', None) or spec.artifacts_dir)
+                      / spec.run_id / 'checkpoints').resolve()
+    checkpoint, _ = final_checkpoint(run_dir, checkpoint_dir, on_policy=job['on_policy'])
+    destination = output / (job['id'] + '-recovery-0001')
+    entry['recovery'] = {'status': 'preparing', 'destination': str(destination),
+                         'source_checkpoint': str(checkpoint)}
+    atomic_json(state_path, state)
+    recovery.reject_live_competitors()
+    report = recovery.prepare(config, checkpoint, destination, config_sha)
+    if report['fingerprint'] != job['run_fingerprint']:
+        raise ValueError('recovery fingerprint differs from qualified job')
+    clone_config = Path(report['recovery_config'])
+    clone_spec = RunSpec.from_yaml(clone_config)
+    check_disk_space(clone_spec, destination)
+    recovery_stop = destination / 'STOP'
+    command = [sys.executable, '-m', 'trackmaniarl', 'resume', str(clone_config),
+               report['checkpoint'], '--stop-file', str(recovery_stop)]
+    with (destination / 'stdout.log').open('xb') as out, (destination / 'stderr.log').open('xb') as err:
+        with monitor_disk(clone_spec, destination, recovery_stop):
+            env = os.environ.copy(); env['WANDB_MODE'] = 'offline'
+            process = subprocess.Popen(command, cwd=job['cwd'], stdout=out, stderr=err,
+                                       start_new_session=True, env=env)
+            identity = process_identity(process.pid)
+            entry['recovery'].update(status='running', identity=identity)
+            atomic_json(state_path, state)
+            code = process.wait()
+    wait_for_group_exit(identity['process_group'], identity['boot_id'])
+    recovery.reject_live_competitors()
+    if code != 0 or recovery_stop.exists() or stop.exists():
+        raise ValueError('isolated recovery interrupted; evidence retained')
+    cloned_run = destination / 'artifacts' / spec.run_id
+    final, logged_updates = final_checkpoint(cloned_run, cloned_run / 'checkpoints', on_policy=job['on_policy'])
+    final_state = TorchCheckpointCodec().load(final)
+    counters = recovery.validate_state(final_state, job['run_fingerprint'], job['transitions'],
+                                       job['on_policy'], stage='evaluation', max_overshoot=job['max_overshoot'])
+    if counters['updates'] != logged_updates:
+        raise ValueError('recovery final checkpoint update mismatch')
+    if not job['on_policy']:
+        validate_drained_journal(cloned_run, final_state)
+    report.update(status='training_verified_evaluation_pending', checkpoint=str(final),
+                  recovery_training_process=identity, recovery_training_exit_code=code)
+    atomic_json(destination / 'recovery.json', report)
+    recovery.evaluate_copy(clone_spec, destination, final, recovery_stop, report)
+    recovery.reject_live_competitors()
+    if recovery_stop.exists() or stop.exists():
+        raise ValueError('stop requested during evaluation')
+    qualified = dict(job, config_sha256=config_sha)
+    evidence = verify_recovered_completion(qualified, destination / 'recovery.json')
+    entry['recovery'].update(status='verified', evidence=evidence)
+    atomic_json(state_path, state)
+    return evidence
+
+
+def run(plan: dict, digest: str, output: Path, global_lock: Path, *, auto_recover: bool = False) -> int:
     """Start fresh jobs in order, failing closed and preserving all evidence."""
     if os.name == 'nt' or not Path('/proc').is_dir():
         raise ValueError('Linux /proc is required')
+    output = output.resolve()
     jobs = plan.get('jobs')
     if plan.get('schema_version') != 2 or not isinstance(jobs, list) or not jobs:
         raise ValueError('qualified schema 2 plan required')
@@ -187,9 +274,16 @@ def run(plan: dict, digest: str, output: Path, global_lock: Path) -> int:
                 code = process.wait()
             wait_for_group_exit(identity['process_group'], identity['boot_id'])
             reject_live_competitors()
-            if code != 0:
-                raise ValueError(f"{job['id']}: process exit {code}; recovery audit required")
-            entry['evidence'] = verify_completion(job, digest, process.pid)
+            try:
+                if code != 0:
+                    raise ValueError(f"{job['id']}: process exit {code}; recovery audit required")
+                entry['evidence'] = verify_completion(job, digest, process.pid)
+            except (OSError, ValueError) as exc:
+                entry.update(status='failed_before_recovery', returncode=code, error=str(exc))
+                atomic_json(state_path, state)
+                if not auto_recover:
+                    raise
+                entry['evidence'] = recover_interrupted(job, output, entry, state, state_path)
             entry.update(status='verified', finished_at=now(), returncode=code)
             atomic_json(state_path, state)
         state.update(status='completed', finished_at=now())
@@ -213,13 +307,15 @@ def main() -> int:
     parser.add_argument('manifest', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--execute', action='store_true')
+    parser.add_argument('--auto-recover', action='store_true', help='attempt one isolated FULL recovery; requires live qualification')
     args = parser.parse_args()
     try:
         plan, digest = prepare(args.manifest)
         if not args.execute:
             print(f'Preflight OK: {len(plan["jobs"])} jobs, manifest {digest}; nothing started')
             return 0
-        return run(plan, digest, args.output, Path.home() / '.trackmaniarl-headless-campaign.lock')
+        return run(plan, digest, args.output, Path.home() / '.trackmaniarl-headless-campaign.lock',
+                   auto_recover=args.auto_recover)
     except (OSError, ValueError) as exc:
         print(f'Supervisor blocked: {exc}', file=sys.stderr)
         return 2
