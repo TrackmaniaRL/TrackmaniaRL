@@ -118,3 +118,16 @@ def test_verified_job_allows_next_and_releases_lock(tmp_path, monkeypatch):
     assert supervisor.run({'schema_version': 2, 'jobs': jobs}, 'manifest', output, lock) == 0
     assert len(started) == 2 and not lock.exists()
     assert json.loads((output / 'strict-state.json').read_text())['status'] == 'completed'
+
+
+def test_recovery_shutdown_waits_for_group(monkeypatch):
+    from tools.headless_campaign_queue import recovery
+    calls = []
+    def check(group):
+        calls.append(group)
+        if len(calls) == 1: raise ValueError('still exiting')
+    monkeypatch.setattr(recovery, 'reject_surviving_group', check)
+    monkeypatch.setattr(supervisor.time, 'sleep', lambda _: None)
+    boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+    recovery.wait_for_group_shutdown(123, boot)
+    assert calls == [123, 123]

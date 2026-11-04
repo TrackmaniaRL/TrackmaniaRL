@@ -189,6 +189,23 @@ def reject_surviving_group(group: int) -> None:
             raise ValueError(f"owned process group still has live PID {path.name}")
 
 
+def wait_for_group_shutdown(group: int, boot_id: str, timeout: float = 20.0) -> None:
+    """Allow descendants to finish closing; fail closed if they remain alive."""
+    import time
+
+    deadline = time.monotonic() + timeout
+    while True:
+        if Path("/proc/sys/kernel/random/boot_id").read_text().strip() != boot_id:
+            raise ValueError("boot changed while waiting for owned process group")
+        try:
+            reject_surviving_group(group)
+            return
+        except ValueError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.25)
+
+
 def validate_state(
     state: Mapping,
     fingerprint: str,
@@ -607,7 +624,7 @@ def main() -> int:
                 report.update(status="running", process=process_identity(process.pid))
                 atomic_json(args.destination / "recovery.json", report)
                 code = process.wait()
-        reject_surviving_group(process.pid)
+        wait_for_group_shutdown(report["process"]["process_group"], report["process"]["boot_id"])
         reject_live_competitors()
         release_lock = True
         report.update(
