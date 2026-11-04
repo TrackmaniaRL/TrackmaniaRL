@@ -15,9 +15,10 @@ class ProcessStopSignal:
     The flag is monotonic and intentionally has no ``clear`` operation.
     """
 
-    def __init__(self, context: BaseContext) -> None:
+    def __init__(self, context: BaseContext, *, wait_for_actor_drain: bool = False) -> None:
         self._flag = context.RawValue("b", 0)
         self._drain = context.RawValue("b", 0)
+        self.wait_for_actor_drain = wait_for_actor_drain
 
     def request_drain(self) -> None:
         """Finish already accepted work after the launcher has stopped the actor."""

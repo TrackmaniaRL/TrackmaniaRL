@@ -10,6 +10,7 @@ import struct
 import sys
 import tempfile
 import time
+from bisect import bisect_right, insort
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -83,6 +84,28 @@ def qualify_immediate(  # noqa: PLR0913
     packet: dict[str, Any], before: dict[str, Any], action: int, n: int
 ) -> list[bytes]:
     """Join exact receipt, channel-only audits, own POSTs and response epochs."""
+    return _qualify_immediate(
+        packet, before, action, n, [struct.pack("<3f", *v) for v in features.action_sgb(action)[:n]]
+    )
+
+
+def qualify_continuous_immediate(  # noqa: PLR0913
+    packet: dict[str, Any], before: dict[str, Any], action: Any, n: int
+) -> list[bytes]:
+    """Verify exact wire and POST records; separate physics qualification is required."""
+    from trackmaniarl.trackmania.native_headless._runtime.continuous import ContinuousControl
+
+    if type(action) is not ContinuousControl or type(n) is not int or not 1 <= n <= 5:
+        raise ValueError("continuous control and one to five native ticks required")
+    return _qualify_immediate(
+        packet, before, action.receipt_identity(), n, [action.wire_record()] * n
+    )
+
+
+def _qualify_immediate(  # noqa: PLR0913
+    packet: dict[str, Any], before: dict[str, Any], action: Any, n: int, afters: list[bytes]
+) -> list[bytes]:
+    """Common wire evidence verification; action identity and bytes are explicit."""
     env.require(packet["profile"] == codec_v7.PROFILE_ID, "V7 runtime profile required")
     pid, meta = packet["pid"], packet["meta"]
     reader = bytes.fromhex(before["readerHex"])
@@ -94,8 +117,9 @@ def qualify_immediate(  # noqa: PLR0913
         == (anchor, p, p, n, action, before["epoch"]),
         "V7 action/anchor/current-index/epoch binding",
     )
-    plan = features.action_sgb(action)[:n]
-    afters = [struct.pack("<3f", *v) for v in plan]
+    env.require(
+        len(afters) == n and all(len(value) == 12 for value in afters), "V7 requested channel bytes"
+    )
     originals = [bytes.fromhex(v) for v in a["originalRecordHex"]]
     env.require(len(originals) == n and all(len(v) == 32 for v in originals), "V7 original records")
     befores = [v[4:16] for v in originals]
@@ -129,7 +153,7 @@ def qualify_immediate(  # noqa: PLR0913
     frames = [bytes.fromhex(v) for v in packet["responseFramesHex"]]
     env.require(len(frames) == len(wanted), "V7 response count")
     for frame, want in zip(frames, wanted, strict=True):
-        d = codec_v7.decode_v7_response(frame)
+        d = codec_v7.decode_v7_response(frame, allow_continuous_pedals=isinstance(action, dict))
         env.require(
             (d["kind"], d["sequence"], d["iterations"], d["epoch"]) == want, "V7 response sequence"
         )
@@ -461,9 +485,11 @@ class ImmediateSession(NativeSession):
         self.connection.settimeout(min(90, self.remaining()))
         self.connection.sendall(raw)
 
-    def response(self, spec: ResponseSpec) -> tuple[bytes, bytes]:
+    def response(
+        self, spec: ResponseSpec, *, _allow_continuous_pedals: bool = False
+    ) -> tuple[bytes, bytes]:
         raw = self.exact(448)
-        decoded = codec_v7.decode_v7_response(raw)
+        decoded = codec_v7.decode_v7_response(raw, allow_continuous_pedals=_allow_continuous_pedals)
         env.require(
             (decoded["kind"], decoded["sequence"], decoded["iterations"], decoded["epoch"])
             == (spec.kind, spec.seq, spec.n, spec.epoch),
@@ -497,6 +523,7 @@ class ImmediateSession(NativeSession):
                 _, native_t = env.qualify_post(record, self.pid, self.meta)
                 env.require(native_t not in self.events, "V7 duplicate native boundary")
                 self.events[native_t] = record
+                insort(self._event_times, native_t)
             else:
                 env.require(
                     record[:8] in (b"TMPOST03", b"TMREAD01", b"TMPOST02"),
@@ -546,6 +573,7 @@ class ImmediateSession(NativeSession):
         )
         self.arm()
         self.post_offset, self.events, self.audits, self.hits = 0, {}, [], set()
+        self._event_times: list[int] = []
         self.poll_posts()
         state = physical_state(self.packet())
         env.require(state["appliedSGB"] == [0.0, 0.0, 0.0], "V7 neutral bootstrap POST required")
@@ -574,6 +602,20 @@ class ImmediateSession(NativeSession):
         return self.packet()
 
     def advance(self, action: int, n: int) -> dict[str, Any]:
+        afters = [struct.pack("<3f", *v) for v in features.action_sgb(action)[:n]]
+        return self._advance_records(action, n, afters)
+
+    def advance_continuous(self, action: Any, n: int) -> dict[str, Any]:
+        """Write experimental continuous controls; this does not qualify physics."""
+        from trackmaniarl.trackmania.native_headless._runtime.continuous import ContinuousControl
+
+        if type(action) is not ContinuousControl or type(n) is not int or not 1 <= n <= 5:
+            raise ValueError("continuous control and one to five native ticks required")
+        if not getattr(self, "_allow_experimental_continuous", False):
+            raise ValueError("experimental continuous actuator is not enabled for this session")
+        return self._advance_records(action.receipt_identity(), n, [action.wire_record()] * n)
+
+    def _advance_records(self, action: Any, n: int, afters: list[bytes]) -> dict[str, Any]:
         reader, anchor = self.reader, env.u(self.boundary, 112)
         env.qualify_reader(
             QualifyReaderSpec(raw=reader, pid=self.pid, meta=self.meta, anchor=anchor)
@@ -589,12 +631,16 @@ class ImmediateSession(NativeSession):
         original = self.read_mem(env.q(reader, 88) - 4 + p * 32, n * 32)
         originals = [original[j * 32 : (j + 1) * 32] for j in range(n)]
         befores = [v[4:16] for v in originals]
-        afters = [struct.pack("<3f", *v) for v in features.action_sgb(action)[:n]]
         epoch, sequence, response_start = self.epoch, self.seq + 1, len(self.responses)
         self.poll_posts()
         audit_start = len(self.audits)
         self.request(RequestSpec(op=6, n=n, p=p, k=p, befores=befores, afters=afters))
-        committed, receipt = self.response(ResponseSpec(kind=6, seq=sequence, n=n, epoch=epoch))
+        response_spec = ResponseSpec(kind=6, seq=sequence, n=n, epoch=epoch)
+        committed, receipt = (
+            self.response(response_spec, _allow_continuous_pedals=True)
+            if isinstance(action, dict)
+            else self.response(response_spec)
+        )
         env.require(committed == reader, "V7 exact pre-write reader receipt")
         eof, stage, error = False, "boundary", None
         try:
@@ -617,8 +663,7 @@ class ImmediateSession(NativeSession):
             eof = True
             self.end(truncated=False)
         self.poll_posts()
-        events = [self.events[t] for t in sorted(self.events) if anchor < t <= anchor + n * 10]
-        env.require(not any(t > anchor + n * 10 for t in self.events), "V7 advanced beyond request")
+        events = self._decision_events(anchor, anchor + n * 10)
         if eof and events:
             self.boundary = events[-1]
         packet = self.packet()
@@ -645,6 +690,13 @@ class ImmediateSession(NativeSession):
         if eof:
             packet["resultEvidence"] = self.result_evidence
         return packet
+
+    def _decision_events(self, anchor: int, end: int) -> list[bytes]:
+        """Index retained evidence without rescanning the entire episode per tick."""
+        clocks = self._event_times
+        env.require(not clocks or clocks[-1] <= end, "V7 advanced beyond request")
+        first, last = bisect_right(clocks, anchor), bisect_right(clocks, end)
+        return [self.events[clock] for clock in clocks[first:last]]
 
     def _publish_bytes(self, path: Path, raw: bytes) -> None:
         self.check_budget(len(raw))
