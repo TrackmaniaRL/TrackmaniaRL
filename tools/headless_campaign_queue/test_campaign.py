@@ -38,7 +38,7 @@ class CampaignTests(unittest.TestCase):
                 head = "FixedQuantileHead" if name == "qr" else "DuelingImplicitQuantileHead"
                 strategy = "FixedQuantileStrategy" if name == "qr" else "RandomQuantileStrategy"
                 components = SimpleNamespace(learner=SimpleNamespace(class_path=prefix + learner), model_factory=SimpleNamespace(kwargs={"head": {"class_path": "example:" + head}, "strategy": {"class_path": "example:" + strategy}}), environment=SimpleNamespace(class_path="trackmaniarl.trackmania.native_headless:Factory"), evaluator=object())
-                return SimpleNamespace(seed=17, training=SimpleNamespace(total_transitions=100, checkpoint_milestones=(100,), save_final_checkpoint=True), distributed=SimpleNamespace(strict_update_budget=True), evaluation=SimpleNamespace(maps=[SimpleNamespace(expected_map_uid="uid")], trials_per_map=30), components=components, artifacts_dir=root / "artifacts", run_id=name)
+                return SimpleNamespace(seed=17, training=SimpleNamespace(total_transitions=100, checkpoint_milestones=(100,), save_final_checkpoint=True), distributed=SimpleNamespace(strict_update_budget=True), evaluation=SimpleNamespace(maps=[SimpleNamespace(id="map", expected_map_uid="uid")], trials_per_map=30), components=components, artifacts_dir=root / "artifacts", run_id=name)
             with patch("trackmaniarl.core.spec.RunSpec.from_yaml", side_effect=spec), patch("trackmaniarl.core.fingerprint.run_fingerprint", return_value="fp"), patch("tools.headless_campaign_queue.disk_guard.check_disk_space") as disk:
                 with self.assertRaisesRegex(ValueError, "ppo: configuration"):
                     prepare(path)
@@ -66,7 +66,7 @@ class CampaignTests(unittest.TestCase):
                 name = Path(config).stem
                 head, strategy = types.get(name, ("unused", "unused"))
                 components = SimpleNamespace(learner=SimpleNamespace(class_path=learners[name]), model_factory=SimpleNamespace(kwargs={"head": {"class_path": "x:" + head}, "strategy": {"class_path": "x:" + strategy}}), environment=SimpleNamespace(class_path="trackmaniarl.trackmania.native_headless:Factory"), evaluator=object())
-                return SimpleNamespace(seed=17, training=SimpleNamespace(total_transitions=100, checkpoint_milestones=(100,), save_final_checkpoint=True), distributed=SimpleNamespace(strict_update_budget=True), evaluation=SimpleNamespace(maps=[SimpleNamespace(expected_map_uid="uid")], trials_per_map=30), components=components, artifacts_dir=root / "artifacts", run_id=name)
+                return SimpleNamespace(seed=17, training=SimpleNamespace(total_transitions=100, checkpoint_milestones=(100,), save_final_checkpoint=True), distributed=SimpleNamespace(strict_update_budget=True), evaluation=SimpleNamespace(maps=[SimpleNamespace(id="map", expected_map_uid="uid")], trials_per_map=30), components=components, artifacts_dir=root / "artifacts", run_id=name)
             with patch("trackmaniarl.core.spec.RunSpec.from_yaml", side_effect=spec), patch("trackmaniarl.core.fingerprint.run_fingerprint", return_value="fp"), patch("tools.headless_campaign_queue.disk_guard.check_disk_space") as disk:
                 compiled, _ = prepare(manifest)
                 self.assertEqual(disk.call_count, len(names))
@@ -85,3 +85,4 @@ class CampaignTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

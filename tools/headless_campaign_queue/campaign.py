@@ -95,7 +95,7 @@ def prepare(path: Path) -> tuple[dict, str]:
             if any(p == prior or p.is_relative_to(prior) or prior.is_relative_to(p) for prior in paths):
                 raise ValueError(f"{name}: output paths overlap another job")
         paths.update(current_paths)
-        compiled.append({"id": name, "cwd": str(repository), "argv": [sys.executable, "-m", "tools.headless_campaign_queue.job", "--config", str(config), "--receipt", str(receipt), "--budget", str(budget), "--max-overshoot", str(limit), "--stop-file", str(stop), "--config-sha256", job["config_sha256"], "--run-fingerprint", job["run_fingerprint"]], "transitions": budget, "max_overshoot": limit, "receipt": str(receipt)})
+        compiled.append({"id": name, "cwd": str(repository), "argv": [sys.executable, "-m", "tools.headless_campaign_queue.job", "--config", str(config), "--receipt", str(receipt), "--budget", str(budget), "--max-overshoot", str(limit), "--stop-file", str(stop), "--config-sha256", job["config_sha256"], "--run-fingerprint", job["run_fingerprint"]], "transitions": budget, "max_overshoot": limit, "receipt": str(receipt), "run_fingerprint": job["run_fingerprint"], "map_id": evaluation.maps[0].id, "map_uid": uid, "on_policy": name == "ppo"})
     return {"schema_version": 2, "jobs": compiled}, hashlib.sha256(raw).hexdigest()
 
 
