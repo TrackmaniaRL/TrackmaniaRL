@@ -276,6 +276,13 @@ def test_recover_interrupted_selects_last_checkpoint_and_audits_final(tmp_path, 
         supervisor.recover_interrupted(job, tmp_path, {}, {}, tmp_path / 'low-host-space-state.json')
     assert not calls
     monkeypatch.setattr(supervisor, 'wsl_host_free_bytes', lambda: 2**50)
+    monkeypatch.setattr(supervisor, 'uses_root_filesystem', lambda _: False)
+    monkeypatch.setattr(supervisor, 'is_wsl', lambda: True)
+    monkeypatch.setattr(supervisor, 'is_mounted_windows_drive', lambda _: False)
+    with pytest.raises(ValueError, match='non-root WSL destination'):
+        supervisor.recover_interrupted(job, tmp_path, {}, {}, tmp_path / 'unknown-host-state.json')
+    assert not calls
+    monkeypatch.setattr(supervisor, 'uses_root_filesystem', lambda _: True)
     result = supervisor.recover_interrupted(job, tmp_path, entry, state, tmp_path / 'state.json')
     assert result['accepted_transitions'] == 101
     assert calls == (['prepare', 'journal', 'evaluate', 'verify'] if stage == 'training' else ['prepare', 'evaluate', 'verify'])

@@ -57,6 +57,16 @@ def uses_root_filesystem(path: Path) -> bool:
     return os.stat(path).st_dev == os.stat('/').st_dev
 
 
+def is_wsl() -> bool:
+    return 'microsoft' in Path('/proc/sys/kernel/osrelease').read_text().lower()
+
+
+def is_mounted_windows_drive(path: Path) -> bool:
+    parts = path.resolve().parts
+    return (len(parts) >= 3 and parts[1] == 'mnt' and len(parts[2]) == 1
+            and parts[2].isalpha() and os.path.ismount(Path('/mnt') / parts[2]))
+
+
 def wait_for_group_exit(group: int, boot_id: str, *, timeout: float = 20.0, interval: float = 0.25) -> None:
     """Wait briefly for descendants; never kill or assume PID alone is identity."""
     deadline = time.monotonic() + timeout
@@ -238,6 +248,8 @@ def recover_interrupted(job: dict, output: Path, entry: dict, state: dict, state
         host_free = wsl_host_free_bytes()
         if host_free is not None and host_free < required:
             raise OSError(f'insufficient physical WSL VHDX space: need {required} bytes')
+    elif is_wsl() and not is_mounted_windows_drive(destination_directory):
+        raise ValueError('cannot verify physical backing of non-root WSL destination')
     entry['recovery'] = {'status': 'preparing', 'destination': str(destination),
                          'source_checkpoint': str(checkpoint)}
     atomic_json(state_path, state)
