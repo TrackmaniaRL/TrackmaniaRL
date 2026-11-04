@@ -266,6 +266,8 @@ class FullQrEnvironment:
         if isinstance(action, ContinuousControl):
             gas, brake, brake_tap = action.gas, action.brake, 0.0
         else:
+            # The 78-action table groups three brake modes under each gas bit.
+            # A tap applies the brake for the first 10 ms native tick only.
             gas = float((action // 3) % 2)
             brake = (
                 min(1.0, BRAKE_TAP_DURATION_S * 1_000.0 / max(step_race_ms, 1.0))
@@ -290,8 +292,6 @@ class FullQrEnvironment:
             "progress_m": self._reward.progress_m,
             "progress_pct": self._reward.progress_pct,
             **reward_result_info(result),
-            # The 78-action table groups three brake modes under each gas bit.
-            # A tap applies the brake for the first 10 ms native tick only.
             "control_gas": gas,
             "control_brake": brake,
             "control_brake_tap": brake_tap,
