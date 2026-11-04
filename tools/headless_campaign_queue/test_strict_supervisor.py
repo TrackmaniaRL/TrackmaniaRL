@@ -123,6 +123,19 @@ def test_group_audit_rejects_boot_change():
         supervisor.wait_for_group_exit(42, 'not-this-boot')
 
 
+@pytest.mark.skipif('microsoft' not in Path('/proc/sys/kernel/osrelease').read_text().lower(), reason='WSL-specific check')
+def test_wsl_host_space_refuses_ambiguous_or_failed_discovery(monkeypatch):
+    monkeypatch.setenv('WSL_DISTRO_NAME', 'bad;name')
+    with pytest.raises(ValueError, match='identify WSL'):
+        supervisor.wsl_host_free_bytes()
+    monkeypatch.setenv('WSL_DISTRO_NAME', 'Ubuntu')
+    monkeypatch.setattr(supervisor.subprocess, 'run', lambda *a, **kw: SimpleNamespace(stdout=b'{"free":12345}'))
+    assert supervisor.wsl_host_free_bytes() == 12345
+    monkeypatch.setattr(supervisor.subprocess, 'run', lambda *a, **kw: SimpleNamespace(stdout=b'{}'))
+    with pytest.raises(ValueError, match='invalid physical'):
+        supervisor.wsl_host_free_bytes()
+
+
 def test_invalid_zero_exit_keeps_lock_and_never_starts_next(tmp_path, monkeypatch):
     job, _, _, _ = make_fixture(tmp_path)
     job.update(argv=['fake'], cwd=str(tmp_path))
@@ -159,6 +172,7 @@ def test_verified_job_allows_next_and_releases_lock(tmp_path, monkeypatch):
     monkeypatch.setattr(supervisor.subprocess, 'Popen', lambda *a, **kw: (started.append(a) or Process()))
     monkeypatch.setattr(supervisor, 'process_identity', lambda _: {'pid': 42, 'process_group': 42, 'boot_id': 'boot', 'start_ticks': 1})
     monkeypatch.setattr(supervisor, 'wait_for_group_exit', lambda *a: None)
+    monkeypatch.setattr(supervisor, 'wsl_host_free_bytes', lambda: 2**50)
     monkeypatch.setattr(supervisor, 'reject_live_competitors', lambda: None)
     monkeypatch.setattr(supervisor, 'verify_completion', lambda job, *a: {'verified': job['id']})
     output, lock = tmp_path / 'output', tmp_path / 'global-lock'
@@ -256,6 +270,12 @@ def test_recover_interrupted_selects_last_checkpoint_and_audits_final(tmp_path, 
         supervisor.recover_interrupted(job, tmp_path, {}, {}, tmp_path / 'low-space-state.json')
     assert not calls
     monkeypatch.setattr(shutil, 'disk_usage', disk_usage)
+    monkeypatch.setattr(supervisor, 'uses_root_filesystem', lambda _: True)
+    monkeypatch.setattr(supervisor, 'wsl_host_free_bytes', lambda: 0)
+    with pytest.raises(OSError, match='physical WSL VHDX space'):
+        supervisor.recover_interrupted(job, tmp_path, {}, {}, tmp_path / 'low-host-space-state.json')
+    assert not calls
+    monkeypatch.setattr(supervisor, 'wsl_host_free_bytes', lambda: 2**50)
     result = supervisor.recover_interrupted(job, tmp_path, entry, state, tmp_path / 'state.json')
     assert result['accepted_transitions'] == 101
     assert calls == (['prepare', 'journal', 'evaluate', 'verify'] if stage == 'training' else ['prepare', 'evaluate', 'verify'])

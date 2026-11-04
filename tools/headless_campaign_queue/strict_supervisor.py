@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import base64
 from pathlib import Path
 import re
 import subprocess
@@ -17,6 +18,43 @@ import time
 from tools.headless_campaign_queue.__main__ import atomic_json, now, verify_receipt
 from tools.headless_campaign_queue.recovery import process_identity, reject_live_competitors, reject_surviving_group
 from tools.headless_campaign_queue.verify_artifacts import validate_checkpoint, validate_evaluation
+
+
+def wsl_host_free_bytes() -> int | None:
+    """Read the physical volume containing this distro's registered VHDX.
+
+    Linux df on WSL2 ext4 reflects the virtual disk limit, not host free space.
+    Ambiguous registration, unavailable interop, unsupported paths and failures
+    block recovery instead of assuming the virtual disk is on C:.
+    """
+    if 'microsoft' not in Path('/proc/sys/kernel/osrelease').read_text().lower():
+        return None
+    distro = os.environ.get('WSL_DISTRO_NAME', '')
+    if not re.fullmatch(r'[A-Za-z0-9_.-]+', distro):
+        raise ValueError('cannot identify WSL distribution for physical disk check')
+    script = r'''$ErrorActionPreference='Stop'
+$items=@(Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss\*' | Where-Object { $_.DistributionName -ceq 'DISTRO_NAME' })
+if ($items.Count -ne 1) { throw 'ambiguous distribution' }
+$base=$items[0].BasePath -replace '^\\\\\?\\',''
+$vhd=Join-Path $base 'ext4.vhdx'
+if ($vhd -notmatch '^[A-Za-z]:\\' -or -not (Test-Path -LiteralPath $vhd -PathType Leaf)) { throw 'unsupported VHDX path' }
+$drive=[System.IO.DriveInfo]::new([System.IO.Path]::GetPathRoot($vhd))
+@{ free=[long]$drive.AvailableFreeSpace } | ConvertTo-Json -Compress'''.replace('DISTRO_NAME', distro)
+    encoded = base64.b64encode(script.encode('utf-16-le')).decode('ascii')
+    try:
+        result = subprocess.run(['powershell.exe', '-NoProfile', '-NonInteractive', '-EncodedCommand', encoded],
+                                capture_output=True, check=True, timeout=15)
+        data = json.loads(result.stdout.decode('utf-8-sig').strip())
+    except (OSError, subprocess.SubprocessError, UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError('cannot verify physical WSL VHDX volume') from exc
+    free = data.get('free') if isinstance(data, dict) else None
+    if type(free) is not int or free < 0:
+        raise ValueError('invalid physical WSL volume free space')
+    return free
+
+
+def uses_root_filesystem(path: Path) -> bool:
+    return os.stat(path).st_dev == os.stat('/').st_dev
 
 
 def wait_for_group_exit(group: int, boot_id: str, *, timeout: float = 20.0, interval: float = 0.25) -> None:
@@ -193,8 +231,13 @@ def recover_interrupted(job: dict, output: Path, entry: dict, state: dict, state
             raise ValueError('missing or unsafe recovery journal')
         journal_bytes = journal.stat().st_size + (wal.stat().st_size if wal.exists() else 0)
     required = DATA_RESERVE_BYTES + 2 * checkpoint.stat().st_size + 4 * journal_bytes
-    if shutil.disk_usage(_existing_directory(destination)).free < required:
+    destination_directory = _existing_directory(destination)
+    if shutil.disk_usage(destination_directory).free < required:
         raise OSError(f'insufficient space for recovery copies and reserve: need {required} bytes')
+    if uses_root_filesystem(destination_directory):
+        host_free = wsl_host_free_bytes()
+        if host_free is not None and host_free < required:
+            raise OSError(f'insufficient physical WSL VHDX space: need {required} bytes')
     entry['recovery'] = {'status': 'preparing', 'destination': str(destination),
                          'source_checkpoint': str(checkpoint)}
     atomic_json(state_path, state)
