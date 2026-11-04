@@ -153,11 +153,12 @@ def recover_interrupted(job: dict, output: Path, entry: dict, state: dict, state
     closed. The source is never edited. Return only after final evaluation audit.
     """
     from tools.headless_campaign_queue import recovery
-    from tools.headless_campaign_queue.disk_guard import check_disk_space
+    from tools.headless_campaign_queue.disk_guard import DATA_RESERVE_BYTES, _existing_directory, check_disk_space
     from tools.headless_campaign_queue.job import monitor_disk
     from tools.headless_campaign_queue.verify_artifacts import final_checkpoint, validate_drained_journal
     from trackmaniarl.core.builtins import TorchCheckpointCodec
     from trackmaniarl.core.spec import RunSpec
+    import shutil
 
     argv = job['argv']
     def arg(flag: str) -> str:
@@ -181,17 +182,47 @@ def recover_interrupted(job: dict, output: Path, entry: dict, state: dict, state
                       / spec.run_id / 'checkpoints').resolve()
     checkpoint, _ = final_checkpoint(run_dir, checkpoint_dir, on_policy=job['on_policy'])
     destination = output / (job['id'] + '-recovery-0001')
+    check_disk_space(spec, config.parent)
+    # Snapshot, SQLite backup and a second restore audit may coexist. Preserve
+    # headroom for those copies on the actual destination volume before writing.
+    journal_bytes = 0
+    if not job['on_policy']:
+        journal = run_dir / 'distributed' / 'rollouts.sqlite3'
+        wal = Path(str(journal) + '-wal')
+        if journal.is_symlink() or not journal.is_file() or wal.is_symlink():
+            raise ValueError('missing or unsafe recovery journal')
+        journal_bytes = journal.stat().st_size + (wal.stat().st_size if wal.exists() else 0)
+    required = DATA_RESERVE_BYTES + 2 * checkpoint.stat().st_size + 4 * journal_bytes
+    if shutil.disk_usage(_existing_directory(destination)).free < required:
+        raise OSError(f'insufficient space for recovery copies and reserve: need {required} bytes')
     entry['recovery'] = {'status': 'preparing', 'destination': str(destination),
                          'source_checkpoint': str(checkpoint)}
     atomic_json(state_path, state)
     recovery.reject_live_competitors()
-    report = recovery.prepare(config, checkpoint, destination, config_sha)
+    initial_state = TorchCheckpointCodec().load(checkpoint)
+    initial_counters = initial_state.get('counters' if job['on_policy'] else 'distributed')
+    if not isinstance(initial_counters, dict) or type(initial_counters.get('transitions')) is not int:
+        raise ValueError('source checkpoint has invalid transition counter')
+    stage = 'evaluation' if initial_counters['transitions'] >= job['transitions'] else 'training'
+    report = recovery.prepare(config, checkpoint, destination, config_sha, stage=stage,
+                              max_overshoot=job['max_overshoot'])
     if report['fingerprint'] != job['run_fingerprint']:
         raise ValueError('recovery fingerprint differs from qualified job')
     clone_config = Path(report['recovery_config'])
     clone_spec = RunSpec.from_yaml(clone_config)
     check_disk_space(clone_spec, destination)
     recovery_stop = destination / 'STOP'
+    if stage == 'evaluation':
+        entry['recovery']['status'] = 'evaluating'
+        atomic_json(state_path, state)
+        recovery.evaluate_copy(clone_spec, destination, Path(report['checkpoint']), recovery_stop, report)
+        recovery.reject_live_competitors()
+        if recovery_stop.exists() or stop.exists():
+            raise ValueError('stop requested during evaluation')
+        evidence = verify_recovered_completion(dict(job, config_sha256=config_sha), destination / 'recovery.json')
+        entry['recovery'].update(status='verified', evidence=evidence)
+        atomic_json(state_path, state)
+        return evidence
     command = [sys.executable, '-m', 'trackmaniarl', 'resume', str(clone_config),
                report['checkpoint'], '--stop-file', str(recovery_stop)]
     with (destination / 'stdout.log').open('xb') as out, (destination / 'stderr.log').open('xb') as err:

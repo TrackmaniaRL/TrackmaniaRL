@@ -1,5 +1,6 @@
 import hashlib
 import json
+import shutil
 from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
@@ -210,7 +211,8 @@ def test_failed_opt_in_recovery_keeps_lock_and_does_not_start_next(tmp_path, mon
     assert json.loads((output / 'strict-state.json').read_text())['status'] == 'blocked_requires_audit'
 
 
-def test_recover_interrupted_selects_last_checkpoint_and_audits_final(tmp_path, monkeypatch):
+@pytest.mark.parametrize('stage', ['training', 'evaluation'])
+def test_recover_interrupted_selects_last_checkpoint_and_audits_final(tmp_path, monkeypatch, stage):
     from tools.headless_campaign_queue import recovery, verify_artifacts, job as job_module, disk_guard
     config = tmp_path / 'source.yaml'; config.write_text('source')
     stop = tmp_path / 'stop'
@@ -221,19 +223,22 @@ def test_recover_interrupted_selects_last_checkpoint_and_audits_final(tmp_path, 
            'argv': ['python', '--config', str(config), '--stop-file', str(stop),
                     '--config-sha256', sha(config), '--run-fingerprint', 'fp']}
     spec = SimpleNamespace(artifacts_dir=Path('artifacts'), run_id='run', checkpoint_root=None)
+    journal = tmp_path / 'artifacts' / 'run' / 'distributed' / 'rollouts.sqlite3'
+    journal.parent.mkdir(parents=True); journal.write_bytes(b'journal')
     monkeypatch.setattr('trackmaniarl.core.spec.RunSpec.from_yaml', lambda _: spec)
     calls = []
     monkeypatch.setattr(verify_artifacts, 'final_checkpoint', lambda *a, **kw: (initial, 1) if not calls else (final, 2))
     monkeypatch.setattr(recovery, 'reject_live_competitors', lambda: None)
-    def prepare(config_arg, checkpoint, destination, config_sha):
+    def prepare(config_arg, checkpoint, destination, config_sha, **kwargs):
         assert checkpoint == initial and config_arg == config and config_sha == sha(config)
+        assert kwargs['stage'] == stage
         calls.append('prepare'); destination.mkdir()
         clone = destination / 'recovery.yaml'; clone.write_text('clone')
         return {'recovery_config': str(clone), 'checkpoint': str(initial), 'fingerprint': 'fp'}
     monkeypatch.setattr(recovery, 'prepare', prepare)
     monkeypatch.setattr(disk_guard, 'check_disk_space', lambda *a: None)
     monkeypatch.setattr(job_module, 'monitor_disk', lambda *a: nullcontext())
-    monkeypatch.setattr('trackmaniarl.core.builtins.TorchCheckpointCodec.load', lambda *a: {})
+    monkeypatch.setattr('trackmaniarl.core.builtins.TorchCheckpointCodec.load', lambda *a: {'distributed': {'transitions': 99 if stage == 'training' else 101}})
     monkeypatch.setattr(recovery, 'validate_state', lambda *a, **kw: {'updates': 2, 'transitions': 101})
     monkeypatch.setattr(verify_artifacts, 'validate_drained_journal', lambda *a: calls.append('journal'))
     monkeypatch.setattr(recovery, 'evaluate_copy', lambda *a: calls.append('evaluate'))
@@ -245,8 +250,15 @@ def test_recover_interrupted_selects_last_checkpoint_and_audits_final(tmp_path, 
     monkeypatch.setattr(supervisor, 'process_identity', lambda _: {'pid': 42, 'process_group': 42, 'boot_id': 'boot', 'start_ticks': 1})
     monkeypatch.setattr(supervisor, 'wait_for_group_exit', lambda *a: None)
     entry, state = {}, {}
+    disk_usage = shutil.disk_usage
+    monkeypatch.setattr(shutil, 'disk_usage', lambda _: SimpleNamespace(free=0))
+    with pytest.raises(OSError, match='insufficient space'):
+        supervisor.recover_interrupted(job, tmp_path, {}, {}, tmp_path / 'low-space-state.json')
+    assert not calls
+    monkeypatch.setattr(shutil, 'disk_usage', disk_usage)
     result = supervisor.recover_interrupted(job, tmp_path, entry, state, tmp_path / 'state.json')
-    assert result['accepted_transitions'] == 101 and calls == ['prepare', 'journal', 'evaluate', 'verify']
+    assert result['accepted_transitions'] == 101
+    assert calls == (['prepare', 'journal', 'evaluate', 'verify'] if stage == 'training' else ['prepare', 'evaluate', 'verify'])
     assert entry['recovery']['status'] == 'verified'
     stop.touch()
     with pytest.raises(ValueError, match='stop request'):
