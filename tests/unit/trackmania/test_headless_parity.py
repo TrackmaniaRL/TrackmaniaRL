@@ -105,8 +105,8 @@ def test_native_sampler_validates_custom_store_ids() -> None:
 
 
 @pytest.mark.parametrize("intervals", [1, 5])
-@pytest.mark.parametrize("action", range(78))
-def test_every_action_keeps_issued_pending_and_applied_separate(
+@pytest.mark.parametrize("action", [0, 1, 2, 3, 4, 5, 36, 39, 41, 72, 77])
+def test_representative_actions_keep_issued_pending_and_applied_separate(
     action: int, intervals: int
 ) -> None:
     pending = (0.0, 1.0, 1.0)

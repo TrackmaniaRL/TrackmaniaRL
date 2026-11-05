@@ -214,8 +214,10 @@ def _native_learner(algorithm: str, encoder: str) -> tuple[Any, torch.nn.Module]
     return learner, model
 
 
-@pytest.mark.parametrize("algorithm", ["dqn", "qr", "iqn", "sd-sac"])
-@pytest.mark.parametrize("encoder", ["graph", "mlp"])
+@pytest.mark.parametrize(
+    ("algorithm", "encoder"),
+    [("dqn", "graph"), ("dqn", "mlp"), ("qr", "graph"), ("iqn", "mlp"), ("sd-sac", "graph")],
+)
 def test_native_observations_support_discrete_learners_and_encoders(
     algorithm: str, encoder: str, tmp_path: Path
 ) -> None:

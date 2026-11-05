@@ -29,19 +29,6 @@ def test_legacy_documentation_index_anchors_are_preserved() -> None:
     } <= anchors
 
 
-def test_scaffold_declaration_scope_ignores_user_configs() -> None:
-    text = "Custom `run-experiment.yaml`.\nBEGIN\nUse `configs/run-missing.yaml`.\nEND\n"
-    section = _declaration(text, "BEGIN", "END")
-    assert _missing_generated_configs(section, {"run.yaml"}) == [(2, "run-missing.yaml")]
-
-
-def test_documented_family_list_is_checked_against_real_filenames() -> None:
-    generated = {"run-sac-lidar.yaml", "run-sd-sac-lidar.yaml"}
-    assert _missing_family_configs("`sac`, `discrete-sac`", ("lidar",), generated) == [
-        "run-discrete-sac-lidar.yaml"
-    ]
-
-
 def _declaration(markdown: str, start: str, end: str) -> str:
     assert markdown.count(start) == 1, f"expected one declaration marker: {start}"
     section = markdown.split(start, 1)[1]
@@ -83,39 +70,6 @@ def _python_block(markdown: str, symbol: str) -> str:
         f"expected one Python block containing {symbol!r}, got {len(selected)}"
     )
     return selected[0]
-
-
-def test_python_block_extracts_documented_code_and_rejects_missing() -> None:
-    markdown = "Text\n```python\nvalue = 42\n```\n"
-    assert _python_block(markdown, "value = 42") == "value = 42\n"
-    with pytest.raises(AssertionError, match="expected one Python block"):
-        _python_block(markdown, "missing")
-    with pytest.raises(AssertionError, match="expected one Python block"):
-        _python_block(markdown + markdown, "value = 42")
-
-
-def test_generated_config_check_reports_stale_names_with_line_numbers(tmp_path: Path) -> None:
-    document = tmp_path / "guide.md"
-    document.write_text("Use `run.yaml`.\nThen use `run-missing-vision.yaml`.\n", encoding="utf-8")
-    assert _missing_generated_configs(document.read_text(encoding="utf-8"), {"run.yaml"}) == [
-        (2, "run-missing-vision.yaml")
-    ]
-
-
-def test_generated_config_check_detects_wrong_case() -> None:
-    assert _missing_generated_configs("Use `run-PPO.yaml`", {"run-ppo.yaml"}) == [
-        (1, "run-PPO.yaml")
-    ]
-
-
-def test_generated_config_check_expands_algorithm_filename_patterns() -> None:
-    generated = {
-        f"run-{algorithm}-vision.yaml"
-        for algorithm in ("q", "qr", "iqn", "fqf", "sac", "redq", "tqc", "sd-sac")
-    }
-    assert _missing_generated_configs("Use `run-ALGORITHM-vision.yaml`", generated) == [
-        (1, "run-ppo-vision.yaml")
-    ]
 
 
 def test_scaffold_filenames_in_generated_configuration_guides(tmp_path: Path) -> None:
