@@ -141,6 +141,13 @@ def test_finished_summary_relabels_transitions_from_earlier_chunks(tmp_path: Pat
         event = _episode_event(coordinator)
         assert event["episode_id"] == _EPISODE_ID
         assert event["replay/labeled_transitions"] == 2
+        assert event["phase"] == "training"
+        assert event["accepted_transitions_at_ingest"] == 2
+        assert event["accepted_transitions_semantics"] == "after_entire_submitted_chunk"
+        assert event["actor_session_id"] == "session"
+        assert event["actor_chunk_sequence"] == 2
+        assert event["metric_segment_id"] == coordinator._metric_segment_id
+        assert event["policy_version"] == 0
     finally:
         _close(coordinator)
 
@@ -195,6 +202,11 @@ def test_failed_and_eval_summaries_do_not_relabel(tmp_path: Path) -> None:
         coordinator._drain_rollouts(10)
         _assert_paces(coordinator, None)
         assert _episode_event(coordinator)["replay/labeled_transitions"] == 0
+        event = dict(coordinator.run.logger.records)["eval/episode"]
+        assert event["phase"] == "evaluation"
+        assert event["accepted_transitions_at_ingest"] == 2
+        assert event["metric_segment_id"] == coordinator._metric_segment_id
+        assert event["policy_version"] == 0
     finally:
         _close(coordinator)
 

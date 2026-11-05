@@ -20,6 +20,7 @@ from trackmaniarl.distributed.coordinator_offline import (
 )
 from trackmaniarl.distributed.coordinator_offline import offline_pretrain as offline_pretrain
 from trackmaniarl.distributed.coordinator_policy import can_update as can_update
+from trackmaniarl.distributed.coordinator_policy import drain_requested as drain_requested
 from trackmaniarl.distributed.coordinator_policy import (
     external_stop_requested as external_stop_requested,
 )
@@ -72,7 +73,18 @@ def _learning_needed(loop: _LearningLoop) -> bool:
     journal_pending = coordinator.journal.has_rows_after(
         coordinator.counters.journal_applied_frontier
     )
-    return not coordinator._should_stop() or can_drain_credit or journal_pending
+    stop = coordinator.external_stop
+    awaiting_local_actor = (
+        getattr(stop, "wait_for_actor_drain", False) is True
+        and coordinator.counters.transitions >= coordinator.run.spec.training.total_transitions
+        and not drain_requested(coordinator)
+    )
+    return (
+        not coordinator._should_stop()
+        or can_drain_credit
+        or journal_pending
+        or awaiting_local_actor
+    )
 
 
 def _learning_step(loop: _LearningLoop) -> bool:

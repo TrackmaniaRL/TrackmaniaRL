@@ -275,12 +275,13 @@ The `torch` backend is portable across Windows, Linux, CPU and CUDA. The
 probes native forward/backward and records the Pure PyTorch fallback reason.
 Both backends use the same model parameters and checkpoint fingerprint.
 
-Install the `mamba` extra only when testing the native kernel. The `torch`
-backend is implemented locally with standard Torch operations and works without
-`mamba-ssm`:
+Install the `mamba` extra only when testing the native kernel. In a generated
+Trackmania project, enable it on the TrackmaniaRL dependency while retaining the
+existing extras. The `torch` backend uses standard Torch operations and works
+without `mamba-ssm`:
 
 ```bash
-uv sync --extra mamba
+uv add "trackmaniarl[trackmania,distributed,mamba]"
 ```
 
 Select the model explicitly in `run.yaml` and set
@@ -332,10 +333,11 @@ Every run writes `manifest.json`, versioned `events.jsonl`, compressed episode
 artifacts, checkpoints and study records. Resume a stopped run with:
 
 ```bash
-uv run trackmaniarl resume run.yaml artifacts/trackmania-iqn/checkpoints/distributed-update-XXXXXXXX.pt
+uv run trackmaniarl resume run.yaml artifacts/trackmania-iqn-lidar-v1/checkpoints/distributed-update-XXXXXXXX.pt
 ```
 
-Replace `trackmania-iqn` if your `run_id` differs.
+Replace `trackmania-iqn-lidar-v1` if your `run_id` differs, and use an existing
+checkpoint filename in place of `distributed-update-XXXXXXXX.pt`.
 
 W&B is optional. The generated project logs locally until you run
 `uv add "trackmaniarl[trackmania,distributed,wandb]"` and add an
@@ -362,7 +364,7 @@ per-trial status, latency/FPS and map UID and fails when any configured
 acceptance threshold is missed:
 
 ```bash
-uv run trackmaniarl benchmark run.yaml artifacts/trackmania-iqn-lidar/checkpoints/distributed-update-XXXXXXXX.pt
+uv run trackmaniarl benchmark run.yaml artifacts/trackmania-iqn-lidar-v1/checkpoints/distributed-update-XXXXXXXX.pt
 ```
 
 With the first-party evaluator, add `--stop-file PATH` to cancel a benchmark

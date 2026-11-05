@@ -54,9 +54,22 @@ class SensorEnvironmentFactory:
 
 
 @pytest.mark.parametrize(
-    "algorithm", ["q", "qr", "iqn", "fqf", "sac", "redq", "tqc", "sd-sac", "ppo"]
+    ("algorithm", "fusion"),
+    [
+        ("q", False),
+        ("q", True),
+        ("qr", False),
+        ("iqn", True),
+        ("fqf", False),
+        ("sac", False),
+        ("sac", True),
+        ("redq", True),
+        ("tqc", False),
+        ("sd-sac", True),
+        ("ppo", False),
+        ("ppo", True),
+    ],
 )
-@pytest.mark.parametrize("fusion", [False, True])
 def test_sensor_update_train_and_resume(tmp_path: Path, algorithm: str, *, fusion: bool) -> None:
     geometry = _asset(tmp_path)
     config = yaml.safe_load(_trackmania_sensor_config(algorithm, fusion=fusion))

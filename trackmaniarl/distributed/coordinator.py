@@ -9,6 +9,7 @@ from queue import Queue
 from threading import RLock
 from time import monotonic
 from typing import Any
+from uuid import uuid4
 
 import grpc
 from google.protobuf.wrappers_pb2 import BytesValue
@@ -85,6 +86,8 @@ class Coordinator:
         self._journal_enqueued_at: dict[int, float] = {}
 
     def _initialize_metrics(self) -> None:
+        # A new coordinator gets a distinct segment even when it resumes a run.
+        self._metric_segment_id = uuid4().hex
         self._metrics = coordinator_support._MetricAccumulator()
         self._metric_window_started = monotonic()
         self._started_at = self._metric_window_started

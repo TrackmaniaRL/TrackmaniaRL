@@ -4,7 +4,18 @@
 
 ## Installation
 
-Install [uv](https://docs.astral.sh/uv/), then create a project:
+Install [uv](https://docs.astral.sh/uv/), then create a project. On Windows,
+the generated project's `vgamepad` dependency may install or repair the
+system-wide ViGEmBus driver during `uv sync`. Read the
+[driver warning](trackmania.md) before proceeding. Generated projects select
+CUDA PyTorch wheels on Windows and Linux. For a CPU-only project generated from
+the released CLI, after `init` and before `uv sync`, change
+`index = "pytorch-cuda"` to `index = "pytorch-cpu"` in the generated
+`pyproject.toml` under `[tool.uv.sources]`. A project generated from a local
+checkout can also inherit the checkout's Torch source and constraints, so that
+change alone may not resolve the build. See the
+[PyTorch installation guide](https://pytorch.org/get-started/locally/) for other
+builds.
 
 ```powershell
 uv tool install trackmaniarl
@@ -22,7 +33,8 @@ uv tool install path\to\trackmaniarl-VERSION-py3-none-any.whl
 To work from this repository, run `uv sync --group dev` and prefix commands with
 `uv run`.
 
-For a game-free installation check, generate the small SDK starter instead:
+For a game-free installation check, run the small SDK starter in a separate
+terminal from the directory that contains `my-agent`:
 
 ```powershell
 trackmaniarl init sdk-check --template starter
@@ -62,26 +74,34 @@ uv run trackmaniarl track check
 
 ## Configure a map
 
-Record both track boundaries from start to finish, then build the geometry file:
+Copy your `.Map.Gbx` file to `maps/my-map.Map.Gbx` before building geometry.
+Use the UID printed by `track check` in place of `YOUR_MAP_UID` below. In the
+game, start at the beginning of the map and drive along the left boundary to
+the finish while the first command records. Restart the map, then use the
+second command and drive along the right boundary to the finish:
 
 ```powershell
 uv run trackmaniarl track record-boundary left assets/my-map-left.npy
 uv run trackmaniarl track record-boundary right assets/my-map-right.npy
-uv run trackmaniarl track build-geometry assets/my-map.geometry.npz `
-  --left assets/my-map-left.npy `
-  --right assets/my-map-right.npy `
-  --map-uid YOUR_MAP_UID `
-  --map-path maps/my-map.Map.Gbx
 ```
 
-Copy the map to `maps/`, then replace `REPLACE_WITH_YOUR_MAP_UID` in `run.yaml`
-with the UID printed by `track check`. See [examples/own-map.yaml](../examples/own-map.yaml)
-for a complete configuration. TrackmaniaRL verifies the open map but does not
-select it for you.
+Build the geometry after both recordings finish:
+
+```bash
+uv run trackmaniarl track build-geometry assets/my-map.geometry.npz --left assets/my-map-left.npy --right assets/my-map-right.npy --map-uid YOUR_MAP_UID --map-path maps/my-map.Map.Gbx
+```
+
+Replace every `REPLACE_WITH_YOUR_MAP_UID` in `run.yaml`: the environment,
+feature pipeline and evaluation map each need the same UID. If you use different
+filenames, update their paths in the configuration too. See
+[examples/own-map.yaml](../examples/own-map.yaml) for a complete configuration.
+TrackmaniaRL verifies the open map but does not select it for you.
 
 ## Train and resume
 
-Validate the configuration and run a short smoke test before a full training run:
+Validate the configuration and run a short smoke test before a full training run.
+The generated default is two million transitions; adjust `training.total_transitions`
+in `run.yaml` if you want a different budget. The smoke test controls the game.
 
 ```powershell
 uv run trackmaniarl validate run.yaml
@@ -94,13 +114,13 @@ The starter project uses a lidar encoder, a dueling IQN policy and 78 discrete
 control actions. An actor drives while the learner trains from replay.
 
 For continuous off-policy control, use the generated `run-sac.yaml`,
-`run-redq.yaml` or `run-tqc.yaml`. `run-discrete-sac.yaml` provides a categorical
+`run-redq.yaml` or `run-tqc.yaml`. `run-sd-sac.yaml` provides a categorical
 actor-critic with the 78-action table. All four include first-party telemetry models.
 
 Every RL family supports camera observations. The template also generates
 `run-q-vision.yaml`, `run-qr-vision.yaml`, `run-iqn-vision.yaml`,
 `run-fqf-vision.yaml`, `run-sac-vision.yaml`, `run-redq-vision.yaml`,
-`run-tqc-vision.yaml` and `run-discrete-sac-vision.yaml`.
+`run-tqc-vision.yaml` and `run-sd-sac-vision.yaml`.
 For supervised learning from aligned RGB demonstrations, use `run-bc-vision.yaml`
 and the [camera BC guide](vision-bc.md).
 
@@ -130,14 +150,14 @@ does not contain optimizer or replay state and cannot be used for an exact resum
 
 Run every trial and keep the complete result:
 
-```powershell
-uv run trackmaniarl benchmark run.yaml artifacts/RUN/checkpoints/CHECKPOINT.pt `
-  --trials 30 --min-finish-rate 1
+```bash
+uv run trackmaniarl benchmark run.yaml artifacts/RUN/checkpoints/CHECKPOINT.pt --trials 30 --min-finish-rate 1
 ```
 
-Add `--record recordings/benchmark.mkv` to record the Trackmania window. Recording
-requires FFmpeg. Use `--ffmpeg PATH` or `--window-title TITLE` when the defaults do
-not match your system.
+On Windows, add `--record recordings/benchmark.mkv` to record the Trackmania
+window. The built-in recorder requires FFmpeg and is not supported on Linux.
+Use `--ffmpeg PATH` or `--window-title TITLE` when the defaults do not match your
+system.
 
 Each benchmark writes `evaluation.json` and an append-only trial timeline. A DNF
 still counts as an attempt. Mean and median times cover finished attempts, so report

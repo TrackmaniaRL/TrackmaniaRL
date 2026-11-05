@@ -9,47 +9,67 @@ retain the versions and dates of the runs they describe.
 
 ## Start here
 
-| Goal | Entry point |
-| --- | --- |
-| Use the library from Python | [Python quickstart](python-quickstart.md) |
-| Connect the game and train an agent | [Game quickstart](quickstart.md) |
-| Train with actors on multiple computers | [Distributed setup](distributed-setup.md) |
-| Use the native headless environment and choose a model | [Native headless](headless-full-qr.md) |
-| Add your own components | [Public API](public-api.md), [examples](../examples/README.md) and [SDK reference](sdk.md) |
-| Develop the library | [Development](development.md) and [repository layout](../docs/repository-layout.md) |
+Choose a section by what you want to do. Some linked guides combine instructions,
+reference material and explanations; they may appear in more than one section.
 
-## From setup to an evaluated policy
+## Tutorials: learn by doing
 
-1. Follow [installation and game setup](quickstart.md) and
-   [Trackmania integration](trackmania.md) to connect Openplanet, configure control
-   input, identify the map and build its geometry.
-2. Choose an [algorithm and supported model combination](algorithms.md).
-   Generated `run.yaml` uses IQN/lidar, `run-ppo.yaml` uses PPO/telemetry, and
-   `run-ALGORITHM-vision.yaml` selects camera observations for each RL family.
-   The [vision guide](vision.md) explains capture, frame stacking and CNNs.
-   For supervised camera training use [vision BC](vision-bc.md).
-3. Use the [configuration reference](configuration.md) to set components, rollout
-   or replay settings, execution device and evaluation rules. Run `validate` for a
-   synthetic learner update and checkpoint round trip, then `smoke` with the game.
-4. Read [library data flow](../docs/library-architecture.md) and
-   [runtime architecture](architecture.md) to understand how observations become
-   actions, transitions and learning batches. [Replay and sequences](replay-and-sequences.md)
-   explains n-step targets, terminal masks, PER, recurrent history and fresh PPO rollouts.
-5. Inspect [reward construction](../docs/reward-function.md) and
-   [metrics](observability.md) while training. Use [performance](performance.md)
-   and [troubleshooting](../docs/troubleshooting.md) to distinguish learning problems
-   from capture, telemetry, controller or device problems.
-6. Resume with a full training checkpoint using the [checkpoint lifecycle](sdk.md).
-   Evaluate with `benchmark`, keeping every attempt, finish rate, finish times and
-   telemetry quality. [Recording](../docs/recording.md) explains optional video evidence.
+- [Python quickstart](python-quickstart.md): run a game-free example, train from a
+  configuration and plug in a model.
+- [Game quickstart](quickstart.md): set up Trackmania, train on your own map and
+  evaluate a checkpoint. Read the driver warning before installing on Windows.
+- [Python examples](../examples/README.md): explore runnable examples after the quickstart.
+
+## How-to guides: complete a task
+
+- [Trackmania integration](trackmania.md): connect Openplanet, set up controls and
+  prepare map geometry.
+- [Distributed setup](distributed-setup.md): train with actors on multiple computers.
+- [Native headless and the full QR profile](headless-full-qr.md): prepare a native
+  deployment and choose a model. This mixed guide also describes the runtime contract
+  and historical profile; it requires caller-supplied assets and references.
+- [Vision](vision.md) and [vision BC](vision-bc.md): use camera observations or
+  train with demonstrations.
+- [Imitation learning](imitation-learning.md): record demonstrations and use BC,
+  DAgger or recovery workflows.
+- [Performance](performance.md), [observability](observability.md) and
+  [troubleshooting](../docs/troubleshooting.md): investigate training, capture,
+  telemetry, controller and device problems.
+- [Recording](../docs/recording.md): capture optional video evidence of a benchmark.
+- [Development](development.md): add components, run checks and prepare releases.
 
 ## Extending and maintaining the library
 
-The [Python SDK](sdk.md) documents public contracts, component factories, PyTrees,
-model composition and checkpoint handling. [Imitation learning](imitation-learning.md)
-covers demonstration recording, BC, DAgger and recovery workflows.
-[Development](development.md) covers adding components, tests and release checks.
-The [support matrix](../docs/support-status.md) describes supported paths and their contracts.
+## Reference: look up details
+
+- [Configuration](configuration.md): components, rollout and replay settings,
+  execution device and evaluation rules.
+- [Algorithms](algorithms.md): supported algorithms and model combinations. Generated
+  `run.yaml` uses IQN/lidar, `run-ppo.yaml` uses PPO/telemetry, and
+  `run-ALGORITHM-vision.yaml` selects camera observations for each RL family.
+- [Public API](public-api.md) and [SDK guide](sdk.md): extension boundaries,
+  component factories, model composition and checkpoint handling.
+- [Observability](observability.md): metrics and incident signals.
+- [Support matrix](../docs/support-status.md): supported paths and their contracts.
+- [Repository layout](../docs/repository-layout.md): where to find the package,
+  examples, tests and local experiment data.
+
+## Explanations: understand how it works
+
+- [Library data flow](../docs/library-architecture.md) and
+  [runtime architecture](architecture.md): how observations become actions,
+  transitions and learning batches.
+- [Replay and sequences](replay-and-sequences.md): n-step targets, terminal masks,
+  PER, recurrent history and fresh PPO rollouts. It also includes configuration recipes.
+- [Reward construction](../docs/reward-function.md): how the Trackmania reward is built.
+- [Vision](vision.md): capture, frame stacking, CNNs and PPO behavior.
+
+## From setup to an evaluated policy
+
+For a training run, `validate` performs a synthetic learner update and checkpoint
+round trip; `smoke` exercises the game. Resume with a full training checkpoint as
+explained in the [SDK guide](sdk.md). Evaluate with `benchmark`, keeping every
+attempt, finish rate, finish times and telemetry quality.
 
 Tests establish component and workflow behavior. Racing results require live
 experiments. Camera capture uses a visible desktop viewport and does not provide

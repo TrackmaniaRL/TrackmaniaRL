@@ -20,7 +20,7 @@ from trackmaniarl.trackmania.native_headless.full_qr.rumble_producer import (
     SurfaceRumbleInput,
     _round_float32,
     combine_contact_rumble,
-    produce_rumble,
+    update_surface_rumble,
 )
 
 
@@ -106,7 +106,7 @@ class ContactRumbleProducer:
         channels = (normalized[0], normalized[1], normalized[2])
         if material == 80:
             # Literal source7cecdb skips the whole surface block for sentinel80.
-            state = combine_contact_rumble(self.state, channels)
+            state = combine_contact_rumble(self.state, channels, source_contacts=boundary.contacts)
         else:
             parameters = source.palette.get(material)
             if type(parameters) is not bytes or len(parameters) != 0x90:
@@ -117,7 +117,11 @@ class ContactRumbleProducer:
             surface = SurfaceRumbleInput(
                 speed, material, source.surface_enabled, sensitivity, cap, divisor, gain
             )
-            state = produce_rumble(self.state, surface, channels)
+            state = combine_contact_rumble(
+                update_surface_rumble(self.state, surface),
+                channels,
+                source_contacts=boundary.contacts,
+            )
         result = PhysicalRumbleStep(clock, state, channels, material, speed, len(boundary.contacts))
         self.state, self.native_t, self.contacts = state, clock, receipt.contacts
         return result

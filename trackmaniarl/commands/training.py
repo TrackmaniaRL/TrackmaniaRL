@@ -28,6 +28,11 @@ from trackmaniarl.distributed.coordinator_types import (
 from trackmaniarl.distributed.stop_signal import ProcessStopSignal
 from trackmaniarl.trackmania.demonstrations import resolve_demonstration_paths
 
+# Actor teardown includes native environment close, trace archiving, sender
+# drain and background-worker joins. Its internal sender and worker grace
+# periods are each 10 s, so the launcher's bound must exceed their sum.
+_ACTOR_SHUTDOWN_GRACE_S = 60.0
+
 
 @dataclass(frozen=True, slots=True)
 class _LocalProcesses:
@@ -131,7 +136,7 @@ def _spawn_local_processes(
         if stop_file.exists():
             raise ValueError(f"Stop file already exists; remove it before starting: {stop_file}")
     context = _spawn_context()
-    shutdown = ProcessStopSignal(context)
+    shutdown = ProcessStopSignal(context, wait_for_actor_drain=True)
     actor_shutdown = ProcessStopSignal(context)
     endpoint = f"127.0.0.1:{spec.distributed.port}"
     token = secrets.token_urlsafe(32)
@@ -218,6 +223,12 @@ def _wait_for_learner_drain(processes: _LocalProcesses) -> None:
         f"waiting for learner (pid={processes.learner.pid}) to drain update credit...",
         flush=True,
     )
+    # A successful actor exit confirms its sender threads have closed. Keep the
+    # learner's server available until this point so accepted spools are not
+    # stranded, then drain all journaled work before the final checkpoint.
+    request_drain = getattr(processes.shutdown, "request_drain", None)
+    if callable(request_drain):
+        request_drain()
     while processes.learner.is_alive():
         if _stop_file_requested(processes):
             return
@@ -261,7 +272,7 @@ def _shutdown_local_processes(processes: _LocalProcesses, *, drain: bool = False
         processes.actor_shutdown.set()
     if not drain or processes.actor_shutdown is None:
         _signal_shutdown(processes.shutdown, processes.learner, processes.actor)
-    _join_during_shutdown(processes.actor, timeout=10)
+    _join_during_shutdown(processes.actor, timeout=_ACTOR_SHUTDOWN_GRACE_S)
     if drain and processes.actor_shutdown is not None:
         if processes.actor.is_alive() or processes.actor.exitcode not in (0, None):
             processes.shutdown.set()

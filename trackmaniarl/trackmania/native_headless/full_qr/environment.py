@@ -19,6 +19,8 @@ import numpy as np
 import torch
 
 from trackmaniarl.core.pytree import tree_snapshot
+from trackmaniarl.trackmania.actions import BRAKE_TAP_DURATION_S
+from trackmaniarl.trackmania.native_headless._runtime.continuous import ContinuousControl
 from trackmaniarl.trackmania.native_headless.full_qr.committed_terminal import (
     NativeCommittedGoalFrame,
 )
@@ -197,9 +199,9 @@ class FullQrEnvironment:
             raise NativeLifecycleError("full QR reset failed; provider closed") from error
 
     def step(self, action: int) -> tuple[dict[str, Any], float, bool, bool, dict[str, Any]]:
-        if isinstance(action, bool) or not isinstance(action, Integral) or not 0 <= action < 78:
-            raise ValueError("one of the historical 78 actions is required")
-        action = int(action)
+        self._validate_action(action)
+        if isinstance(action, Integral) and not isinstance(action, bool):
+            action = int(action)
         if self._closed or self._ended or self._events is None or self._reward is None:
             raise NativeLifecycleError("an active full QR reset is required")
         try:
@@ -208,13 +210,20 @@ class FullQrEnvironment:
                 raise TypeError("EOF or missing native data is not a full QR step")
             observation, result = self._observe_and_reward(step)
             self._ended = result.terminated
-            info = self._record_step_info(step, result)
+            info = self._record_step_info(step, result, action)
+            finish_episode = getattr(self.provider, "finish_episode", None)
+            if self._ended and callable(finish_episode):
+                finish_episode()
             return observation, result.reward, result.terminated, False, info
         except BaseException as error:
             self._fail(error)
             if isinstance(error, (KeyboardInterrupt, SystemExit)):
                 raise
             raise NativeLifecycleError("full QR step failed; no transition returned") from error
+
+    def _validate_action(self, action: int) -> None:
+        if isinstance(action, bool) or not isinstance(action, Integral) or not 0 <= action < 78:
+            raise ValueError("one of the historical 78 actions is required")
 
     def _observe_and_reward(
         self, step: FullQrStep | FullQrTerminalStep
@@ -245,7 +254,10 @@ class FullQrEnvironment:
         return observation, result
 
     def _record_step_info(
-        self, step: FullQrStep | FullQrTerminalStep, result: RewardResult
+        self,
+        step: FullQrStep | FullQrTerminalStep,
+        result: RewardResult,
+        action: int | ContinuousControl,
     ) -> dict[str, Any]:
         assert self._reward is not None
         assert self._events is not None
@@ -254,6 +266,18 @@ class FullQrEnvironment:
         step_race_ms = physics_time_ms - self._last_physics_time_ms
         self._last_physics_time_ms = physics_time_ms
         observed_monotonic = monotonic()
+        if isinstance(action, ContinuousControl):
+            gas, brake, brake_tap = action.gas, action.brake, 0.0
+        else:
+            # The 78-action table groups three brake modes under each gas bit.
+            # A tap applies the brake for the first 10 ms native tick only.
+            gas = float((action // 3) % 2)
+            brake = (
+                min(1.0, BRAKE_TAP_DURATION_S * 1_000.0 / max(step_race_ms, 1.0))
+                if action % 3 == 2
+                else float(action % 3)
+            )
+            brake_tap = float(action % 3 == 2)
         return {
             "actor": self.actor,
             "episode": self._events.identity.episode,
@@ -271,6 +295,9 @@ class FullQrEnvironment:
             "progress_m": self._reward.progress_m,
             "progress_pct": self._reward.progress_pct,
             **reward_result_info(result),
+            "control_gas": gas,
+            "control_brake": brake,
+            "control_brake_tap": brake_tap,
             "control_steer": step.issued_steering,
         }
 

@@ -11,7 +11,7 @@ from trackmaniarl.trackmania.native_headless._runtime import codec_v6
 PROFILE_ID = "tmre.long4152-immediate/v7"
 
 
-def decode_v7_response(raw: bytes) -> dict[str, Any]:
+def decode_v7_response(raw: bytes, *, allow_continuous_pedals: bool = False) -> dict[str, Any]:
     if type(raw) is not bytes or len(raw) != 448 or raw[:5] != b"TMR7\x07":
         raise ValueError("V7 exact frame/header required")
     kind = raw[5]
@@ -36,8 +36,11 @@ def decode_v7_response(raw: bytes) -> dict[str, Any]:
             if (
                 not math.isfinite(steer)
                 or not -1 <= steer <= 1
-                or gas not in (0, 1)
-                or brake not in (0, 1)
+                or not math.isfinite(gas)
+                or not math.isfinite(brake)
+                or not 0 <= gas <= 1
+                or not 0 <= brake <= 1
+                or (not allow_continuous_pedals and (gas not in (0, 1) or brake not in (0, 1)))
             ):
                 raise ValueError("V7 after channels outside native domain")
         # Reuse the strict read-only reader decoder, then restore V7 semantics.

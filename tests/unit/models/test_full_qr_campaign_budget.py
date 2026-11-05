@@ -167,7 +167,7 @@ def test_full_disk_does_not_prevent_shared_shutdown(
 ) -> None:
     signal = ProcessStopSignal(multiprocessing.get_context("spawn"))
     budget = CampaignBudget(
-        _settings(tmp_path, duration_seconds=0.1),
+        _settings(tmp_path, duration_seconds=60),
         free_bytes=lambda _: 20 * GIB,
         stop_signal=signal,
     )
@@ -176,11 +176,13 @@ def test_full_disk_does_not_prevent_shared_shutdown(
 
     def full_stop_disk(path: Path, *args: object, **kwargs: object) -> int:
         if path == budget.stop_file:
+            assert signal.is_set(), "shutdown must be signalled before attempting to write STOP"
             raise OSError(errno.ENOSPC, "injected full disk")
         return original(path, *args, **kwargs)
 
     monkeypatch.setattr(os, "open", full_stop_disk)
     try:
+        budget.request_stop("wall_clock_limit")
         assert signal.wait(3)
     finally:
         state = budget.close()

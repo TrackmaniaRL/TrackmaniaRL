@@ -69,14 +69,7 @@ _REPLACEMENTS = {
             'self.ready["metadata"]["input_count"] == 4152',
             'self.ready["metadata"]["input_count"] == 16152',
         ),
-        (
-            "    def packet(self) -> dict[str, Any]:",
-            "    def _decision_events(self, anchor: int, end: int) -> list[bytes]:\n"
-            "        env.require(not any(t > end for t in self.events), "
-            '"V8 advanced beyond request")\n'
-            "        return [self.events[t] for t in sorted(self.events) if anchor < t <= end]\n\n"
-            "    def packet(self) -> dict[str, Any]:",
-        ),
+        ('"V7 advanced beyond request"', '"V8 advanced beyond request"'),
     ),
     _ROOT + "_runtime/features.py": (
         (

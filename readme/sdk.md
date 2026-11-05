@@ -6,10 +6,6 @@ Start with the runnable [Python quickstart](python-quickstart.md).
 The [public API guide](public-api.md) distinguishes supported imports and
 extension contracts from internal implementation and research tooling.
 
-Start with the runnable [Python quickstart](python-quickstart.md).
-The [public API guide](public-api.md) distinguishes supported imports and
-extension contracts from internal implementation and research tooling.
-
 For image observations, use `trackmaniarl.trackmania.vision:VisionFeaturePipeline`
 and `trackmaniarl.trackmania.vision_models:VisionSensorEncoder`. The encoder fits
 `CompositeValueModelFactory`, and `VisionPpoModelFactory` supplies the bounded
@@ -244,12 +240,11 @@ round trip before a live run.
 
 `validate` does not start TrackMania. It resolves components, writes the
 redacted manifest and runs a deterministic synthetic RL or supervised update.
-The `trackmaniarl train` command requires `components.environment` and runs the
-asynchronous off-policy actor/learner path. It collects bounded episodes,
-writes compressed reference-only artifacts, samples replay, applies updates,
-checkpoints and runs an optional evaluator. On-policy PPO instead uses the
-public `trackmaniarl.Trainer` API with `OnPolicySequenceSampler`. Distributed
-`learner` and `actor` do not support it.
+The `trackmaniarl train` command requires `components.environment`. For
+off-policy learners it runs the asynchronous actor/learner path, collects
+episodes, samples replay, applies updates and saves checkpoints. For on-policy
+PPO it uses the local `Trainer` with `OnPolicySequenceSampler`. The distributed
+`learner` and `actor` commands do not support PPO.
 
 `validate` is game-free, not code-free: it imports every configured component
 and invokes constructors and a learner validation update. Never validate an untrusted
@@ -303,9 +298,9 @@ New graph checkpoints reject changed declared settings before loading weights.
 Exact run resume still requires the original semantic run fingerprint.
 
 The local on-policy `Trainer` used by PPO persists a separate schema 2.0 state
-containing its semantic run fingerprint, learner, replay store, sampler and
-counters. Do not pass that checkpoint to distributed `resume` or
-`learner --checkpoint`. Exact resume does not reload the original warm-start
+containing its semantic run fingerprint, learner and counters. Its replay-store
+and sampler entries are empty. Do not pass that checkpoint to distributed
+`resume` or `learner --checkpoint`. Exact resume does not reload the original warm-start
 artifact. The run fingerprint includes effective component parameters, every
 Python source file in both the declared and resolved component packages and
 configured geometry and pace-reference file contents. Logging choices,

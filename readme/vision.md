@@ -27,7 +27,7 @@ The Trackmania template generates these complete camera configurations:
 | SAC | `run-sac-vision.yaml` | CNN actor and twin Q critics |
 | REDQ | `run-redq-vision.yaml` | CNN actor and Q ensemble |
 | TQC | `run-tqc-vision.yaml` | CNN actor and quantile ensemble |
-| Stable discrete SAC | `run-discrete-sac-vision.yaml` | Categorical CNN actor and twin Q critics |
+| Stable discrete SAC | `run-sd-sac-vision.yaml` | Categorical CNN actor and twin Q critics |
 | PPO | `run-ppo-vision.yaml` | CNN actor and state-value critic |
 
 Use any filename from this table with `validate`, `train`, `resume` and `benchmark`.
@@ -101,7 +101,7 @@ Telemetry-only DAgger and graph-recovery archives cannot supply missing camera f
 
 The Trackmania scaffold also generates `run-ALGORITHM-lidar.yaml` and
 `run-ALGORITHM-lidar-vision.yaml` for `q`, `qr`, `iqn`, `fqf`, `sac`, `redq`,
-`tqc`, `discrete-sac` and `ppo`. For example:
+`tqc`, `sd-sac` and `ppo`. For example:
 
 ```powershell
 uv run trackmaniarl validate run-sac-lidar-vision.yaml

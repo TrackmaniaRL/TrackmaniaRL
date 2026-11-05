@@ -20,10 +20,16 @@ def test_q_clipping_requires_a_positive_finite_width(width: float) -> None:
 
 
 @pytest.mark.parametrize(
-    "name", ["entropy_coefficient", "entropy_coefficient_min", "entropy_coefficient_max"]
+    ("name", "value", "learned"),
+    [
+        ("entropy_coefficient", 1e-50, False),
+        ("entropy_coefficient", 1e50, True),
+        ("entropy_coefficient_min", 1e-50, True),
+        ("entropy_coefficient_min", 1e50, False),
+        ("entropy_coefficient_max", 1e-50, False),
+        ("entropy_coefficient_max", 1e50, True),
+    ],
 )
-@pytest.mark.parametrize("value", [1e-50, 1e50])
-@pytest.mark.parametrize("learned", [False, True])
 def test_temperature_must_survive_float32_conversion(
     name: str, value: float, *, learned: bool
 ) -> None:

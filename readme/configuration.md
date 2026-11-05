@@ -108,9 +108,11 @@ Relative asset paths are resolved against the directory containing
 | `max_episode_artifacts` | positive int, `100` | Retention bound for compressed local episode artifacts. |
 
 Scheduled distributed evaluation maintains two leaders. `best-eval-*` requires
-the suite's `min_finish_rate` and ranks policies by finish rate first, then lower
-median finish time, then lower best finish time. `fastest-eval-*` ranks policies
-by lower best finish time first, then finish rate, then lower median finish time,
+the suite's `min_finish_rate` and any configured mean-time and step-time gates.
+Without a `target_mean_s`, it ranks policies by finish rate, then lower median
+finish time, then lower best finish time. When `target_mean_s` is configured,
+it ranks by finish rate, then lower mean, then lower median. `fastest-eval-*`
+ranks policies by lower best finish time first, then finish rate, then lower median finish time,
 so it preserves the best individual completed lap even when its batch does not
 pass the reliability threshold. When one batch improves both leaders, each
 family writes its own exact-policy checkpoint. Promotion durability and

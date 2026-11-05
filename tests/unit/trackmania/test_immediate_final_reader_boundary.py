@@ -20,6 +20,15 @@ class NativeOperationError(Exception):
     pass
 
 
+def test_indexed_event_windows_keep_boundaries_and_reject_future() -> None:
+    session = ImmediateSession.__new__(ImmediateSession)
+    session.events = {clock: str(clock).encode() for clock in (2190, 2200, 2210, 2220)}
+    session._event_times = sorted(session.events)
+    assert session._decision_events(2200, 2220) == [b"2210", b"2220"]
+    with pytest.raises(ValueError, match="advanced beyond"):
+        session._decision_events(2200, 2210)
+
+
 def session_at_saved_tail() -> tuple[ImmediateSession, list[str]]:
     session = ImmediateSession.__new__(ImmediateSession)
     session.reader, session.pid, session.meta = SAVED_READER, PID, META.copy()
