@@ -55,20 +55,48 @@ ALLOWED_TOOL_HASHES = {
     },
 }
 TARGET_TOOL_HASHES = {
-    "tools/headless_campaign_queue/README.md": "e61eebbd518d7b0edcb269ccd6f138c9996244a856d82a01638304c563ff283a",
-    "tools/headless_campaign_queue/campaign.py": "616c78efd8656376457090b5175d744df57ba55f635f00d2aa4cdbb701bc9438",
-    "tools/headless_campaign_queue/disk_guard.py": "79f9774f60875ae8ace6c29716f0b6e1dbadb5e6168cc639e1eb828acca51583",
-    "tools/headless_campaign_queue/job.py": "6570ce2ff9fc4f1611e84479fdc8504175eb926fed3f5ed057fa10d3dc3fa456",
-    "tools/headless_campaign_queue/qualification_bridge.py": "9a9bd59d5a2d1c5d17df1acfd1499075044fd730b7dd84b945f81316766680c3",
-    "tools/headless_campaign_queue/qualification_manifest.py": "be3e141e15c8d1630db12ed999cac97ab6398edbc8aa0546628e2ff703cd8b41",
-    "tools/headless_campaign_queue/test_campaign.py": "9046926110ff95bb30072ad11f22358082ede959a968cf38e653c20d232d3186",
-    "tools/headless_campaign_queue/test_disk_guard.py": "1c8b75d28567c2db2d6c6a02dbaa9a9302ba9110678c69c24cab008455c74b06",
-    "tools/headless_campaign_queue/test_job.py": "d4e1efd91e05742837e5a13801589cf53881b4d707a081401125792228b68096",
-    "tools/headless_campaign_queue/windows_wsl.ps1": "a6e8c7cef30f8dc74b554191773c20adfe33a4d448e0cbc6f7044ff43bd837fa",
-    "tools/headless_campaign_queue/qualification_audit.py": "2e6c3ebbdf0b16e8fab4a99922d22dec302035294dadb86775328c5b5fc4aba5",
-    "tools/headless_campaign_queue/qualification_readiness.py": "2b0644a220346cfec576897fec20eeeb4523f0ebd43f09f654757bf538f4b493",
-    "tools/headless_campaign_queue/qualification_restore.py": "0b6f7b261b18d2fe3fb6cdc174f3381275e5e0d05d59ab60f44ffb093b48951a",
-    "tools/headless_campaign_queue/test_qualification.py": "1fb0e6356e70e8d1d59807a8f340903a80be3a986162ec87eca979622613b57d",
+    ("tools/headless_campaign_queue/README.md"): (
+        "e61eebbd518d7b0edcb269ccd6f138c9996244a856d82a01638304c563ff283a"
+    ),
+    ("tools/headless_campaign_queue/campaign.py"): (
+        "616c78efd8656376457090b5175d744df57ba55f635f00d2aa4cdbb701bc9438"
+    ),
+    ("tools/headless_campaign_queue/disk_guard.py"): (
+        "79f9774f60875ae8ace6c29716f0b6e1dbadb5e6168cc639e1eb828acca51583"
+    ),
+    ("tools/headless_campaign_queue/job.py"): (
+        "6570ce2ff9fc4f1611e84479fdc8504175eb926fed3f5ed057fa10d3dc3fa456"
+    ),
+    ("tools/headless_campaign_queue/qualification_bridge.py"): (
+        "9a9bd59d5a2d1c5d17df1acfd1499075044fd730b7dd84b945f81316766680c3"
+    ),
+    ("tools/headless_campaign_queue/qualification_manifest.py"): (
+        "be3e141e15c8d1630db12ed999cac97ab6398edbc8aa0546628e2ff703cd8b41"
+    ),
+    ("tools/headless_campaign_queue/test_campaign.py"): (
+        "9046926110ff95bb30072ad11f22358082ede959a968cf38e653c20d232d3186"
+    ),
+    ("tools/headless_campaign_queue/test_disk_guard.py"): (
+        "1c8b75d28567c2db2d6c6a02dbaa9a9302ba9110678c69c24cab008455c74b06"
+    ),
+    ("tools/headless_campaign_queue/test_job.py"): (
+        "d4e1efd91e05742837e5a13801589cf53881b4d707a081401125792228b68096"
+    ),
+    ("tools/headless_campaign_queue/windows_wsl.ps1"): (
+        "a6e8c7cef30f8dc74b554191773c20adfe33a4d448e0cbc6f7044ff43bd837fa"
+    ),
+    ("tools/headless_campaign_queue/qualification_audit.py"): (
+        "2e6c3ebbdf0b16e8fab4a99922d22dec302035294dadb86775328c5b5fc4aba5"
+    ),
+    ("tools/headless_campaign_queue/qualification_readiness.py"): (
+        "2b0644a220346cfec576897fec20eeeb4523f0ebd43f09f654757bf538f4b493"
+    ),
+    ("tools/headless_campaign_queue/qualification_restore.py"): (
+        "0b6f7b261b18d2fe3fb6cdc174f3381275e5e0d05d59ab60f44ffb093b48951a"
+    ),
+    ("tools/headless_campaign_queue/test_qualification.py"): (
+        "1fb0e6356e70e8d1d59807a8f340903a80be3a986162ec87eca979622613b57d"
+    ),
 }
 
 
@@ -107,9 +135,12 @@ def verify_training_change(old: Path, new: Path) -> None:
     prior = "_join_during_shutdown(processes.actor, timeout=10)"
     if original.count(anchor) != 1 or original.count(prior) != 1:
         raise ValueError("unexpected original shutdown implementation")
-    replacement = (
-        anchor
-        + "\n# Actor teardown includes native environment close, trace archiving, sender\n# drain and background-worker joins. Its internal sender and worker grace\n# periods are each 10 s, so the launcher's bound must exceed their sum.\n_ACTOR_SHUTDOWN_GRACE_S = 60.0\n"
+    replacement = anchor + (
+        "\n# Actor teardown includes native environment close, tr"
+        "ace archiving, sender\n# drain and background-worker joi"
+        "ns. Its internal sender and worker grace\n# periods are "
+        "each 10 s, so the launcher's bound must exceed their su"
+        "m.\n_ACTOR_SHUTDOWN_GRACE_S = 60.0\n"
     )
     expected = original.replace(anchor, replacement).replace(
         prior, "_join_during_shutdown(processes.actor, timeout=_ACTOR_SHUTDOWN_GRACE_S)"

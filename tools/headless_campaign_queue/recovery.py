@@ -19,6 +19,7 @@ import tempfile
 from collections.abc import Mapping
 from contextlib import closing
 from pathlib import Path
+from typing import Any
 
 from tools.headless_campaign_queue.__main__ import atomic_json
 
@@ -31,7 +32,7 @@ def sha(path: Path) -> str:
     return h.hexdigest()
 
 
-def equal(a, b, path: str = "root") -> int:
+def equal(a: Any, b: Any, path: str = "root") -> int:
     import numpy as np
     import torch
 
@@ -54,7 +55,7 @@ def equal(a, b, path: str = "root") -> int:
     if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
         if type(a) is not type(b) or len(a) != len(b):
             raise ValueError(f"{path}: sequence differs")
-        return sum(equal(x, y, f"{path}[{i}]") for i, (x, y) in enumerate(zip(a, b)))
+        return sum(equal(x, y, f"{path}[{i}]") for i, (x, y) in enumerate(zip(a, b, strict=True)))
     if type(a) is not type(b) or a != b:
         raise ValueError(f"{path}: value differs")
     return 1
@@ -88,9 +89,11 @@ def snapshot_journal(source: Path, destination: Path) -> dict:
             shutil.copyfile(wal, Path(str(local) + "-wal"))
         if source_signatures(source) != before:
             raise ValueError("source journal changed during snapshot")
-        with closing(sqlite3.connect(local.resolve().as_uri() + "?mode=ro", uri=True)) as src:
-            with closing(sqlite3.connect(destination)) as dst:
-                src.backup(dst)
+        with (
+            closing(sqlite3.connect(local.resolve().as_uri() + "?mode=ro", uri=True)) as src,
+            closing(sqlite3.connect(destination)) as dst,
+        ):
+            src.backup(dst)
     if source_signatures(source) != before:
         raise ValueError("source journal changed during snapshot")
     return {"source": before, "snapshot_sha256": sha(destination)}
@@ -111,10 +114,15 @@ def inspect_journal(path: Path, journal_id: str, frontier: int) -> dict:
         if meta.get("journal_id") != journal_id or int(meta.get("pruned_through", -1)) > frontier:
             raise ValueError("journal identity or pruned frontier mismatch")
         rows = db.execute(
-            "SELECT c.id,c.session_id,c.sequence,c.payload,r.row_id,r.payload_sha256 FROM chunks c LEFT JOIN receipts r ON r.session_id=c.session_id AND r.sequence=c.sequence WHERE c.id>? ORDER BY c.id",
+            (
+                "SELECT c.id,c.session_id,c.sequence,c.payload,r.row_id,"
+                "r.payload_sha256 FROM chunks c LEFT JOIN receipts r ON "
+                "r.session_id=c.session_id AND r.sequence=c.sequence WHE"
+                "RE c.id>? ORDER BY c.id"
+            ),
             (frontier,),
         ).fetchall()
-        for row_id, session, sequence, payload, receipt_id, digest in rows:
+        for row_id, _session, _sequence, payload, receipt_id, digest in rows:
             if receipt_id != row_id or bytes(digest or b"") != hashlib.sha256(payload).digest():
                 raise ValueError(f"journal receipt mismatch for row {row_id}")
     return {
@@ -206,12 +214,12 @@ def wait_for_group_shutdown(group: int, boot_id: str, timeout: float = 20.0) -> 
             time.sleep(0.25)
 
 
-def validate_state(
+def validate_state(  # noqa: PLR0913 -- explicit orchestration parameters
     state: Mapping,
     fingerprint: str,
     target: int,
-    on_policy: bool,
     *,
+    on_policy: bool,
     stage: str = "training",
     max_overshoot: int = 0,
 ) -> dict:
@@ -254,8 +262,8 @@ def validate_state(
     return {"transitions": transitions, "updates": updates}
 
 
-def prove_restore(
-    spec,
+def prove_restore(  # noqa: PLR0913 -- explicit orchestration parameters
+    spec: Any,
     base: Path,
     checkpoint: Path,
     state: Mapping,
@@ -339,7 +347,10 @@ def prove_restore(
                 "sampler_equal_leaves": sampler_leaves,
                 "transitions_after_wal": actual_transitions,
                 "journal_frontier_after_wal": expected_frontier,
-                "note": "replay and sampler equality is checked only when no pending WAL rows are applied",
+                "note": (
+                    "replay and sampler equality is checked only when no pen"
+                    "ding WAL rows are applied"
+                ),
             }
         finally:
             if coordinator is not None:
@@ -347,7 +358,7 @@ def prove_restore(
             run.logger.close()
 
 
-def prepare(
+def prepare(  # noqa: PLR0913 -- explicit orchestration parameters
     config: Path,
     checkpoint: Path,
     destination: Path,
@@ -411,7 +422,7 @@ def prepare(
         state,
         fingerprint,
         spec.training.total_transitions,
-        on_policy,
+        on_policy=on_policy,
         stage=stage,
         max_overshoot=max_overshoot,
     )
@@ -485,7 +496,7 @@ def prepare(
     return report
 
 
-def finish_replayed_coordinator(coordinator, target: int, max_overshoot: int) -> Path:
+def finish_replayed_coordinator(coordinator: Any, target: int, max_overshoot: int) -> Path:
     """Drain earned updates without an actor, then durably save the full state.
 
     Only use on a private restored copy after producer shutdown and spool audit.
@@ -531,8 +542,8 @@ def finish_replayed_coordinator(coordinator, target: int, max_overshoot: int) ->
     return checkpoint
 
 
-def finalize_replayed_budget(
-    spec,
+def finalize_replayed_budget(  # noqa: PLR0913 -- explicit orchestration parameters
+    spec: Any,
     base: Path,
     checkpoint: Path,
     fingerprint: str,
@@ -577,7 +588,7 @@ def finalize_replayed_budget(
     try:
 
         class FileStop:
-            def is_set(self):
+            def is_set(self) -> bool:
                 return stop.exists() or original_stop.exists()
 
         coordinator = Coordinator(
@@ -608,7 +619,7 @@ def finalize_replayed_budget(
             final_state,
             fingerprint,
             spec.training.total_transitions,
-            False,
+            on_policy=False,
             stage="evaluation",
             max_overshoot=max_overshoot,
         )
@@ -627,7 +638,7 @@ def finalize_replayed_budget(
         run.logger.close()
 
 
-def evaluate_copy(spec, base: Path, checkpoint: Path, stop: Path, report: dict) -> int:
+def evaluate_copy(spec: Any, base: Path, checkpoint: Path, stop: Path, report: dict) -> int:  # noqa: PLR0913 -- explicit orchestration parameters
     """Run a fresh evaluation suite; never overwrite a partial prior evaluation."""
     from tools.headless_campaign_queue.job import monitor_disk
     from tools.headless_campaign_queue.verify_artifacts import validate_evaluation
@@ -771,16 +782,16 @@ def main() -> int:
         with (
             (args.destination / "stdout.log").open("xb") as out,
             (args.destination / "stderr.log").open("xb") as err,
+            monitor_disk(cloned_spec, args.destination, stop),
         ):
-            with monitor_disk(cloned_spec, args.destination, stop):
-                env = os.environ.copy()
-                env["WANDB_MODE"] = "offline"
-                process = subprocess.Popen(
-                    command, stdout=out, stderr=err, start_new_session=True, env=env
-                )
-                report.update(status="running", process=process_identity(process.pid))
-                atomic_json(args.destination / "recovery.json", report)
-                code = process.wait()
+            env = os.environ.copy()
+            env["WANDB_MODE"] = "offline"
+            process = subprocess.Popen(
+                command, stdout=out, stderr=err, start_new_session=True, env=env
+            )
+            report.update(status="running", process=process_identity(process.pid))
+            atomic_json(args.destination / "recovery.json", report)
+            code = process.wait()
         wait_for_group_shutdown(report["process"]["process_group"], report["process"]["boot_id"])
         reject_live_competitors()
         release_lock = True

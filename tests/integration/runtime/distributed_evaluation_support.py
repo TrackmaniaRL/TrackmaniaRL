@@ -135,6 +135,7 @@ def _evaluation_coordinator(
     checkpoints: list[EvaluationCheckpointKind],
 ) -> Coordinator:
     coordinator = object.__new__(Coordinator)
+    coordinator._metric_segment_id = "test-segment"
     coordinator.run = _evaluation_run(events)
     coordinator.counters = _Counters()
     coordinator._last_ingest_at = time.monotonic()

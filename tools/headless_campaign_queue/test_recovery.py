@@ -4,7 +4,10 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import Mock, patch
+
+import pytest
 
 from tools.headless_campaign_queue.recovery import (
     evaluate_copy,
@@ -16,7 +19,7 @@ from tools.headless_campaign_queue.recovery import (
 
 
 class RecoveryTests(unittest.TestCase):
-    def test_cli_blocks_normal_resume_when_replayed_wal_reaches_budget(self):
+    def test_cli_blocks_normal_resume_when_replayed_wal_reaches_budget(self) -> None:
         from tools.headless_campaign_queue import recovery
 
         with tempfile.TemporaryDirectory() as temp:
@@ -42,11 +45,11 @@ class RecoveryTests(unittest.TestCase):
                 patch.object(recovery, "prepare", return_value={"stage": "wal_finalization"}),
                 patch.object(recovery.subprocess, "Popen") as popen,
             ):
-                self.assertEqual(recovery.main(), 2)
+                assert recovery.main() == 2
                 popen.assert_not_called()
-            self.assertFalse((home / ".trackmaniarl-headless-campaign.lock").exists())
+            assert not (home / ".trackmaniarl-headless-campaign.lock").exists()
 
-    def test_evaluation_freshness_checked_before_resolver_creates_directory(self):
+    def test_evaluation_freshness_checked_before_resolver_creates_directory(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp)
             checkpoint = base / "checkpoint.pt"
@@ -59,7 +62,7 @@ class RecoveryTests(unittest.TestCase):
             expected = base / "artifacts" / "run-recovery-evaluation"
             run = SimpleNamespace(run_dir=expected, logger=Mock())
 
-            def resolve(*args, **kwargs):
+            def resolve(*args: Any, **kwargs: Any) -> Any:
                 expected.mkdir(parents=True)
                 return run
 
@@ -69,16 +72,16 @@ class RecoveryTests(unittest.TestCase):
                     "trackmaniarl.commands.evaluation._configure_evaluation_stop",
                     side_effect=RuntimeError("reached evaluator"),
                 ),
-                self.assertRaisesRegex(RuntimeError, "reached evaluator"),
+                pytest.raises(RuntimeError, match="reached evaluator"),
             ):
                 evaluate_copy(spec, base, checkpoint, base / "STOP", {})
             run.logger.close.assert_called_once()
             with patch("trackmaniarl.core.runtime.resolve_run") as resolver:
-                with self.assertRaisesRegex(ValueError, "fresh"):
+                with pytest.raises(ValueError, match="fresh"):
                     evaluate_copy(spec, base, checkpoint, base / "STOP", {})
                 resolver.assert_not_called()
 
-    def test_sqlite_backup_preserves_committed_uncheckpointed_wal_rows(self):
+    def test_sqlite_backup_preserves_committed_uncheckpointed_wal_rows(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             source = Path(temp) / "journal.db"
             dest = Path(temp) / "copy" / "journal.db"
@@ -88,10 +91,12 @@ class RecoveryTests(unittest.TestCase):
                 db.execute("PRAGMA wal_autocheckpoint=0")
                 db.execute("CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT)")
                 db.execute(
-                    "CREATE TABLE chunks (id INTEGER PRIMARY KEY, session_id TEXT, sequence INTEGER, payload BLOB)"
+                    "CREATE TABLE chunks (id INTEGER PRIMARY KEY, session_id"
+                    " TEXT, sequence INTEGER, payload BLOB)"
                 )
                 db.execute(
-                    "CREATE TABLE receipts (session_id TEXT, sequence INTEGER, row_id INTEGER, payload_sha256 BLOB)"
+                    "CREATE TABLE receipts (session_id TEXT, sequence INTEGE"
+                    "R, row_id INTEGER, payload_sha256 BLOB)"
                 )
                 db.executemany(
                     "INSERT INTO metadata VALUES (?,?)",
@@ -104,26 +109,28 @@ class RecoveryTests(unittest.TestCase):
                     ("s", 0, 1, hashlib.sha256(payload).digest()),
                 )
                 db.commit()
-                self.assertGreater(Path(str(source) + "-wal").stat().st_size, 0)
+                assert Path(str(source) + "-wal").stat().st_size > 0
                 evidence = snapshot_journal(source, dest)
-                self.assertIsNotNone(evidence["source"]["-wal"])
-                self.assertEqual(inspect_journal(dest, "j1", 0)["pending_ids"], [1])
-                self.assertEqual(inspect_journal(dest, "j1", 1)["pending_rows"], 0)
-                with self.assertRaisesRegex(ValueError, "identity"):
+                assert evidence["source"]["-wal"] is not None
+                assert inspect_journal(dest, "j1", 0)["pending_ids"] == [1]
+                assert inspect_journal(dest, "j1", 1)["pending_rows"] == 0
+                with pytest.raises(ValueError, match="identity"):
                     inspect_journal(dest, "wrong", 0)
             finally:
                 db.close()
 
-    def test_journal_payload_must_match_durable_receipt(self):
+    def test_journal_payload_must_match_durable_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "bad.db"
             with sqlite3.connect(path) as db:
                 db.execute("CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT)")
                 db.execute(
-                    "CREATE TABLE chunks (id INTEGER PRIMARY KEY, session_id TEXT, sequence INTEGER, payload BLOB)"
+                    "CREATE TABLE chunks (id INTEGER PRIMARY KEY, session_id"
+                    " TEXT, sequence INTEGER, payload BLOB)"
                 )
                 db.execute(
-                    "CREATE TABLE receipts (session_id TEXT, sequence INTEGER, row_id INTEGER, payload_sha256 BLOB)"
+                    "CREATE TABLE receipts (session_id TEXT, sequence INTEGE"
+                    "R, row_id INTEGER, payload_sha256 BLOB)"
                 )
                 db.executemany(
                     "INSERT INTO metadata VALUES (?,?)",
@@ -131,20 +138,20 @@ class RecoveryTests(unittest.TestCase):
                 )
                 db.execute("INSERT INTO chunks VALUES (1,?,?,?)", ("s", 0, b"payload"))
                 db.execute("INSERT INTO receipts VALUES (?,?,?,?)", ("s", 0, 1, b"wrong"))
-            with self.assertRaisesRegex(ValueError, "receipt mismatch"):
+            with pytest.raises(ValueError, match="receipt mismatch"):
                 inspect_journal(path, "j", 0)
 
-    def test_pending_actor_spool_blocks_recovery(self):
+    def test_pending_actor_spool_blocks_recovery(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             spool = root / "actors" / "a" / "spool"
             spool.mkdir(parents=True)
             (spool / "0001.rollout").write_bytes(b"pending")
-            with self.assertRaisesRegex(ValueError, "unacknowledged"):
+            with pytest.raises(ValueError, match="unacknowledged"):
                 reject_pending_spool(root)
-            self.assertEqual((spool / "0001.rollout").read_bytes(), b"pending")
+            assert (spool / "0001.rollout").read_bytes() == b"pending"
 
-    def test_state_requires_matching_fingerprint_and_full_replay(self):
+    def test_state_requires_matching_fingerprint_and_full_replay(self) -> None:
         state = {
             "run_fingerprint": "f",
             "learner": {
@@ -156,16 +163,16 @@ class RecoveryTests(unittest.TestCase):
             "replay_store": {},
             "sampler": {},
         }
-        self.assertEqual(validate_state(state, "f", 100, False)["transitions"], 99)
-        with self.assertRaisesRegex(ValueError, "fingerprint"):
-            validate_state(state, "other", 100, False)
-        with self.assertRaisesRegex(ValueError, "incomplete"):
-            validate_state(state, "f", 99, False)
+        assert validate_state(state, "f", 100, on_policy=False)["transitions"] == 99
+        with pytest.raises(ValueError, match="fingerprint"):
+            validate_state(state, "other", 100, on_policy=False)
+        with pytest.raises(ValueError, match="incomplete"):
+            validate_state(state, "f", 99, on_policy=False)
         del state["replay_store"]
-        with self.assertRaisesRegex(ValueError, "FULL replay"):
-            validate_state(state, "f", 100, False)
+        with pytest.raises(ValueError, match="FULL replay"):
+            validate_state(state, "f", 100, on_policy=False)
 
-    def test_evaluation_requires_completed_budget_and_drained_credit(self):
+    def test_evaluation_requires_completed_budget_and_drained_credit(self) -> None:
         state = {
             "run_fingerprint": "f",
             "learner": {"optimizer": {}, "rng": {"python": 1, "numpy": 2, "torch": 3}},
@@ -173,17 +180,17 @@ class RecoveryTests(unittest.TestCase):
             "replay_store": {},
             "sampler": {},
         }
-        self.assertEqual(
-            validate_state(state, "f", 100, False, stage="evaluation", max_overshoot=5)[
+        assert (
+            validate_state(state, "f", 100, on_policy=False, stage="evaluation", max_overshoot=5)[
                 "transitions"
-            ],
-            103,
+            ]
+            == 103
         )
-        with self.assertRaisesRegex(ValueError, "outside"):
-            validate_state(state, "f", 100, False, stage="evaluation", max_overshoot=2)
+        with pytest.raises(ValueError, match="outside"):
+            validate_state(state, "f", 100, on_policy=False, stage="evaluation", max_overshoot=2)
         state["distributed"]["update_credit"] = 1.0
-        with self.assertRaisesRegex(ValueError, "undrained"):
-            validate_state(state, "f", 100, False, stage="evaluation", max_overshoot=5)
+        with pytest.raises(ValueError, match="undrained"):
+            validate_state(state, "f", 100, on_policy=False, stage="evaluation", max_overshoot=5)
 
 
 if __name__ == "__main__":

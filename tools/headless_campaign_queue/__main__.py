@@ -28,7 +28,8 @@ def preflight(path: Path) -> tuple[dict, str]:
     if not isinstance(data, dict) or data.get("schema_version") not in (1, 2):
         if isinstance(data, dict) and data.get("status") == "prototype_not_runnable":
             raise ValueError(
-                "campaign is not runnable: headless configurations and continuous actions are not qualified"
+                "campaign is not runnable: headless configurations and c"
+                "ontinuous actions are not qualified"
             )
         raise ValueError("manifest must be an object with schema_version 1")
     jobs = data.get("jobs")
@@ -158,7 +159,7 @@ def atomic_json(path: Path, data: dict) -> None:
             os.unlink(temp)
 
 
-def run(data: dict, digest: str, output: Path, resume: bool = False) -> int:
+def run(data: dict, digest: str, output: Path, *, resume: bool = False) -> int:  # noqa: PLR0913 -- explicit orchestration parameters
     output.mkdir(parents=True, exist_ok=True)
     # Shared across output directories for this OS user. Direct, unsupervised
     # training and another OS user are outside this lock's scope.
@@ -306,7 +307,8 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("--resume requires --execute")
         if not args.execute:
             print(
-                f"Preflight OK: {len(data['jobs'])} jobs, manifest SHA-256 {digest}; nothing started"
+                f"Preflight OK: {len(data['jobs'])} jobs, "
+                f"manifest SHA-256 {digest}; nothing started"
             )
             return 0
         return run(data, digest, args.output, resume=args.resume)

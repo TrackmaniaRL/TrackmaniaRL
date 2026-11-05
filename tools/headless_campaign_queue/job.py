@@ -8,8 +8,10 @@ import os
 import subprocess
 import sys
 import threading
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 from tools.headless_campaign_queue.__main__ import atomic_json
 from tools.headless_campaign_queue.disk_guard import check_disk_space
@@ -22,12 +24,12 @@ from tools.headless_campaign_queue.verify_artifacts import (
 
 
 @contextmanager
-def monitor_disk(spec, base: Path, stop: Path, *, interval: float = 10):
+def monitor_disk(spec: Any, base: Path, stop: Path, *, interval: float = 10) -> Iterator[None]:  # noqa: PLR0913 -- explicit orchestration parameters
     """Request cooperative stop if the actual volume reserve is breached."""
     done = threading.Event()
     errors = []
 
-    def watch():
+    def watch() -> None:
         while not done.wait(interval):
             try:
                 check_disk_space(spec, base)
@@ -58,7 +60,7 @@ def file_sha(path: Path) -> str:
     return digest.hexdigest()
 
 
-def execute(
+def execute(  # noqa: PLR0913 -- explicit orchestration parameters
     config: Path,
     receipt: Path,
     budget: int,

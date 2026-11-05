@@ -48,13 +48,13 @@ def equal(a: Any, b: Any, path: str = "root") -> int:
     if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
         if type(a) is not type(b) or len(a) != len(b):
             raise ValueError(f"{path}: sequence differs")
-        return sum(equal(x, y, f"{path}[{i}]") for i, (x, y) in enumerate(zip(a, b)))
+        return sum(equal(x, y, f"{path}[{i}]") for i, (x, y) in enumerate(zip(a, b, strict=True)))
     if type(a) is not type(b) or a != b:
         raise ValueError(f"{path}: scalar mismatch")
     return 1
 
 
-def audit(
+def audit(  # noqa: PLR0913 -- explicit orchestration parameters
     config: Path, config_sha: str, receipt: Path, receipt_sha: str, deployment: Path, output: Path
 ) -> dict:
     import trackmaniarl

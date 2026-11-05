@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -30,7 +30,7 @@ class ExperimentalContinuousProvider(NativeFullQrProvider):
         session._allow_experimental_continuous = True
         return session
 
-    def advance(self, action: ContinuousControl) -> Any:
+    def advance(self, action: Any) -> Any:
         if type(action) is not ContinuousControl:
             raise ValueError("a validated continuous control is required")
         if (
@@ -42,23 +42,23 @@ class ExperimentalContinuousProvider(NativeFullQrProvider):
         ):
             raise NativeLifecycleError("an active native reset is required")
         try:
-            return self._advance_decision(action)
+            return self._advance_decision(cast(Any, action))
         except BaseException as error:
             self._fail(error)
             raise
 
-    def _decision_steering(self, action: ContinuousControl) -> float:
-        return action.steer
+    def _decision_steering(self, action: Any) -> float:
+        return float(action.steer)
 
-    def _control_for_tick(self, action: ContinuousControl, offset: int) -> ContinuousControl:
+    def _control_for_tick(self, action: Any, offset: int) -> Any:
         return action
 
-    def _advance_tick(self, action: ContinuousControl, stride: int) -> dict[str, Any]:
+    def _advance_tick(self, action: Any, stride: int) -> dict[str, Any]:
         assert self._session is not None
         return self._session.advance_continuous(action, stride)
 
     def _qualify_tick(  # noqa: PLR0913
-        self, packet: dict[str, Any], before: dict[str, Any], action: ContinuousControl, stride: int
+        self, packet: dict[str, Any], before: dict[str, Any], action: Any, stride: int
     ) -> None:
         qualify_continuous_immediate(packet, before, action, stride)
 
@@ -68,7 +68,7 @@ class ExperimentalContinuousEnvironment(FullQrEnvironment):
         array = np.asarray(action, dtype=np.float32)
         if array.shape != (3,):
             raise ValueError("continuous action must have shape (3,) in gas, brake, steer order")
-        return super().step(ContinuousControl(*(float(x) for x in array)))
+        return super().step(cast(Any, ContinuousControl(*(float(x) for x in array))))
 
     def _validate_action(self, action: Any) -> None:
         if type(action) is not ContinuousControl:

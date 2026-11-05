@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+from typing import Any
 
 from tools.headless_campaign_queue.__main__ import atomic_json
 from tools.headless_campaign_queue.legacy_handoff import (
@@ -27,7 +28,7 @@ def _job_sha(job: dict) -> str:
     ).hexdigest()
 
 
-def capture_handoff(state_path: Path, output: Path, lock: Path, job: dict, digest: str) -> Path:
+def capture_handoff(state_path: Path, output: Path, lock: Path, job: dict, digest: str) -> Path:  # noqa: PLR0913 -- explicit orchestration parameters
     """Capture live process identities to a fresh durable audit directory."""
     if (
         not isinstance(digest, str)
@@ -58,8 +59,8 @@ def capture_handoff(state_path: Path, output: Path, lock: Path, job: dict, diges
     return snapshot
 
 
-def attempt_handoff(
-    snapshot: Path, lock: Path, job: dict, digest: str, *, verify=verify_completion
+def attempt_handoff(  # noqa: PLR0913 -- explicit orchestration parameters
+    snapshot: Path, lock: Path, job: dict, digest: str, *, verify: Any = verify_completion
 ) -> dict:
     """Acquire a new lock only after job and original supervisor are gone.
 

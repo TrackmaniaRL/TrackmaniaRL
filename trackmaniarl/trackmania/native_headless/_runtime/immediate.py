@@ -247,6 +247,7 @@ class ImmediateSession(NativeSession):
     result_evidence: dict[str, Any]
 
     def __init__(self, settings: NativeRuntimeConfig, verified: VerifiedAssets) -> None:
+        self._allow_experimental_continuous = False
         self._quota_monitor: TraceQuotaMonitor | None = None
         self.proc = self.connection = self.listener = self.stderr = self.capture = None
         self.closed, self.episode = False, None

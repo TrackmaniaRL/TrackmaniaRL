@@ -329,17 +329,18 @@ def setup() -> tuple[FullQrEnvironment, Provider, Pipeline]:
 
 
 @pytest.mark.parametrize(
-    ("action", "gas", "brake", "tap"),
+    ("action", "expected"),
     [
-        (0, 0.0, 0.0, 0.0),
-        (1, 0.0, 1.0, 0.0),
-        (2, 0.0, 0.2, 1.0),
-        (3, 1.0, 0.0, 0.0),
-        (4, 1.0, 1.0, 0.0),
-        (5, 1.0, 0.2, 1.0),
+        (0, (0.0, 0.0, 0.0)),
+        (1, (0.0, 1.0, 0.0)),
+        (2, (0.0, 0.2, 1.0)),
+        (3, (1.0, 0.0, 0.0)),
+        (4, (1.0, 1.0, 0.0)),
+        (5, (1.0, 0.2, 1.0)),
     ],
 )
-def test_native_control_metrics(action: int, gas: float, brake: float, tap: float) -> None:
+def test_native_control_metrics(action: int, expected: tuple[float, float, float]) -> None:
+    gas, brake, tap = expected
     environment, _, _ = setup()
     try:
         environment.reset()

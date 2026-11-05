@@ -59,7 +59,7 @@ def read_object(path: Path) -> dict:
     return value
 
 
-def matching_restore(
+def matching_restore(  # noqa: PLR0913 -- explicit orchestration parameters
     restores: list[dict],
     name: str,
     short_fp: str,

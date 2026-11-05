@@ -4,6 +4,7 @@ import shutil
 import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -57,7 +58,7 @@ def test_isolated_full_restore_replays_wal_tail_once(tmp_path: Path) -> None:
 def test_replayed_budget_drains_credit_and_saves_full_checkpoint_without_touching_source(
     tmp_path: Path,
 ) -> None:
-    def make_coordinator(root):
+    def make_coordinator(root: Any) -> Any:
         run = _resolved_run(
             root,
             "wal-final",
@@ -108,7 +109,8 @@ def test_replayed_budget_drains_credit_and_saves_full_checkpoint_without_touchin
         assert state["distributed"]["updates"] == 2
         assert state["distributed"]["update_credit"] == 0
         assert state["learner"]["value"] == 2
-        assert "replay_store" in state and "sampler" in state
+        assert "replay_store" in state
+        assert "sampler" in state
     finally:
         _close(resumed)
     assert checkpoint.read_bytes() == source_checkpoint

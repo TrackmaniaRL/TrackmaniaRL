@@ -30,7 +30,7 @@ def invoke(args: list[str], deployment: Path) -> None:
         raise ValueError(f"offline validation failed: {result.stderr[-3000:]}")
 
 
-def build(
+def build(  # noqa: PLR0913 -- explicit orchestration parameters
     draft_path: Path,
     short_manifests: list[Path],
     restore_reports: list[Path],
@@ -211,12 +211,25 @@ def build(
         "jobs": evidence,
         "limitations": [
             "Full-budget completion and interruption/restart were not established.",
-            "Short configurations changed warmup, budget, trial count and storage paths; details are retained per job.",
-            "Bounded actuator samples and discrete physical comparisons do not establish arbitrary analog parity.",
+            (
+                "Short configurations changed warmup, budget, trial coun"
+                "t and storage paths; details are retained per job."
+            ),
+            (
+                "Bounded actuator samples and discrete physical comparis"
+                "ons do not establish arbitrary analog parity."
+            ),
             "The declared overshoot is an acceptance bound, not a collection limit.",
             "Source bridge documents a shutdown-grace change, not identical runtime behavior.",
-            "Disk checks run periodically and do not reserve capacity; STOP cannot be guaranteed if its file cannot be written.",
-            "W&B offline mode must also be enforced by the launcher; local runs can be synced later.",
+            (
+                "Disk checks run periodically and do not reserve capacit"
+                "y; STOP cannot be guaranteed if its file cannot be writ"
+                "ten."
+            ),
+            (
+                "W&B offline mode must also be enforced by the launcher;"
+                " local runs can be synced later."
+            ),
         ],
         "draft_sha256": sha(draft_path),
         "generator_sha256": sha(Path(__file__)),

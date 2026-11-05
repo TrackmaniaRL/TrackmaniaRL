@@ -1,11 +1,12 @@
 import json
+from typing import Any, Never
 
 import pytest
 
 from tools.headless_campaign_queue import legacy_handoff_watch as watcher
 
 
-def _capture(tmp_path, monkeypatch):
+def _capture(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> Any:
     source = tmp_path / "state.json"
     source.write_text(json.dumps({"job": "sac"}), encoding="utf8")
     lock = tmp_path / "lock"
@@ -21,7 +22,9 @@ def _capture(tmp_path, monkeypatch):
     return snapshot, lock, job
 
 
-def test_handoff_verifies_receipt_before_releasing_claim(tmp_path, monkeypatch):
+def test_handoff_verifies_receipt_before_releasing_claim(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
     snapshot, lock, job = _capture(tmp_path, monkeypatch)
     calls = []
     monkeypatch.setattr(watcher, "claim_released_lock", lambda observation, path: (10, 20))
@@ -29,7 +32,7 @@ def test_handoff_verifies_receipt_before_releasing_claim(tmp_path, monkeypatch):
         watcher, "release_claimed_lock", lambda path, identity: calls.append(("release", identity))
     )
 
-    def verify(actual, digest, pid):
+    def verify(actual: Any, digest: Any, pid: Any) -> Any:
         calls.append(("verify", pid))
         return {"accepted_transitions": 100}
 
@@ -39,14 +42,16 @@ def test_handoff_verifies_receipt_before_releasing_claim(tmp_path, monkeypatch):
     assert json.loads(snapshot.read_text())["status"] == "verified"
 
 
-def test_failed_verification_keeps_lock_and_preserves_audit(tmp_path, monkeypatch):
+def test_failed_verification_keeps_lock_and_preserves_audit(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
     snapshot, lock, job = _capture(tmp_path, monkeypatch)
     monkeypatch.setattr(watcher, "claim_released_lock", lambda observation, path: (10, 20))
     monkeypatch.setattr(
         watcher, "release_claimed_lock", lambda *args: pytest.fail("must keep lock")
     )
 
-    def verify(*args):
+    def verify(*args: Any) -> Never:
         raise ValueError("receipt budget mismatch")
 
     with pytest.raises(ValueError, match="budget"):
@@ -55,7 +60,9 @@ def test_failed_verification_keeps_lock_and_preserves_audit(tmp_path, monkeypatc
     assert json.loads(snapshot.read_text())["status"] == "blocked_requires_audit"
 
 
-def test_cannot_handoff_with_changed_plan_or_restart_completed_audit(tmp_path, monkeypatch):
+def test_cannot_handoff_with_changed_plan_or_restart_completed_audit(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
     snapshot, lock, job = _capture(tmp_path, monkeypatch)
     monkeypatch.setattr(
         watcher, "claim_released_lock", lambda *args: pytest.fail("claim forbidden")
@@ -66,7 +73,9 @@ def test_cannot_handoff_with_changed_plan_or_restart_completed_audit(tmp_path, m
         watcher.attempt_handoff(snapshot, lock, job, "b" * 64)
 
 
-def test_handoff_reads_real_checkpoint_receipt_and_all_trials(tmp_path, monkeypatch):
+def test_handoff_reads_real_checkpoint_receipt_and_all_trials(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from tools.headless_campaign_queue.test_strict_supervisor import make_fixture, sha
     from trackmaniarl.core.builtins import TorchCheckpointCodec
 

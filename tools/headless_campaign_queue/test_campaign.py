@@ -4,20 +4,23 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import patch
+
+import pytest
 
 from tools.headless_campaign_queue.campaign import prepare
 
 
 class CampaignTests(unittest.TestCase):
-    def test_not_qualified_is_rejected(self):
+    def test_not_qualified_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "campaign.json"
             path.write_text(json.dumps({"status": "not_runnable", "jobs": []}))
-            with self.assertRaisesRegex(ValueError, "not qualified"):
+            with pytest.raises(ValueError, match="not qualified"):
                 prepare(path)
 
-    def test_fifth_config_must_validate_before_any_queue_is_built(self):
+    def test_fifth_config_must_validate_before_any_queue_is_built(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
             jobs = []
@@ -67,7 +70,7 @@ class CampaignTests(unittest.TestCase):
                 )
             )
 
-            def spec(config):
+            def spec(config: Any) -> Any:
                 name = Path(config).stem
                 learner = {
                     "qr": "DiscreteValueLearner",
@@ -117,12 +120,12 @@ class CampaignTests(unittest.TestCase):
                 patch("trackmaniarl.core.fingerprint.run_fingerprint", return_value="fp"),
                 patch("tools.headless_campaign_queue.disk_guard.check_disk_space") as disk,
             ):
-                with self.assertRaisesRegex(ValueError, "ppo: configuration"):
+                with pytest.raises(ValueError, match="ppo: configuration"):
                     prepare(path)
-                self.assertEqual(disk.call_count, 4)
-            self.assertFalse((root / "artifacts").exists())
+                assert disk.call_count == 4
+            assert not (root / "artifacts").exists()
 
-    def test_all_nine_compile_only_pinned_job_wrapper(self):
+    def test_all_nine_compile_only_pinned_job_wrapper(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
             names = ("qr", "iqn", "sac", "tqc", "ppo", "q", "fqf", "discrete-sac", "redq")
@@ -190,7 +193,7 @@ class CampaignTests(unittest.TestCase):
                 "fqf": ("DuelingImplicitQuantileHead", "LearnedFractionStrategy"),
             }
 
-            def spec(config):
+            def spec(config: Any) -> Any:
                 name = Path(config).stem
                 head, strategy = types.get(name, ("unused", "unused"))
                 components = SimpleNamespace(
@@ -228,18 +231,18 @@ class CampaignTests(unittest.TestCase):
                 patch("tools.headless_campaign_queue.disk_guard.check_disk_space") as disk,
             ):
                 compiled, _ = prepare(manifest)
-                self.assertEqual(disk.call_count, len(names))
-                self.assertTrue(all(call.args[1] == root for call in disk.call_args_list))
+                assert disk.call_count == len(names)
+                assert all(call.args[1] == root for call in disk.call_args_list)
                 disk.reset_mock()
                 disk.side_effect = [[], [], OSError("insufficient free disk space")]
-                with self.assertRaisesRegex(OSError, "insufficient free disk space"):
+                with pytest.raises(OSError, match="insufficient free disk space"):
                     prepare(manifest)
-                self.assertEqual(disk.call_count, 3)
-            self.assertEqual([j["id"] for j in compiled["jobs"]], list(names))
+                assert disk.call_count == 3
+            assert [j["id"] for j in compiled["jobs"]] == list(names)
             for job in compiled["jobs"]:
-                self.assertEqual(job["argv"][1:3], ["-m", "tools.headless_campaign_queue.job"])
-                self.assertIn("--config-sha256", job["argv"])
-                self.assertIn("--run-fingerprint", job["argv"])
+                assert job["argv"][1:3] == ["-m", "tools.headless_campaign_queue.job"]
+                assert "--config-sha256" in job["argv"]
+                assert "--run-fingerprint" in job["argv"]
 
 
 if __name__ == "__main__":

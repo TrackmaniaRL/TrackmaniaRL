@@ -4,6 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from tools.headless_campaign_queue.qualification_audit import (
     ALLOWED_DIFFERENCES,
     differences,
@@ -15,16 +17,20 @@ from tools.headless_campaign_queue.qualification_restore import audit, equal, sh
 
 
 class QualificationTests(unittest.TestCase):
-    def test_source_bridge_rejects_unknown_file_change(self):
-        with self.assertRaisesRegex(ValueError, "unrecognized source change"):
+    def test_source_bridge_rejects_unknown_file_change(self) -> None:
+        with pytest.raises(ValueError, match="unrecognized source change"):
             compare_maps({"trackmaniarl/algorithm.py": "a"}, {"trackmaniarl/algorithm.py": "b"})
 
-    def test_shutdown_bridge_checks_actual_contents(self):
+    def test_shutdown_bridge_checks_actual_contents(self) -> None:
         anchor = "from trackmaniarl.trackmania.demonstrations import resolve_demonstration_paths\n"
         original = anchor + "\n_join_during_shutdown(processes.actor, timeout=10)\n"
-        updated = (
-            anchor
-            + "\n# Actor teardown includes native environment close, trace archiving, sender\n# drain and background-worker joins. Its internal sender and worker grace\n# periods are each 10 s, so the launcher's bound must exceed their sum.\n_ACTOR_SHUTDOWN_GRACE_S = 60.0\n\n_join_during_shutdown(processes.actor, timeout=_ACTOR_SHUTDOWN_GRACE_S)\n"
+        updated = anchor + (
+            "\n# Actor teardown includes native environment close, tr"
+            "ace archiving, sender\n# drain and background-worker joi"
+            "ns. Its internal sender and worker grace\n# periods are "
+            "each 10 s, so the launcher's bound must exceed their su"
+            "m.\n_ACTOR_SHUTDOWN_GRACE_S = 60.0\n\n_join_during_shutdow"
+            "n(processes.actor, timeout=_ACTOR_SHUTDOWN_GRACE_S)\n"
         )
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -42,33 +48,34 @@ class QualificationTests(unittest.TestCase):
                     patch(
                         "tools.headless_campaign_queue.qualification_bridge.NEW_TRAINING", sha(new)
                     ),
-                    self.assertRaisesRegex(ValueError, "more than"),
+                    pytest.raises(ValueError, match="more than"),
                 ):
                     verify_training_change(old, new)
 
-    def test_detects_unexpected_recipe_difference(self):
+    def test_detects_unexpected_recipe_difference(self) -> None:
         full = {"training": {"warmup_transitions": 10000, "gamma": 0.995}, "run_id": "full"}
         short = {"training": {"warmup_transitions": 256, "gamma": 0.9}, "run_id": "short"}
         diff = differences(full, short)
-        self.assertEqual(
-            {item["path"] for item in diff},
-            {"training.warmup_transitions", "training.gamma", "run_id"},
-        )
-        self.assertNotIn("training.gamma", ALLOWED_DIFFERENCES)
-        self.assertIn("training.warmup_transitions", ALLOWED_DIFFERENCES)
+        assert {item["path"] for item in diff} == {
+            "training.warmup_transitions",
+            "training.gamma",
+            "run_id",
+        }
+        assert "training.gamma" not in ALLOWED_DIFFERENCES
+        assert "training.warmup_transitions" in ALLOWED_DIFFERENCES
 
-    def test_state_equality_checks_nested_rng_and_tensors(self):
+    def test_state_equality_checks_nested_rng_and_tensors(self) -> None:
         import numpy as np
         import torch
 
         a = {"optimizer": {"x": torch.tensor([1, 2])}, "rng": ("state", np.array([1, 2]))}
         b = {"optimizer": {"x": torch.tensor([1, 2])}, "rng": ("state", np.array([1, 2]))}
-        self.assertGreater(equal(a, b), 0)
+        assert equal(a, b) > 0
         b["rng"][1][1] = 3
-        with self.assertRaisesRegex(ValueError, "rng"):
+        with pytest.raises(ValueError, match="rng"):
             equal(a, b)
 
-    def test_restore_evidence_must_match_same_checkpoint_and_receipt(self):
+    def test_restore_evidence_must_match_same_checkpoint_and_receipt(self) -> None:
         report = {
             "kind": "headless-qualification-offline-restore-v1",
             "status": "PASS",
@@ -77,18 +84,20 @@ class QualificationTests(unittest.TestCase):
             "source_sha256": {"config": "config", "checkpoint": "checkpoint", "receipt": "receipt"},
         }
         records = [{"path": "/audit/report.json", "sha256": "report", "report": report}]
-        self.assertIsNone(
+        assert (
             matching_restore(records, "qr", "fp", "config", "different-receipt", "checkpoint")
+            is None
         )
-        self.assertIsNone(
+        assert (
             matching_restore(records, "qr", "fp", "config", "receipt", "different-checkpoint")
+            is None
         )
-        self.assertEqual(
-            matching_restore(records, "qr", "fp", "config", "receipt", "checkpoint"),
-            {"path": "/audit/report.json", "sha256": "report"},
-        )
+        assert matching_restore(records, "qr", "fp", "config", "receipt", "checkpoint") == {
+            "path": "/audit/report.json",
+            "sha256": "report",
+        }
 
-    def test_first_campaign_readiness_does_not_require_prior_full_budget(self):
+    def test_first_campaign_readiness_does_not_require_prior_full_budget(self) -> None:
         ids = ["qr", "iqn", "sac", "tqc", "ppo"]
         draft = {"jobs": [{"id": name} for name in ids]}
         inventory = {
@@ -105,11 +114,11 @@ class QualificationTests(unittest.TestCase):
         }
         physical = {name: {"status": "PASS"} for name in ids}
         report = assess(inventory, physical, draft)
-        self.assertEqual(report["status"], "READY_FOR_FIRST_CAMPAIGN")
-        self.assertFalse(report["automatic_launch_authorized"])
-        self.assertTrue(any("not proof of full-budget" in item for item in report["limitations"]))
+        assert report["status"] == "READY_FOR_FIRST_CAMPAIGN"
+        assert not report["automatic_launch_authorized"]
+        assert any("not proof of full-budget" in item for item in report["limitations"])
 
-    def test_missing_same_checkpoint_restore_or_source_blocks(self):
+    def test_missing_same_checkpoint_restore_or_source_blocks(self) -> None:
         ids = ["qr", "iqn", "sac", "tqc", "ppo"]
         draft = {"jobs": [{"id": name} for name in ids]}
         inventory = {
@@ -124,10 +133,10 @@ class QualificationTests(unittest.TestCase):
         }
         physical = {name: {"status": "FAIL" if name == "sac" else "PASS"} for name in ids}
         report = assess(inventory, physical, draft)
-        self.assertEqual(report["status"], "NOT_READY")
-        self.assertEqual({item["id"] for item in report["missing"]}, {"qr", "sac"})
+        assert report["status"] == "NOT_READY"
+        assert {item["id"] for item in report["missing"]} == {"qr", "sac"}
 
-    def test_refuses_nonqualification_receipt_before_creating_output(self):
+    def test_refuses_nonqualification_receipt_before_creating_output(self) -> None:
         import trackmaniarl
 
         with tempfile.TemporaryDirectory() as temp:
@@ -136,7 +145,7 @@ class QualificationTests(unittest.TestCase):
             config.write_text("config")
             receipt.write_text(json.dumps({"status": "completed", "qualification_only": False}))
             output = root / "output"
-            with self.assertRaisesRegex(ValueError, "qualification-only"):
+            with pytest.raises(ValueError, match="qualification-only"):
                 audit(
                     config,
                     sha(config),
@@ -145,7 +154,7 @@ class QualificationTests(unittest.TestCase):
                     Path(trackmaniarl.__file__).resolve().parent.parent,
                     output,
                 )
-            self.assertFalse(output.exists())
+            assert not output.exists()
 
 
 if __name__ == "__main__":

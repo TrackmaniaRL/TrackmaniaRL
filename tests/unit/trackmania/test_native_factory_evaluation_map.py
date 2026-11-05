@@ -20,7 +20,9 @@ class Runtime:
 
 
 @pytest.fixture
-def factory_and_map(tmp_path, monkeypatch):
+def factory_and_map(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[factory_module.FullQrEnvironmentFactory, EvaluationMapSpec]:
     geometry = _asset(tmp_path)
     map_path = tmp_path / "trackmaniarl-test.Map.Gbx"
     instance = object.__new__(factory_module.FullQrEnvironmentFactory)
@@ -48,7 +50,9 @@ def factory_and_map(tmp_path, monkeypatch):
     return instance, spec
 
 
-def test_evaluation_map_and_training_create_use_same_factory(factory_and_map):
+def test_evaluation_map_and_training_create_use_same_factory(
+    factory_and_map: tuple[factory_module.FullQrEnvironmentFactory, EvaluationMapSpec],
+) -> None:
     factory, spec = factory_and_map
     assert factory.create(seed=17, evaluation_map=spec) == "environment"
     assert factory.create(seed=17) == "environment"
@@ -56,19 +60,26 @@ def test_evaluation_map_and_training_create_use_same_factory(factory_and_map):
 
 
 @pytest.mark.parametrize("field", ["expected_map_uid", "geometry_path", "map_path"])
-def test_rejects_wrong_map_binding_before_provider(factory_and_map, tmp_path, field):
+def test_rejects_wrong_map_binding_before_provider(
+    factory_and_map: tuple[factory_module.FullQrEnvironmentFactory, EvaluationMapSpec],
+    tmp_path: Path,
+    field: str,
+) -> None:
     factory, spec = factory_and_map
     other = tmp_path / "other"
     other.write_bytes(b"different map or geometry")
     changes = {field: "other-map" if field == "expected_map_uid" else other}
     wrong = spec.model_copy(update=changes)
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"pinned map and geometry|checksum"):
         factory.create(seed=17, evaluation_map=wrong)
     factory._create_provider.assert_not_called()
     factory._source_class.assert_not_called()
 
 
-def test_rejects_evaluation_with_only_reward_points(factory_and_map, tmp_path):
+def test_rejects_evaluation_with_only_reward_points(
+    factory_and_map: tuple[factory_module.FullQrEnvironmentFactory, EvaluationMapSpec],
+    tmp_path: Path,
+) -> None:
     factory, _ = factory_and_map
     spec = EvaluationMapSpec(
         id="map", reward_points_path=tmp_path / "points", expected_map_uid="trackmaniarl-test"
@@ -78,7 +89,11 @@ def test_rejects_evaluation_with_only_reward_points(factory_and_map, tmp_path):
     factory._create_provider.assert_not_called()
 
 
-def test_rejects_runtime_map_that_differs_from_evaluation(factory_and_map, tmp_path, monkeypatch):
+def test_rejects_runtime_map_that_differs_from_evaluation(
+    factory_and_map: tuple[factory_module.FullQrEnvironmentFactory, EvaluationMapSpec],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     factory, spec = factory_and_map
     different = tmp_path / "runtime-map"
     different.write_bytes(b"different runtime map")

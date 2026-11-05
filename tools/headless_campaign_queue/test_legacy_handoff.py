@@ -1,7 +1,9 @@
+import errno
 import json
 import os
 import subprocess
 import sys
+from typing import Any
 
 import pytest
 
@@ -10,12 +12,13 @@ from tools.headless_campaign_queue import legacy_handoff as handoff
 pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="requires Linux procfs")
 
 
-def test_legacy_live_identity_handoff_without_touching_existing_lock(tmp_path):
+def test_legacy_live_identity_handoff_without_touching_existing_lock(tmp_path: Any) -> None:
     lock = tmp_path / "lock"
     lock.mkdir()
     # This purpose-built child owns its own harmless subprocess, never SAC.
     program = """import json,os,pathlib,subprocess,sys
-p=subprocess.Popen([sys.executable,"-c","import sys;sys.stdin.read()"],stdin=subprocess.PIPE,start_new_session=True)
+p=subprocess.Popen([sys.executable,"-c","import sys;sys.stdin.read()"],
+                   stdin=subprocess.PIPE,start_new_session=True)
 stat=pathlib.Path(f"/proc/{p.pid}/stat").read_text().rsplit(")",1)[1].split()
 print(json.dumps({"status":"running","supervisor_pid":os.getpid(),"job_pid":p.pid,"birth_ticks":int(stat[19]),"boot_id":pathlib.Path("/proc/sys/kernel/random/boot_id").read_text().strip()}),flush=True)
 sys.stdin.readline();p.stdin.close();p.wait()
@@ -50,7 +53,7 @@ sys.stdin.readline();p.stdin.close();p.wait()
         owner.stdin.close()
 
 
-def test_capture_rejects_mismatched_birth_and_parent(tmp_path):
+def test_capture_rejects_mismatched_birth_and_parent(tmp_path: Any) -> None:
     lock = tmp_path / "lock"
     lock.mkdir()
     child = subprocess.Popen(
@@ -78,7 +81,9 @@ def test_capture_rejects_mismatched_birth_and_parent(tmp_path):
         child.wait(timeout=10)
 
 
-def test_claim_does_not_remove_preexisting_lock_after_failed_audit(tmp_path, monkeypatch):
+def test_claim_does_not_remove_preexisting_lock_after_failed_audit(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
     lock = tmp_path / "lock"
     lock.mkdir()
     monkeypatch.setattr(handoff, "audit_owner_exited", lambda *args, **kwargs: None)
@@ -87,14 +92,15 @@ def test_claim_does_not_remove_preexisting_lock_after_failed_audit(tmp_path, mon
     assert lock.is_dir()
 
 
-def test_release_refuses_changed_or_nonempty_lock(tmp_path):
+def test_release_refuses_changed_or_nonempty_lock(tmp_path: Any) -> None:
     lock = tmp_path / "lock"
     lock.mkdir()
     info = lock.stat()
     identity = info.st_dev, info.st_ino
     (lock / "marker").write_text("keep")
-    with pytest.raises(OSError):
+    with pytest.raises(OSError, match="Directory not empty") as caught:
         handoff.release_claimed_lock(lock, identity)
+    assert caught.value.errno == errno.ENOTEMPTY
     assert (lock / "marker").read_text() == "keep"
     with pytest.raises(ValueError, match="identity changed"):
         handoff.release_claimed_lock(lock, (info.st_dev, info.st_ino + 1))

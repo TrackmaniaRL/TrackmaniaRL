@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 
-def validate_checkpoint(
+def validate_checkpoint(  # noqa: PLR0913 -- explicit orchestration parameters
     state: Mapping[str, Any],
     fingerprint: str,
     transitions: int,
@@ -127,7 +127,7 @@ def final_checkpoint(run_dir: Path, checkpoint_dir: Path, *, on_policy: bool) ->
     return path.resolve(), last["step"]
 
 
-def validate_evaluation(
+def validate_evaluation(  # noqa: PLR0913 -- explicit orchestration parameters
     artifact: Mapping[str, Any], checkpoint: Path, map_id: str, map_uid: str, trials: int
 ) -> None:
     if not isinstance(artifact, Mapping) or artifact.get("checkpoint") != str(checkpoint):

@@ -15,6 +15,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 from tools.headless_campaign_queue.__main__ import atomic_json, now, verify_receipt
 from tools.headless_campaign_queue.recovery import (
@@ -42,11 +43,14 @@ def wsl_host_free_bytes() -> int | None:
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", distro):
         raise ValueError("cannot identify WSL distribution for physical disk check")
     script = r"""$ErrorActionPreference='Stop'
-$items=@(Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss\*' | Where-Object { $_.DistributionName -ceq 'DISTRO_NAME' })
+$items=@(Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Lxss\*' |
+    Where-Object { $_.DistributionName -ceq 'DISTRO_NAME' })
 if ($items.Count -ne 1) { throw 'ambiguous distribution' }
 $base=$items[0].BasePath -replace '^\\\\\?\\',''
 $vhd=Join-Path $base 'ext4.vhdx'
-if ($vhd -notmatch '^[A-Za-z]:\\' -or -not (Test-Path -LiteralPath $vhd -PathType Leaf)) { throw 'unsupported VHDX path' }
+if ($vhd -notmatch '^[A-Za-z]:\\' -or -not (Test-Path -LiteralPath $vhd -PathType Leaf)) {
+    throw 'unsupported VHDX path'
+}
 $drive=[System.IO.DriveInfo]::new([System.IO.Path]::GetPathRoot($vhd))
 @{ free=[long]$drive.AvailableFreeSpace } | ConvertTo-Json -Compress""".replace(
         "DISTRO_NAME", distro
@@ -87,7 +91,7 @@ def is_mounted_windows_drive(path: Path) -> bool:
     )
 
 
-def wait_for_group_exit(
+def wait_for_group_exit(  # noqa: PLR0913 -- explicit orchestration parameters
     group: int, boot_id: str, *, timeout: float = 20.0, interval: float = 0.25
 ) -> None:
     """Wait briefly for descendants; never kill or assume PID alone is identity."""
@@ -104,7 +108,7 @@ def wait_for_group_exit(
             time.sleep(interval)
 
 
-def verify_completion(job: dict, digest: str, pid: int, *, codec=None) -> dict:
+def verify_completion(job: dict, digest: str, pid: int, *, codec: Any = None) -> dict:  # noqa: PLR0913 -- explicit orchestration parameters
     """Recheck producer receipt, trusted checkpoint contents and all 30 trials."""
     for key in ("run_fingerprint", "map_id", "map_uid"):
         if not isinstance(job.get(key), str) or not job[key]:
@@ -196,7 +200,7 @@ def verify_trial_outcomes(evaluation: dict) -> None:
         raise ValueError("evaluation runtime errors or missing error fields")
 
 
-def verify_recovered_completion(job: dict, report_path: Path, *, codec=None) -> dict:
+def verify_recovered_completion(job: dict, report_path: Path, *, codec: Any = None) -> dict:
     """Audit an isolated recovery result without editing source or admitting a job.
 
     Call from the deployment matching job's fingerprint. This alone does not
@@ -271,7 +275,7 @@ def verify_recovered_completion(job: dict, report_path: Path, *, codec=None) -> 
         state,
         job["run_fingerprint"],
         job["transitions"],
-        job["on_policy"],
+        on_policy=job["on_policy"],
         stage="evaluation",
         max_overshoot=job["max_overshoot"],
     )
@@ -290,7 +294,7 @@ def verify_recovered_completion(job: dict, report_path: Path, *, codec=None) -> 
     }
 
 
-def recover_interrupted(
+def recover_interrupted(  # noqa: PLR0913 -- explicit orchestration parameters
     job: dict, output: Path, entry: dict, state: dict, state_path: Path
 ) -> dict:
     """Attempt one isolated FULL recovery while the supervisor owns the lock.
@@ -430,17 +434,17 @@ def recover_interrupted(
     with (
         (destination / "stdout.log").open("xb") as out,
         (destination / "stderr.log").open("xb") as err,
+        monitor_disk(clone_spec, destination, recovery_stop),
     ):
-        with monitor_disk(clone_spec, destination, recovery_stop):
-            env = os.environ.copy()
-            env["WANDB_MODE"] = "offline"
-            process = subprocess.Popen(
-                command, cwd=job["cwd"], stdout=out, stderr=err, start_new_session=True, env=env
-            )
-            identity = process_identity(process.pid)
-            entry["recovery"].update(status="running", identity=identity)
-            atomic_json(state_path, state)
-            code = process.wait()
+        env = os.environ.copy()
+        env["WANDB_MODE"] = "offline"
+        process = subprocess.Popen(
+            command, cwd=job["cwd"], stdout=out, stderr=err, start_new_session=True, env=env
+        )
+        identity = process_identity(process.pid)
+        entry["recovery"].update(status="running", identity=identity)
+        atomic_json(state_path, state)
+        code = process.wait()
     wait_for_group_exit(identity["process_group"], identity["boot_id"])
     recovery.reject_live_competitors()
     if code != 0 or recovery_stop.exists() or stop.exists():
@@ -454,7 +458,7 @@ def recover_interrupted(
         final_state,
         job["run_fingerprint"],
         job["transitions"],
-        job["on_policy"],
+        on_policy=job["on_policy"],
         stage="evaluation",
         max_overshoot=job["max_overshoot"],
     )
@@ -480,7 +484,7 @@ def recover_interrupted(
     return evidence
 
 
-def run(
+def run(  # noqa: PLR0913 -- explicit orchestration parameters
     plan: dict, digest: str, output: Path, global_lock: Path, *, auto_recover: bool = False
 ) -> int:
     """Start fresh jobs in order, failing closed and preserving all evidence."""

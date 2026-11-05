@@ -7,13 +7,16 @@ import threading
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, Never
 from unittest.mock import patch
+
+import pytest
 
 from tools.headless_campaign_queue.job import execute, monitor_disk
 
 
 class FakeSpec:
-    def __init__(self, root):
+    def __init__(self, root: Any) -> None:
         self.run_id = "example"
         self.artifacts_dir = root / "artifacts"
         self.training = SimpleNamespace(
@@ -25,34 +28,36 @@ class FakeSpec:
         )
         self.components = SimpleNamespace(learner=SimpleNamespace(class_path="irrelevant"))
 
-    def model_copy(self, update):
+    def model_copy(self, update: Any) -> Any:
         result = FakeSpec(self.artifacts_dir.parent)
         result.run_id = update["run_id"]
         return result
 
 
 class JobTests(unittest.TestCase):
-    def test_disk_monitor_requests_stop_and_reports_failure(self):
+    def test_disk_monitor_requests_stop_and_reports_failure(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
             spec, stop = FakeSpec(root), root / "STOP"
             checked = threading.Event()
 
-            def out_of_space(actual_spec, base):
-                self.assertIs(actual_spec, spec)
-                self.assertEqual(base, root)
+            def out_of_space(actual_spec: Any, base: Any) -> Never:
+                assert actual_spec is spec
+                assert base == root
                 checked.set()
                 raise OSError("insufficient free disk space")
 
             with patch(
                 "tools.headless_campaign_queue.job.check_disk_space", side_effect=out_of_space
             ):
-                with self.assertRaisesRegex(RuntimeError, "disk reserve check failed"):
-                    with monitor_disk(spec, root, stop, interval=0.001):
-                        self.assertTrue(checked.wait(timeout=2))
-                self.assertTrue(stop.exists())
+                with (
+                    pytest.raises(RuntimeError, match="disk reserve check failed"),
+                    monitor_disk(spec, root, stop, interval=0.001),
+                ):
+                    assert checked.wait(timeout=2)
+                assert stop.exists()
 
-    def test_insufficient_disk_prevents_training_process_start(self):
+    def test_insufficient_disk_prevents_training_process_start(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
             config = root / "run.yaml"
@@ -71,7 +76,7 @@ class JobTests(unittest.TestCase):
                 ) as disk,
                 patch("tools.headless_campaign_queue.job.subprocess.call") as start,
             ):
-                with self.assertRaisesRegex(OSError, "insufficient free disk space"):
+                with pytest.raises(OSError, match="insufficient free disk space"):
                     execute(
                         config,
                         root / "receipt.json",
@@ -83,9 +88,9 @@ class JobTests(unittest.TestCase):
                     )
                 disk.assert_called_once_with(spec, root)
                 start.assert_not_called()
-                self.assertFalse((root / "receipt.json").exists())
+                assert not (root / "receipt.json").exists()
 
-    def test_changed_configuration_fails_before_process_start(self):
+    def test_changed_configuration_fails_before_process_start(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
             config = root / "run.yaml"
@@ -98,7 +103,7 @@ class JobTests(unittest.TestCase):
                 patch.dict(os.environ, env),
                 patch("tools.headless_campaign_queue.job.subprocess.call") as start,
             ):
-                with self.assertRaisesRegex(ValueError, "changed since"):
+                with pytest.raises(ValueError, match="changed since"):
                     execute(
                         config,
                         root / "receipt.json",
@@ -110,7 +115,7 @@ class JobTests(unittest.TestCase):
                     )
                 start.assert_not_called()
 
-    def test_disk_failure_after_training_prevents_evaluation_and_receipt(self):
+    def test_disk_failure_after_training_prevents_evaluation_and_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
             config, checkpoint, receipt = (
@@ -145,7 +150,7 @@ class JobTests(unittest.TestCase):
                 ) as disk,
                 patch("trackmaniarl.commands.evaluation._evaluate_checkpoint") as evaluate,
             ):
-                with self.assertRaisesRegex(OSError, "insufficient free disk space"):
+                with pytest.raises(OSError, match="insufficient free disk space"):
                     execute(
                         config,
                         receipt,
@@ -156,11 +161,11 @@ class JobTests(unittest.TestCase):
                         expected_fingerprint="fp",
                     )
                 train.assert_called_once()
-                self.assertEqual(disk.call_count, 2)
+                assert disk.call_count == 2
                 evaluate.assert_not_called()
-                self.assertFalse(receipt.exists())
+                assert not receipt.exists()
 
-    def test_checkpoint_and_all_trials_are_required_before_receipt(self):
+    def test_checkpoint_and_all_trials_are_required_before_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
             config, stop, receipt = root / "run.yaml", root / "STOP", root / "receipt.json"
@@ -181,7 +186,7 @@ class JobTests(unittest.TestCase):
                 for n in range(30)
             ]
 
-            def train(_args):
+            def train(_args: Any) -> int:
                 checkpoint.parent.mkdir(parents=True)
                 checkpoint.write_bytes(b"checkpoint")
                 run_dir = checkpoint.parent.parent
@@ -206,7 +211,7 @@ class JobTests(unittest.TestCase):
                     db.execute("CREATE TABLE chunks(id INTEGER)")
                 return 0
 
-            def evaluate(_run, path):
+            def evaluate(_run: Any, path: Any) -> Any:
                 eval_dir.mkdir(parents=True)
                 (eval_dir / "evaluation.json").write_text(
                     json.dumps({"checkpoint": str(path), "trials": trials})
@@ -256,13 +261,13 @@ class JobTests(unittest.TestCase):
                     expected_config_sha=hashlib.sha256(config.read_bytes()).hexdigest(),
                     expected_fingerprint="fp",
                 )
-                self.assertEqual(disk.call_count, 2)
-                self.assertTrue(all(call.args == (spec, root) for call in disk.call_args_list))
+                assert disk.call_count == 2
+                assert all(call.args == (spec, root) for call in disk.call_args_list)
             actual = json.loads(receipt.read_text())
-            self.assertEqual(actual["process_pid"], os.getpid())
-            self.assertEqual(actual["checkpoint_sha256"], hashlib.sha256(b"checkpoint").hexdigest())
-            self.assertEqual(actual["transitions"], 103)
-            self.assertEqual(actual["requested_transitions"], 100)
+            assert actual["process_pid"] == os.getpid()
+            assert actual["checkpoint_sha256"] == hashlib.sha256(b"checkpoint").hexdigest()
+            assert actual["transitions"] == 103
+            assert actual["requested_transitions"] == 100
 
 
 if __name__ == "__main__":

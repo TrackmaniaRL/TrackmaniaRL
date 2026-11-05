@@ -5,25 +5,26 @@ import sqlite3
 from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
 from tools.headless_campaign_queue import strict_supervisor as supervisor
 
 
-def sha(path):
+def sha(path: Any) -> Any:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 class FakeCodec:
-    def __init__(self, state):
+    def __init__(self, state: Any) -> None:
         self.state = state
 
-    def load(self, path):
+    def load(self, path: Any) -> Any:
         return self.state
 
 
-def make_fixture(tmp_path):
+def make_fixture(tmp_path: Path) -> Any:
     journal = tmp_path / "distributed" / "rollouts.sqlite3"
     journal.parent.mkdir(exist_ok=True)
     with sqlite3.connect(journal) as db:
@@ -107,7 +108,7 @@ def make_fixture(tmp_path):
     return job, receipt, state, evaluation
 
 
-def test_valid_receipt_and_artifacts(tmp_path):
+def test_valid_receipt_and_artifacts(tmp_path: Path) -> None:
     job, _, state, _ = make_fixture(tmp_path)
     assert (
         supervisor.verify_completion(job, "manifest", 42, codec=FakeCodec(state))[
@@ -118,7 +119,7 @@ def test_valid_receipt_and_artifacts(tmp_path):
 
 
 @pytest.mark.parametrize("case", ["journal", "spool", "stop"])
-def test_undrained_or_stopped_job_cannot_advance(tmp_path, case):
+def test_undrained_or_stopped_job_cannot_advance(tmp_path: Path, case: Any) -> None:
     job, _, state, _ = make_fixture(tmp_path)
     if case == "journal":
         with sqlite3.connect(tmp_path / "distributed" / "rollouts.sqlite3") as db:
@@ -129,7 +130,7 @@ def test_undrained_or_stopped_job_cannot_advance(tmp_path, case):
         (spool / "1.rollout").write_bytes(b"not acknowledged")
     else:
         Path(job["stop_file"]).touch()
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"not drained|pending rollout|active stop"):
         supervisor.verify_completion(job, "manifest", 42, codec=FakeCodec(state))
 
 
@@ -137,7 +138,7 @@ def test_undrained_or_stopped_job_cannot_advance(tmp_path, case):
     "change",
     ["budget", "fingerprint", "trials", "checkpoint_hash", "pid", "no_outcome", "bad_time"],
 )
-def test_bad_evidence_is_rejected(tmp_path, change):
+def test_bad_evidence_is_rejected(tmp_path: Path, change: Any) -> None:
     job, receipt, state, evaluation = make_fixture(tmp_path)
     if change == "budget":
         state["distributed"]["transitions"] = 99
@@ -161,11 +162,11 @@ def test_bad_evidence_is_rejected(tmp_path, change):
         receipt["evaluation_sha256"] = sha(evaluation)
         Path(job["receipt"]).write_text(json.dumps(receipt))
     pid = 43 if change == "pid" else 42
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"budget|fingerprint|trial|hash|receipt|finish"):
         supervisor.verify_completion(job, "manifest", pid, codec=FakeCodec(state))
 
 
-def test_valid_unsuccessful_trial_is_not_discarded(tmp_path):
+def test_valid_unsuccessful_trial_is_not_discarded(tmp_path: Path) -> None:
     job, receipt, state, evaluation = make_fixture(tmp_path)
     doc = json.loads(evaluation.read_text())
     doc["trials"][0].update(
@@ -182,7 +183,9 @@ def test_valid_unsuccessful_trial_is_not_discarded(tmp_path):
     )
 
 
-def test_recovered_completion_rechecks_full_evidence(tmp_path, monkeypatch):
+def test_recovered_completion_rechecks_full_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     job, receipt, state, evaluation = make_fixture(tmp_path)
     state["learner"] = {"optimizer": {}, "rng": {"python": 1, "numpy": 2, "torch": 3}}
     config, clone = tmp_path / "source.yaml", tmp_path / "recovery.yaml"
@@ -227,10 +230,10 @@ def test_recovered_completion_rechecks_full_evidence(tmp_path, monkeypatch):
         supervisor.verify_recovered_completion(job, path, codec=FakeCodec(state))
 
 
-def test_group_audit_retries_then_passes(monkeypatch):
+def test_group_audit_retries_then_passes(monkeypatch: pytest.MonkeyPatch) -> None:
     attempts = []
 
-    def check(group):
+    def check(group: Any) -> None:
         attempts.append(group)
         if len(attempts) < 3:
             raise ValueError("still alive")
@@ -242,7 +245,7 @@ def test_group_audit_retries_then_passes(monkeypatch):
     assert attempts == [42, 42, 42]
 
 
-def test_group_audit_rejects_boot_change():
+def test_group_audit_rejects_boot_change() -> None:
     with pytest.raises(ValueError, match="boot changed"):
         supervisor.wait_for_group_exit(42, "not-this-boot")
 
@@ -251,7 +254,9 @@ def test_group_audit_rejects_boot_change():
     "microsoft" not in Path("/proc/sys/kernel/osrelease").read_text().lower(),
     reason="WSL-specific check",
 )
-def test_wsl_host_space_refuses_ambiguous_or_failed_discovery(monkeypatch):
+def test_wsl_host_space_refuses_ambiguous_or_failed_discovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("WSL_DISTRO_NAME", "bad;name")
     with pytest.raises(ValueError, match="identify WSL"):
         supervisor.wsl_host_free_bytes()
@@ -267,7 +272,9 @@ def test_wsl_host_space_refuses_ambiguous_or_failed_discovery(monkeypatch):
         supervisor.wsl_host_free_bytes()
 
 
-def test_invalid_zero_exit_keeps_lock_and_never_starts_next(tmp_path, monkeypatch):
+def test_invalid_zero_exit_keeps_lock_and_never_starts_next(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     job, _, _, _ = make_fixture(tmp_path)
     job.update(argv=["fake"], cwd=str(tmp_path))
     second = {**job, "id": "tqc"}
@@ -276,10 +283,10 @@ def test_invalid_zero_exit_keeps_lock_and_never_starts_next(tmp_path, monkeypatc
     class Process:
         pid = 42
 
-        def wait(self):
+        def wait(self) -> int:
             return 0
 
-    def spawn(*args, **kwargs):
+    def spawn(*args: Any, **kwargs: Any) -> Any:
         started.append(args)
         return Process()
 
@@ -307,7 +314,9 @@ def test_invalid_zero_exit_keeps_lock_and_never_starts_next(tmp_path, monkeypatc
     )
 
 
-def test_verified_job_allows_next_and_releases_lock(tmp_path, monkeypatch):
+def test_verified_job_allows_next_and_releases_lock(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     job, _, _, _ = make_fixture(tmp_path)
     job.update(argv=["fake"], cwd=str(tmp_path))
     jobs = [job, {**job, "id": "tqc"}]
@@ -316,7 +325,7 @@ def test_verified_job_allows_next_and_releases_lock(tmp_path, monkeypatch):
     class Process:
         pid = 42
 
-        def wait(self):
+        def wait(self) -> int:
             return 0
 
     monkeypatch.setattr(
@@ -333,11 +342,14 @@ def test_verified_job_allows_next_and_releases_lock(tmp_path, monkeypatch):
     monkeypatch.setattr(supervisor, "verify_completion", lambda job, *a: {"verified": job["id"]})
     output, lock = tmp_path / "output", tmp_path / "global-lock"
     assert supervisor.run({"schema_version": 2, "jobs": jobs}, "manifest", output, lock) == 0
-    assert len(started) == 2 and not lock.exists()
+    assert len(started) == 2
+    assert not lock.exists()
     assert json.loads((output / "strict-state.json").read_text())["status"] == "completed"
 
 
-def test_opt_in_recovery_is_audited_before_next_job(tmp_path, monkeypatch):
+def test_opt_in_recovery_is_audited_before_next_job(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     job, _, _, _ = make_fixture(tmp_path)
     job.update(argv=["fake"], cwd=str(tmp_path))
     jobs = [job, {**job, "id": "tqc"}]
@@ -346,7 +358,7 @@ def test_opt_in_recovery_is_audited_before_next_job(tmp_path, monkeypatch):
     class Process:
         pid = 42
 
-        def wait(self):
+        def wait(self) -> int:
             return 1 if len(started) == 1 else 0
 
     monkeypatch.setattr(
@@ -360,8 +372,9 @@ def test_opt_in_recovery_is_audited_before_next_job(tmp_path, monkeypatch):
     monkeypatch.setattr(supervisor, "wait_for_group_exit", lambda *args: None)
     monkeypatch.setattr(supervisor, "reject_live_competitors", lambda: None)
 
-    def recover(job, output, entry, state, path):
-        assert len(started) == 1 and entry["status"] == "failed_before_recovery"
+    def recover(job: Any, output: Any, entry: Any, state: Any, path: Any) -> Any:  # noqa: PLR0913 -- explicit orchestration parameters
+        assert len(started) == 1
+        assert entry["status"] == "failed_before_recovery"
         recovered.append(job["id"])
         return {"audited": True}
 
@@ -374,12 +387,17 @@ def test_opt_in_recovery_is_audited_before_next_job(tmp_path, monkeypatch):
         )
         == 0
     )
-    assert len(started) == 2 and recovered == ["sac"] and not lock.exists()
+    assert len(started) == 2
+    assert recovered == ["sac"]
+    assert not lock.exists()
     saved = json.loads((output / "strict-state.json").read_text())
-    assert saved["jobs"][0]["returncode"] == 1 and saved["jobs"][0]["evidence"] == {"audited": True}
+    assert saved["jobs"][0]["returncode"] == 1
+    assert saved["jobs"][0]["evidence"] == {"audited": True}
 
 
-def test_failed_opt_in_recovery_keeps_lock_and_does_not_start_next(tmp_path, monkeypatch):
+def test_failed_opt_in_recovery_keeps_lock_and_does_not_start_next(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     job, _, _, _ = make_fixture(tmp_path)
     job.update(argv=["fake"], cwd=str(tmp_path))
     started = []
@@ -387,7 +405,7 @@ def test_failed_opt_in_recovery_keeps_lock_and_does_not_start_next(tmp_path, mon
     class Process:
         pid = 42
 
-        def wait(self):
+        def wait(self) -> int:
             return 1
 
     monkeypatch.setattr(
@@ -414,14 +432,17 @@ def test_failed_opt_in_recovery_keeps_lock_and_does_not_start_next(tmp_path, mon
             lock,
             auto_recover=True,
         )
-    assert len(started) == 1 and lock.exists()
+    assert len(started) == 1
+    assert lock.exists()
     assert (
         json.loads((output / "strict-state.json").read_text())["status"] == "blocked_requires_audit"
     )
 
 
 @pytest.mark.parametrize("stage", ["training", "evaluation", "wal_finalization"])
-def test_recover_interrupted_selects_last_checkpoint_and_audits_final(tmp_path, monkeypatch, stage):
+def test_recover_interrupted_selects_last_checkpoint_and_audits_final(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stage: Any
+) -> None:
     from tools.headless_campaign_queue import (
         disk_guard,
         recovery,
@@ -472,8 +493,12 @@ def test_recover_interrupted_selects_last_checkpoint_and_audits_final(tmp_path, 
     )
     monkeypatch.setattr(recovery, "reject_live_competitors", lambda: None)
 
-    def prepare(config_arg, checkpoint, destination, config_sha, **kwargs):
-        assert checkpoint == initial and config_arg == config and config_sha == sha(config)
+    def prepare(  # noqa: PLR0913 -- explicit orchestration parameters
+        config_arg: Any, checkpoint: Any, destination: Any, config_sha: Any, **kwargs: Any
+    ) -> Any:
+        assert checkpoint == initial
+        assert config_arg == config
+        assert config_sha == sha(config)
         assert kwargs["stage"] == ("training" if stage == "wal_finalization" else stage)
         calls.append("prepare")
         destination.mkdir()
@@ -501,7 +526,7 @@ def test_recover_interrupted_selects_last_checkpoint_and_audits_final(tmp_path, 
     )
     monkeypatch.setattr(recovery, "evaluate_copy", lambda *a: calls.append("evaluate"))
 
-    def finalize(*args):
+    def finalize(*args: Any) -> None:
         calls.append("finalize")
         args[4]["checkpoint"] = str(final)
 
@@ -515,7 +540,7 @@ def test_recover_interrupted_selects_last_checkpoint_and_audits_final(tmp_path, 
     class Process:
         pid = 42
 
-        def wait(self):
+        def wait(self) -> int:
             return 0
 
     monkeypatch.setattr(supervisor.subprocess, "Popen", lambda *a, **kw: Process())
@@ -561,12 +586,12 @@ def test_recover_interrupted_selects_last_checkpoint_and_audits_final(tmp_path, 
         supervisor.recover_interrupted(job, tmp_path, {}, {}, tmp_path / "state2.json")
 
 
-def test_recovery_shutdown_waits_for_group(monkeypatch):
+def test_recovery_shutdown_waits_for_group(monkeypatch: pytest.MonkeyPatch) -> None:
     from tools.headless_campaign_queue import recovery
 
     calls = []
 
-    def check(group):
+    def check(group: Any) -> None:
         calls.append(group)
         if len(calls) == 1:
             raise ValueError("still exiting")

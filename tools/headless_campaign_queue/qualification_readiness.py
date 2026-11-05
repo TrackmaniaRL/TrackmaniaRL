@@ -128,10 +128,23 @@ def assess(inventory: dict, physical: dict[str, dict], draft: dict) -> dict:
         "missing": reasons,
         "jobs": details,
         "limitations": [
-            "Readiness is for a first experimental campaign, not proof of full-budget completion or recovery.",
-            "Short runs differ in budget, warmup, trial count and output paths; their differences are retained per job.",
-            "Discrete client comparisons and sampled continuous action observations do not prove arbitrary analog physics/reward equivalence.",
-            "The actual final transition count may exceed the target and is subject to the declared acceptance bound.",
+            (
+                "Readiness is for a first experimental campaign, not pro"
+                "of of full-budget completion or recovery."
+            ),
+            (
+                "Short runs differ in budget, warmup, trial count and ou"
+                "tput paths; their differences are retained per job."
+            ),
+            (
+                "Discrete client comparisons and sampled continuous acti"
+                "on observations do not prove arbitrary analog physics/r"
+                "eward equivalence."
+            ),
+            (
+                "The actual final transition count may exceed the target"
+                " and is subject to the declared acceptance bound."
+            ),
             "The report does not authorize a launch and does not produce a runnable manifest.",
         ],
     }

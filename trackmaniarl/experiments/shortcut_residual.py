@@ -21,6 +21,7 @@ from trackmaniarl.core.spec import EvaluationMapSpec
 from trackmaniarl.experiments.evaluation import EvaluationResult
 from trackmaniarl.trackmania.evaluation import TrackmaniaEvaluator, _EpisodeOutcome
 from trackmaniarl.trackmania.geometry import BoundaryGeometry
+from trackmaniarl.trackmania.native_headless._runtime.continuous import ContinuousControl
 from trackmaniarl.trackmania.native_headless._runtime.npz_limits import validate_npz_size
 from trackmaniarl.trackmania.native_headless.full_qr.environment import (
     FullQrEnvironment,
@@ -210,12 +211,18 @@ class SourceGuidedShortcutEnvironment(FullQrEnvironment):
     """Expose hybrid controls and real Goal time separately from sampled physics."""
 
     def _record_step_info(
-        self, step: FullQrStep | FullQrTerminalStep, result: RewardResult
+        self,
+        step: FullQrStep | FullQrTerminalStep,
+        result: RewardResult,
+        action: int | ContinuousControl,
     ) -> dict[str, Any]:
-        info = super()._record_step_info(step, result)
+        info = super()._record_step_info(step, result, action)
         provider = self.provider
         if not isinstance(provider, ReferenceResidualProvider):
             raise NativeLifecycleError("source-guided environment requires its own provider")
+        # A residual index does not describe the per-tick native pedal commands.
+        for key in ("control_gas", "control_brake", "control_brake_tap"):
+            info.pop(key, None)
         info.update(
             control_schema=CONTROL_SCHEMA,
             reference_guided=True,
