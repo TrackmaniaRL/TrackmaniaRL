@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
+from math import isfinite
 from typing import Any, cast
 
 import torch
@@ -116,10 +117,12 @@ class DiscreteValuePolicy:
         return choices[index]
 
     def _record_gap(self, values: torch.Tensor) -> None:
-        if values.shape[-1] < 2:
+        ranked = values[0].topk(min(2, values.shape[-1])).values.tolist()
+        best = float(ranked[0])
+        self.last_q_max = best if isfinite(best) else None
+        # Masked actions have value -inf; a single available action has no
+        # runner-up, so its margin is undefined rather than infinite.
+        if len(ranked) < 2 or not all(isfinite(float(value)) for value in ranked):
             self.last_q_margin = None
-            self.last_q_max = None
-            return
-        best, second = values[0].topk(2).values.tolist()
-        self.last_q_max = float(best)
-        self.last_q_margin = float(best - second)
+        else:
+            self.last_q_margin = best - float(ranked[1])
