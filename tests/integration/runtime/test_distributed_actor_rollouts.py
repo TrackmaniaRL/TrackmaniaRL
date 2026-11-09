@@ -234,7 +234,7 @@ def _assert_chunked_episode_requests(requests: list[SpoolRequest]) -> None:
     summary_requests = [request for request in requests if request.summaries]
     assert len(transition_requests) == 6
     assert len(summary_requests) == 2
-    assert all(not request.transitions for request in summary_requests)
+    assert all(len(request.transitions) == 1 for request in summary_requests)
     transition_ids = {
         transition.episode_id
         for request in transition_requests
@@ -255,6 +255,29 @@ def test_actor_sends_identified_summary_after_flushed_chunks() -> None:
     actor._collect(_TrainingEnvironment(actor.stop), _Pipeline())
 
     _assert_chunked_episode_requests(probe.requests)
+
+
+def test_stop_after_periodic_flush_closes_final_transition() -> None:
+    probe = _TrainingProbe()
+    actor = _training_actor(probe)
+    actor.spec.distributed.rollout_chunk_transitions = 1
+
+    class StoppedEnvironment(_TrainingEnvironment):
+        def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
+            result = super().step(action)
+            if self.total_steps == 2:
+                self.stop.set()
+            return result
+
+    actor._collect(StoppedEnvironment(actor.stop), _Pipeline())
+
+    transitions = [item for request in probe.requests for item in request.transitions]
+    assert len(transitions) == 2
+    assert not transitions[0].truncated
+    assert transitions[1].truncated
+    assert not transitions[1].terminated
+    assert transitions[1].info["termination_reason"] == "actor_shutdown"
+    assert probe.requests[-1].summaries
 
 
 class _PrewarmPolicy:

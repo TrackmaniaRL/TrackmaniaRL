@@ -10,7 +10,9 @@ from queue import Queue
 from threading import Event
 from time import monotonic
 from typing import Any, Protocol
+from uuid import uuid4
 
+import trackmaniarl.distributed.actor_watchdog as actor_watchdog
 from trackmaniarl.core.builtins import sync_checkpoint_path
 from trackmaniarl.core.spec import RunSpec
 from trackmaniarl.distributed.actor_requests import SpoolRequest
@@ -51,8 +53,6 @@ def spool(runtime: SpoolRuntime, request: SpoolRequest) -> None:
     value = _spool_value(runtime, request)
     payload = runtime.codec.encode(value)
     runtime._wait_for_spool_capacity(len(payload))
-    if runtime.stop.is_set():
-        return
     _persist_rollout(runtime, payload)
 
 
@@ -96,6 +96,7 @@ def wait_for_spool_capacity(runtime: SpoolRuntime, payload_bytes: int) -> None:
         raise ValueError(f"rollout payload is {payload_bytes} bytes; spool limit is {limit}")
     warned_at = float("-inf")
     while not runtime.stop.is_set():
+        actor_watchdog.touch(runtime)
         if runtime._current_spool_bytes() + payload_bytes <= limit:
             return
         if monotonic() - warned_at >= _SPOOL_WAIT_WARN_S:
@@ -106,7 +107,12 @@ def wait_for_spool_capacity(runtime: SpoolRuntime, payload_bytes: int) -> None:
                 runtime._current_spool_bytes(),
             )
             warned_at = monotonic()
-        runtime.stop.wait(_SPOOL_WAIT_POLL_S)
+        timeout = getattr(runtime.spec.distributed, "actor_stall_timeout_s", None)
+        interval = _SPOOL_WAIT_POLL_S if timeout is None else min(_SPOOL_WAIT_POLL_S, timeout / 2)
+        runtime.stop.wait(interval)
+    # Once collection is stopping, retain its last buffer even if the spool is
+    # full. The single bounded payload remains durable for a later restart if
+    # the learner cannot accept it during shutdown.
 
 
 def discard_spooled(runtime: SpoolRuntime, path: Path, size: int) -> None:
@@ -132,6 +138,10 @@ def recover_spool_temporaries(runtime: SpoolRuntime) -> None:
     next_sequence = max(reserved, default=-1) + 1
     for temporary in temporaries:
         if not runtime._valid_spool_temporary(temporary):
+            quarantine = temporary.with_name(f"{temporary.stem}.{uuid4().hex}.invalid")
+            os.replace(temporary, quarantine)
+            sync_checkpoint_path(quarantine)
+            logger.warning("Quarantined invalid actor spool temporary as %s", quarantine.name)
             continue
         sequence, next_sequence = _available_sequence(temporary, occupied, next_sequence)
         path = runtime.spool_dir / f"{sequence:020d}.rollout"

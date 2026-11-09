@@ -22,6 +22,7 @@ def test_actor_failure_always_stops_workers_and_closes_transport(
     actor = object.__new__(ActorRuntime)
     actor.actor_id, actor.stop_reason = "test", "running"
     actor.stop = threading.Event()
+    actor.collection_done = threading.Event()
 
     def action(stage: str) -> None:
         events.append(stage)
@@ -89,6 +90,7 @@ def test_actor_joins_policy_worker_after_rpc_cancellation(
     actor = object.__new__(ActorRuntime)
     actor.actor_id, actor.stop_reason = "test", "learner requested stop"
     actor.stop = threading.Event()
+    actor.collection_done = threading.Event()
     environment = SimpleNamespace(close=lambda: None)
     actor._components = lambda: (object(), SimpleNamespace(create=lambda **_: environment))
     actor._register = lambda: {}
@@ -144,11 +146,43 @@ def test_worker_join_failure_preserves_original_exception(monkeypatch: pytest.Mo
     actor = object.__new__(ActorRuntime)
     actor.actor_id, actor.stop_reason = "test", "running"
     actor.stop = threading.Event()
+    actor.collection_done = threading.Event()
     actor._components = lambda: (_ for _ in ()).throw(ValueError("original failure"))
     actor._join_senders = lambda _: None
     actor.client = SimpleNamespace(close=lambda: None)
     actor._join_workers = lambda _: (_ for _ in ()).throw(RuntimeError("stuck worker"))
+    actor._raise_background_failure = lambda: None
 
     with pytest.raises(ValueError, match="original failure") as failure:
         actor.run_forever()
     assert any("stuck worker" in note for note in failure.value.__notes__)
+
+
+def test_actor_reports_background_failure_raised_during_drain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    actor = object.__new__(ActorRuntime)
+    actor.actor_id, actor.stop_reason = "test", "running"
+    actor.stop = threading.Event()
+    actor.collection_done = threading.Event()
+    actor._components = lambda: (object(), SimpleNamespace(create=lambda **_: object()))
+    actor._register = lambda: {}
+    actor._initialize_policy = lambda _: None
+    actor._actor_seed = lambda: 0
+    actor._collect_environment = lambda *_: None
+    actor.client = SimpleNamespace(close=lambda: None)
+    failure = threading.Event()
+    actor._join_senders = lambda _: failure.set()
+    actor._join_workers = lambda _: None
+
+    def raise_failure() -> None:
+        if failure.is_set():
+            raise RuntimeError("sender failed during drain")
+
+    actor._raise_background_failure = raise_failure
+    monkeypatch.setattr(
+        "trackmaniarl.distributed.actor.actor_background.start_background_workers", lambda _: []
+    )
+
+    with pytest.raises(RuntimeError, match="sender failed during drain"):
+        actor.run_forever()

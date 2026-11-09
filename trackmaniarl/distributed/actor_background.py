@@ -138,7 +138,10 @@ def sender_loop(runtime: BackgroundRuntime) -> None:
 
 
 def send_spooled_rollouts(runtime: BackgroundRuntime) -> None:
-    while not runtime.stop.is_set() or not runtime.queue.empty():
+    # A stop request can arrive while collection still owns an unflushed
+    # buffer. Keep senders alive until collection has published that buffer.
+    collection_done = getattr(runtime, "collection_done", runtime.stop)
+    while not collection_done.is_set() or not runtime.queue.empty():
         try:
             path = runtime.queue.get(timeout=0.2)
         except Empty:
@@ -160,7 +163,9 @@ def _send_spooled_path(runtime: BackgroundRuntime, path: Path) -> None:
             if not is_retryable_rpc_error(exc):
                 raise
             if runtime.stop.wait(1.0):
-                break
+                # The durable file remains recoverable, but the launcher must
+                # not treat this as a successfully drained actor.
+                raise RuntimeError(f"could not drain rollout {path} during shutdown") from exc
 
 
 def _handle_submit_response(runtime: BackgroundRuntime, submitted: SubmittedRollout) -> bool:

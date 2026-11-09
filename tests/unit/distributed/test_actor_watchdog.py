@@ -8,6 +8,7 @@ import pytest
 
 import trackmaniarl.distributed.actor_background as actor_background
 import trackmaniarl.distributed.actor_collection as actor_collection
+import trackmaniarl.distributed.actor_spool as actor_spool
 import trackmaniarl.distributed.actor_watchdog as actor_watchdog
 from trackmaniarl.distributed.actor_watchdog import ActorStallError, ProgressWatchdog, stall
 
@@ -118,3 +119,35 @@ def test_retryable_heartbeat_failure_still_checks_collection_stall(
 
     assert stops == ["collection watchdog: actor collection made no progress for 11 s (limit 10 s)"]
     assert exits == [actor_watchdog.STALL_EXIT_GRACE_S]
+
+
+def test_spool_capacity_wait_refreshes_watchdog_until_space_is_available() -> None:
+    now = [0.0]
+    watchdog = ProgressWatchdog(clock=lambda: now[0])
+    watchdog.arm()
+    checks: list[float] = []
+
+    class Stop:
+        def is_set(self) -> bool:
+            return False
+
+        def wait(self, timeout: float) -> bool:
+            now[0] += timeout
+            checks.append(now[0])
+            assert stall(watchdog, 1.0) is None
+            return False
+
+    runtime = SimpleNamespace(
+        watchdog=watchdog,
+        stop=Stop(),
+        actor_id="actor",
+        spec=SimpleNamespace(
+            distributed=SimpleNamespace(spool_max_bytes=10, actor_stall_timeout_s=1.0)
+        ),
+        _current_spool_bytes=lambda: 10 if now[0] < 3 else 0,
+    )
+
+    actor_spool.wait_for_spool_capacity(runtime, 1)
+
+    assert now[0] >= 3
+    assert len(checks) >= 6

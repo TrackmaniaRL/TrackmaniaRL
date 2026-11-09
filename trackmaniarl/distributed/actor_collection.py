@@ -38,9 +38,14 @@ class CollectionBuffers:
     summaries: list[dict[str, Any]] = field(default_factory=list)
     started: float = field(default_factory=monotonic)
 
-    def flush(self, runtime: CollectionRuntime, version: int) -> None:
-        runtime._spool(SpoolRequest(self.transitions, self.summaries, version))
-        self.transitions = []
+    def flush(self, runtime: CollectionRuntime, version: int, *, hold_last: bool = False) -> None:
+        # Keep the latest nonterminal transition until the next step or an
+        # episode boundary, so a concurrent stop can close it as a truncation.
+        count = max(0, len(self.transitions) - int(hold_last))
+        if not count and not self.summaries:
+            return
+        runtime._spool(SpoolRequest(self.transitions[:count], self.summaries, version))
+        self.transitions = self.transitions[count:]
         self.summaries = []
         self.started = monotonic()
 
@@ -245,7 +250,7 @@ def _record_training_step(
     state.steps = step.index + 1
     metrics.record_reward(step.reward, step.info)
     if context.runtime._should_flush(context.buffers.transitions, context.buffers.started):
-        context.buffers.flush(context.runtime, state.version)
+        context.buffers.flush(context.runtime, state.version, hold_last=True)
     metrics.record_phase("bookkeeping", monotonic() - started)
 
 
@@ -316,6 +321,10 @@ def _truncate_interrupted_rollout(
 
 
 def _finish_training_episode(context: CollectionContext, state: TrainingEpisode) -> None:
+    if context.runtime.stop.is_set() and context.buffers.transitions:
+        last = context.buffers.transitions[-1]
+        if not last.terminated and not last.truncated:
+            _truncate_interrupted_rollout(context.buffers, reason="actor_shutdown")
     info = state.metrics.summary_info(state.epsilon, state.version, state.steps)
     summary = {
         **context.runtime._summary(state.metrics.total_reward, info, state.steps),
