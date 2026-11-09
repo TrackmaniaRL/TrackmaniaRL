@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, cast
@@ -49,21 +51,24 @@ class _ObservationNormalizer:
         self.enabled = config.enabled
         self.clip = config.clip
         self._moments: dict[str, _Moments] = {}
+        self._legacy_moments: dict[str, _Moments] | None = None
 
     def normalize(self, value: Any, sample_dimensions: int) -> Any:
         if not self.enabled:
             return value
+        self._resolve_legacy(value)
         return _map_tensor_tree(
             value,
-            lambda path, leaf: self._normalize_leaf(path, leaf),
+            lambda path, _legacy, leaf: self._normalize_leaf(path, leaf),
         )
 
     def update(self, value: Any, sample_dimensions: int) -> None:
         if not self.enabled:
             return
+        self._resolve_legacy(value)
         _map_tensor_tree(
             value,
-            lambda path, leaf: self._update_leaf(path, leaf, sample_dimensions),
+            lambda path, _legacy, leaf: self._update_leaf(path, leaf, sample_dimensions),
         )
 
     def _normalize_leaf(self, path: str, value: torch.Tensor) -> torch.Tensor:
@@ -87,16 +92,46 @@ class _ObservationNormalizer:
         return {
             "enabled": self.enabled,
             "clip": self.clip,
-            "moments": {key: value.state_dict() for key, value in self._moments.items()},
+            "path_format": 1 if self._legacy_moments is not None else 2,
+            "moments": {
+                key: value.state_dict()
+                for key, value in (
+                    self._legacy_moments if self._legacy_moments is not None else self._moments
+                ).items()
+            },
         }
 
     def load_state_dict(self, state: Mapping[str, Any]) -> None:
         if bool(state["enabled"]) != self.enabled or float(state["clip"]) != self.clip:
             raise ValueError("PPO observation normalizer configuration does not match")
-        self._moments = {
+        path_format = state.get("path_format", 1)
+        if type(path_format) is not int or path_format not in (1, 2):
+            raise ValueError("unsupported PPO observation normalizer path format")
+        moments = {
             str(key): _Moments.from_state(cast(Mapping[str, Any], value))
             for key, value in cast(Mapping[str, Any], state["moments"]).items()
         }
+        self._moments = moments if path_format == 2 else {}
+        self._legacy_moments = moments if path_format == 1 and moments else None
+
+    def _resolve_legacy(self, value: Any) -> None:
+        """Resolve old dotted paths only against a complete, unambiguous tree."""
+        if self._legacy_moments is None:
+            return
+        matches: dict[str, list[str]] = {}
+
+        def collect(path: str, legacy: str, leaf: torch.Tensor) -> torch.Tensor:
+            matches.setdefault(legacy, []).append(path)
+            return leaf
+
+        _map_tensor_tree(value, collect)
+        if any(len(matches.get(key, [])) != 1 for key in self._legacy_moments):
+            raise ValueError(
+                "Cannot safely restore legacy PPO observation normalizer: "
+                "observation paths are missing or ambiguous"
+            )
+        self._moments = {matches[key][0]: moments for key, moments in self._legacy_moments.items()}
+        self._legacy_moments = None
 
 
 class _RewardNormalizer:
@@ -189,18 +224,50 @@ class _Moments:
         )
 
 
-def _map_tensor_tree(value: Any, function: Any, path: str = "root") -> Any:
+def _map_tensor_tree(  # noqa: PLR0913
+    value: Any,
+    function: Any,
+    path: tuple[tuple[Any, ...], ...] = (),
+    legacy: str = "root",
+) -> Any:
     if isinstance(value, torch.Tensor):
-        return function(path, value)
+        return function(json.dumps(path, ensure_ascii=True, separators=(",", ":")), legacy, value)
     if isinstance(value, Mapping):
         return {
-            key: _map_tensor_tree(item, function, f"{path}.{key}") for key, item in value.items()
+            key: _map_tensor_tree(item, function, (*path, _mapping_segment(key)), f"{legacy}.{key}")
+            for key, item in value.items()
         }
     if isinstance(value, tuple):
         return tuple(
-            _map_tensor_tree(item, function, f"{path}.{index}") for index, item in enumerate(value)
+            _map_tensor_tree(item, function, (*path, ("tuple", index)), f"{legacy}.{index}")
+            for index, item in enumerate(value)
         )
     raise TypeError("PPO observation PyTrees must contain tensors, mappings, or tuples")
+
+
+def _mapping_segment(key: Any) -> tuple[str, Any]:
+    return ("mapping", _encode_mapping_key(key))
+
+
+def _encode_mapping_key(key: Any) -> Any:
+    if isinstance(key, tuple):
+        return ["tuple", [_encode_mapping_key(item) for item in key]]
+    if isinstance(key, np.generic):
+        if key.dtype.hasobject:
+            raise TypeError("PPO observation mapping keys must not contain objects")
+        scalar = key.item()
+        if type(scalar) in (str, int, bool, float, bytes, type(None)):
+            return _encode_mapping_key(scalar)
+        return ["numpy", key.dtype.str, key.tobytes().hex()]
+    if type(key) is float:
+        if math.isnan(key):
+            raise ValueError("PPO observation mapping keys must not be NaN")
+        return ["float", key.hex()]
+    if type(key) is bytes:
+        return ["bytes", key.hex()]
+    if type(key) in (str, int, bool, type(None)):
+        return [type(key).__name__, key]
+    raise TypeError(f"unsupported PPO observation mapping key: {type(key).__name__}")
 
 
 def generalized_advantage_estimate(inputs: AdvantageInputs) -> tuple[torch.Tensor, torch.Tensor]:
