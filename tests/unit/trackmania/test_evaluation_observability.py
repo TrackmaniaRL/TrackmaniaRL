@@ -10,6 +10,29 @@ def _result() -> EvaluationResult:
     return EvaluationResult(False, None, False, 0.0, 0.0, 0.0)
 
 
+def test_skipped_frame_evidence_requires_every_step() -> None:
+    observability = EvaluationObservability()
+    observability.record({"telemetry_skipped_frames": 0}, 1)
+    observability.record({"telemetry_skipped_frames": 2.0}, 1)
+    complete = observability.annotated_result(_result(), 2)
+    assert complete.telemetry_skipped_frames_total == 2
+    assert complete.telemetry_skipped_frames_measurement_count == 2
+    assert complete.telemetry_skipped_frames_measurements_valid
+    observability.record({}, 1)
+    incomplete = observability.annotated_result(_result(), 3)
+    assert incomplete.telemetry_skipped_frames_measurement_count == 2
+    assert not incomplete.telemetry_skipped_frames_measurements_valid
+
+
+@pytest.mark.parametrize("value", [None, True, -1, 0.5, float("nan"), float("inf"), "0"])
+def test_invalid_skipped_frame_evidence_does_not_count(value: object) -> None:
+    observability = EvaluationObservability()
+    observability.record({"telemetry_skipped_frames": value}, 1)
+    result = observability.annotated_result(_result(), 1)
+    assert result.telemetry_skipped_frames_measurement_count == 0
+    assert not result.telemetry_skipped_frames_measurements_valid
+
+
 def test_issued_commands_distinguish_no_gas_from_full_brake_and_missing_evidence() -> None:
     observability = EvaluationObservability()
     observability.record({"control/issued_command": [0, 0, -1 / 3]}, 1)

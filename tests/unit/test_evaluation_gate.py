@@ -43,6 +43,9 @@ def _finished_trials(times: list[float]) -> list[dict[str, Any]]:
             "step_race_time_ms_max": 50.0,
             "step_race_time_measurement_count": 1,
             "step_race_time_measurements_valid": True,
+            "telemetry_skipped_frames_total": 0,
+            "telemetry_skipped_frames_measurement_count": 1,
+            "telemetry_skipped_frames_measurements_valid": True,
         }
         for finish_time_s in times
     ]
@@ -150,3 +153,37 @@ def test_strict_telemetry_skip_benchmark_rejects_a_finished_trial_with_skips() -
             _metrics([36.6] * 10),
             evaluation,
         )
+
+
+def test_strict_telemetry_gate_accepts_complete_zero_measurements() -> None:
+    evaluation = _suite(None).model_copy(update={"reject_telemetry_skips": True})
+    _apply_benchmark_gate(_finished_trials([36.6] * 10), _metrics([36.6] * 10), evaluation)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("telemetry_skipped_frames_total", None),
+        ("telemetry_skipped_frames_total", -1),
+        ("telemetry_skipped_frames_total", float("nan")),
+        ("telemetry_skipped_frames_total", False),
+        ("telemetry_skipped_frames_measurement_count", 0),
+        ("telemetry_skipped_frames_measurements_valid", False),
+    ],
+)
+def test_strict_telemetry_gate_rejects_missing_or_invalid_measurements(
+    field: str, value: object
+) -> None:
+    trials = _finished_trials([36.6] * 10)
+    trials[3][field] = value
+    evaluation = _suite(None).model_copy(update={"reject_telemetry_skips": True})
+    with pytest.raises(RuntimeError, match="complete measurements"):
+        _apply_benchmark_gate(trials, _metrics([36.6] * 10), evaluation)
+
+
+def test_strict_telemetry_gate_rejects_legacy_trial_without_coverage() -> None:
+    trials = _finished_trials([36.6] * 10)
+    trials[0].pop("telemetry_skipped_frames_measurement_count")
+    evaluation = _suite(None).model_copy(update={"reject_telemetry_skips": True})
+    with pytest.raises(RuntimeError, match="complete measurements"):
+        _apply_benchmark_gate(trials, _metrics([36.6] * 10), evaluation)

@@ -311,7 +311,7 @@ def _runtime_requirement(evaluation: EvaluationSuiteSpec) -> str:
 def _telemetry_skip_requirement(gate: _BenchmarkGate) -> str:
     if not gate.evaluation.reject_telemetry_skips:
         return ""
-    return "zero skipped telemetry frames in every trial, "
+    return "zero skipped telemetry frames with complete measurements in every trial, "
 
 
 def _median_requirement(evaluation: EvaluationSuiteSpec) -> str:
@@ -328,8 +328,22 @@ def _telemetry_skipped_trials(trials: list[dict[str, Any]]) -> list[dict[str, An
 
 
 def _skipped_telemetry_frames(trial: dict[str, Any]) -> int:
-    value = trial.get("telemetry_skipped_frames_total", 0)
-    return int(value) if isinstance(value, int | float) else 1
+    steps = trial.get("steps")
+    count = trial.get("telemetry_skipped_frames_measurement_count")
+    value = trial.get("telemetry_skipped_frames_total")
+    if not (
+        _positive_integer(steps)
+        and _nonnegative_integer(count)
+        and count == steps
+        and trial.get("telemetry_skipped_frames_measurements_valid") is True
+        and not isinstance(value, bool)
+        and isinstance(value, int | float)
+        and isfinite(value)
+        and value >= 0
+        and value % 1 == 0
+    ):
+        return 1
+    return int(value)
 
 
 def _has_runtime_errors(trials: list[dict[str, Any]]) -> bool:

@@ -63,6 +63,8 @@ _TRIAL_FIELDS = (
     "telemetry_skipped_frames_mean",
     "telemetry_skipped_frames_max",
     "telemetry_steps_with_skipped_frames_fraction",
+    "telemetry_skipped_frames_measurement_count",
+    "telemetry_skipped_frames_measurements_valid",
     "throughput_fps",
     "progress_pct",
     "telemetry_error",

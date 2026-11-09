@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
@@ -117,11 +118,15 @@ def restore_entropy_state(target: EntropyRestoreTarget, state: Mapping[str, Any]
     target.optimizer.load_state_dict(deepcopy(dict(saved_optimizer)))
 
 
-def freeze_modules(modules: Any) -> None:
-    for module in modules:
-        module.requires_grad_(False)
-
-
-def unfreeze_modules(modules: Any) -> None:
-    for module in modules:
-        module.requires_grad_(True)
+@contextmanager
+def frozen_modules(modules: Any) -> Iterator[None]:
+    """Temporarily freeze critics while preserving each parameter's trainability."""
+    parameters = {parameter for module in modules for parameter in module.parameters()}
+    states = [(parameter, parameter.requires_grad) for parameter in parameters]
+    try:
+        for parameter, _ in states:
+            parameter.requires_grad_(False)
+        yield
+    finally:
+        for parameter, requires_grad in states:
+            parameter.requires_grad_(requires_grad)

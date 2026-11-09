@@ -40,6 +40,8 @@ def _finished_timing() -> dict[str, float | int | bool]:
         "step_race_time_measurements_valid": True,
         "telemetry_skipped_frames_total": 3,
         "telemetry_skipped_frames_max": 2,
+        "telemetry_skipped_frames_measurement_count": 2,
+        "telemetry_skipped_frames_measurements_valid": True,
         "telemetry_steps_with_skipped_frames_fraction": 0.5,
     }
 
@@ -61,6 +63,8 @@ def _failed_result() -> EvaluationResult:
         step_race_time_measurement_count=1,
         step_race_time_measurements_valid=True,
         telemetry_skipped_frames_total=0,
+        telemetry_skipped_frames_measurement_count=1,
+        telemetry_skipped_frames_measurements_valid=True,
     )
 
 
@@ -84,6 +88,9 @@ def test_evaluation_suite_aggregates_timing_and_telemetry() -> None:
     assert metrics["eval/telemetry_skipped_frames_total"] == 3.0
     assert metrics["eval/telemetry_skipped_frames_mean"] == 1.0
     assert metrics["eval/telemetry_skipped_frames_max"] == 2.0
+    assert metrics["eval/telemetry_skipped_frames_measurement_count"] == 3.0
+    assert metrics["eval/telemetry_skipped_frames_expected_measurement_count"] == 3.0
+    assert metrics["eval/telemetry_skipped_frames_measurements_valid"] == 1.0
     assert metrics["eval/telemetry_steps_with_skipped_frames_fraction"] == 1 / 3
 
 
@@ -99,6 +106,18 @@ def test_evaluation_suite_marks_partial_step_race_measurements_invalid() -> None
     assert metrics["eval/step_race_time_measurement_count"] == 1.0
     assert metrics["eval/step_race_time_expected_measurement_count"] == 2.0
     assert metrics["eval/step_race_time_measurements_valid"] == 0.0
+
+
+def test_evaluation_suite_reports_incomplete_skipped_frame_measurements() -> None:
+    incomplete = replace(
+        _finished_result(),
+        telemetry_skipped_frames_measurement_count=1,
+        telemetry_skipped_frames_measurements_valid=False,
+    )
+    metrics = aggregate_results([incomplete])
+    assert metrics["eval/telemetry_skipped_frames_measurement_count"] == 1.0
+    assert metrics["eval/telemetry_skipped_frames_expected_measurement_count"] == 2.0
+    assert metrics["eval/telemetry_skipped_frames_measurements_valid"] == 0.0
 
 
 def test_provider_failure_falls_back_to_a_valid_grid_proposal() -> None:

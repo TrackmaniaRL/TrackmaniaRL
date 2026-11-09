@@ -26,6 +26,7 @@ class EvaluationObservability:
     telemetry_skipped_frames_total: int = 0
     telemetry_skipped_frames_max: int = 0
     telemetry_steps_with_skipped_frames: int = 0
+    telemetry_skipped_frames_measurement_count: int = 0
     action_latencies_ms: list[float] = field(default_factory=list)
     vision_capture_times_ms: list[float] = field(default_factory=list)
     vision_pairing_delays_ms: list[float] = field(default_factory=list)
@@ -86,7 +87,14 @@ class EvaluationObservability:
         self.step_race_times_ms.append(value)
 
     def _record_skipped_frames(self, info: Mapping[str, Any]) -> None:
-        skipped = int(info.get("telemetry_skipped_frames", 0))
+        value = info.get("telemetry_skipped_frames")
+        if isinstance(value, bool) or not isinstance(value, Real):
+            return
+        number = float(value)
+        if not isfinite(number) or number < 0 or not number.is_integer():
+            return
+        skipped = int(number)
+        self.telemetry_skipped_frames_measurement_count += 1
         self.telemetry_skipped_frames_total += skipped
         self.telemetry_skipped_frames_max = max(self.telemetry_skipped_frames_max, skipped)
         self.telemetry_steps_with_skipped_frames += int(skipped > 0)
@@ -146,6 +154,10 @@ class EvaluationObservability:
             telemetry_skipped_frames_total=self.telemetry_skipped_frames_total,
             telemetry_skipped_frames_mean=self.telemetry_skipped_frames_total / steps,
             telemetry_skipped_frames_max=self.telemetry_skipped_frames_max,
+            telemetry_skipped_frames_measurement_count=self.telemetry_skipped_frames_measurement_count,
+            telemetry_skipped_frames_measurements_valid=(
+                self.telemetry_skipped_frames_measurement_count == steps
+            ),
             telemetry_steps_with_skipped_frames_fraction=(
                 self.telemetry_steps_with_skipped_frames / steps
             ),

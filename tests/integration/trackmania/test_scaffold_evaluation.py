@@ -295,6 +295,9 @@ def test_trackmania_evaluator_runs_every_declared_trial(
     _assert_success_metrics(metrics)
     artifact = json.loads((tmp_path / "evaluation.json").read_text(encoding="utf-8"))
     assert [trial["steps"] for trial in artifact["trials"]] == [1, 1, 1, 1]
+    counts = [trial["telemetry_skipped_frames_measurement_count"] for trial in artifact["trials"]]
+    assert counts == [1] * 4
+    assert all(trial["telemetry_skipped_frames_measurements_valid"] for trial in artifact["trials"])
     events = [
         json.loads(line)
         for line in (tmp_path / "evaluation-timeline.jsonl").read_text().splitlines()

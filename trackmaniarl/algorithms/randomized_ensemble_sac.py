@@ -21,9 +21,8 @@ from trackmaniarl.algorithms.sac_config import REDQConfig, REDQOptions
 from trackmaniarl.algorithms.sac_support import (
     SACBatch,
     continuous_batch,
-    freeze_modules,
+    frozen_modules,
     scalar_batch_output,
-    unfreeze_modules,
 )
 from trackmaniarl.core.contracts import ModelContract
 from trackmaniarl.core.data import PriorityUpdate, TrainingBatch
@@ -147,16 +146,15 @@ class RandomizedEnsembleSAC(TorchLearnerBase):
         actor_loss = torch.zeros((), device=self.device)
         if self.update_count % self.policy_update_interval != 0:
             return actor_loss
-        freeze_modules(self.model.critics)
-        policy_actions, log_probabilities = self.model.actor(batch.observations)
-        batch_size = batch.rewards.shape[0]
-        log_probabilities = scalar_batch_output(
-            log_probabilities, "actor log probabilities", batch_size
-        )
-        values = self._policy_values(batch, policy_actions)
-        actor_loss = (self.entropy_coefficient * log_probabilities - values).mean()
-        self._optimize(actor_loss, self.actor_optimizer)
-        unfreeze_modules(self.model.critics)
+        with frozen_modules(self.model.critics):
+            policy_actions, log_probabilities = self.model.actor(batch.observations)
+            batch_size = batch.rewards.shape[0]
+            log_probabilities = scalar_batch_output(
+                log_probabilities, "actor log probabilities", batch_size
+            )
+            values = self._policy_values(batch, policy_actions)
+            actor_loss = (self.entropy_coefficient * log_probabilities - values).mean()
+            self._optimize(actor_loss, self.actor_optimizer)
         return actor_loss
 
     def _policy_values(self, batch: SACBatch, actions: torch.Tensor) -> torch.Tensor:
