@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -157,6 +157,17 @@ class FeaturePipeline(Protocol):
     def transform_observation(self, observation: Any) -> Any: ...
 
     def collate(self, transitions: list[Transition]) -> Any: ...
+
+
+@runtime_checkable
+class ObservationCollator(Protocol):
+    """Optional batch collation for observations without transition metadata.
+
+    Output must match the observation field of ``FeaturePipeline.collate``
+    with a leading dimension equal to the number of supplied observations.
+    """
+
+    def collate_observations(self, observations: Sequence[Any]) -> Any: ...
 
 
 @runtime_checkable

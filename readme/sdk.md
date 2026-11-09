@@ -199,6 +199,7 @@ For example, a custom feature pipeline implements transformation for actor-time
 observations and collation for replay samples:
 
 ```python
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
@@ -210,16 +211,17 @@ class SpeedFeaturePipeline:
     def transform_observation(self, observation: Any) -> np.ndarray:
         return np.asarray([observation["speed"]], dtype=np.float32)
 
+    def collate_observations(self, observations: Sequence[Any]) -> np.ndarray:
+        return np.stack(observations)
+
     def collate(self, transitions: list[Transition]) -> dict[str, Any]:
         return {
             "_trackmaniarl_batch_collated": True,
-            "observations": np.stack(
-                [self.transform_observation(item.observation) for item in transitions]
-            ),
+            "observations": self.collate_observations([item.observation for item in transitions]),
             "actions": np.asarray([item.action for item in transitions]),
             "rewards": np.asarray([item.reward for item in transitions], dtype=np.float32),
-            "next_observations": np.stack(
-                [self.transform_observation(item.next_observation) for item in transitions]
+            "next_observations": self.collate_observations(
+                [item.next_observation for item in transitions]
             ),
             "terminated": np.asarray([item.terminated for item in transitions], dtype=np.bool_),
             "truncated": np.asarray([item.truncated for item in transitions], dtype=np.bool_),
@@ -237,6 +239,20 @@ components:
 The exact batch structure is a contract between the pipeline/sampler and the
 learner. Keep it typed and deterministic and test one synthetic transition
 round trip before a live run.
+
+`collate_observations` is an optional `ObservationCollator` extension for
+sequence replay. It accepts a nonempty flat sequence and returns the same
+observation PyTree, dtype, and leading batch dimension as the `observations`
+field of `collate`. These are the already transformed observations stored by
+the actor; do not apply `transform_observation` a second time. Replay restores
+the batch and sequence dimensions. The
+method must depend only on the supplied observations: a final bootstrap state
+may not have an associated action, reward, or transition metadata. Pipeline
+errors propagate to the caller. Existing pipelines without this method keep
+their previous transition-collation behavior; its synthetic final transition
+cannot provide metadata for an action that has not happened. When a subclass
+overrides `collate`, an inherited `collate_observations` is not used unless the
+subclass also overrides it; this preserves existing custom collation behavior.
 
 `validate` does not start TrackMania. It resolves components, writes the
 redacted manifest and runs a deterministic synthetic RL or supervised update.

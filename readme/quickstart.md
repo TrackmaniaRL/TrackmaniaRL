@@ -142,6 +142,13 @@ Resume the full training state from a checkpoint:
 uv run trackmaniarl resume run.yaml artifacts/RUN/checkpoints/CHECKPOINT.pt
 ```
 
+Resume checks the run fingerprint and refuses mismatches. New checkpoints include
+a diagnostic manifest with hashed configuration sections and relative library
+source paths; an error identifies changed sections or files without printing
+configuration values. Older checkpoints lack this detail and remain subject to
+the same strict compatibility check. Restore the original code and configuration
+to resume; the diagnostic manifest does not bypass fingerprint validation.
+
 To start a new run with compatible weights, use
 `train --model-initialization-checkpoint CHECKPOINT.pt`. A policy-only checkpoint
 does not contain optimizer or replay state and cannot be used for an exact resume.

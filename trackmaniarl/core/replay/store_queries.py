@@ -184,9 +184,15 @@ def changes_since(
             return store._revision, []
         if not store._changes or revision < store._changes[0][0] - 1:
             return store._revision, None
-        return store._revision, [
-            change for change_revision, change in store._changes if change_revision > revision
-        ]
+        # Changes are recorded in revision order. A sampler normally asks for
+        # only the most recent append, so avoid rescanning the entire log.
+        recent: list[_ReplayChange] = []
+        for change_revision, change in reversed(store._changes):
+            if change_revision <= revision:
+                break
+            recent.append(change)
+        recent.reverse()
+        return store._revision, recent
 
 
 def _is_n_step_eligible_locked(

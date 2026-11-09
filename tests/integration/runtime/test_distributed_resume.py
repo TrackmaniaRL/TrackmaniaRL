@@ -19,7 +19,7 @@ from tests.integration.runtime.distributed_runtime_support import (
     _SlowLearner,
     _spawn_probe,
 )
-from trackmaniarl.distributed import coordinator_metrics
+from trackmaniarl.distributed import coordinator_checkpoint, coordinator_metrics
 from trackmaniarl.distributed.actor_transport import Client
 from trackmaniarl.distributed.coordinator import Coordinator
 from trackmaniarl.distributed.coordinator_support import _Counters
@@ -171,6 +171,50 @@ def test_coordinator_accepts_checkpoint_without_evaluation_leaders(tmp_path: Pat
 
     assert case.coordinator._best_evaluation is None
     assert case.coordinator._fastest_evaluation is None
+
+
+def test_coordinator_fingerprint_manifest_reports_source_changes(tmp_path: Path) -> None:
+    case = _restore_case(tmp_path)
+    checkpoint = case.coordinator.run.checkpoint_codec.load(tmp_path / "checkpoint.pt")
+    checkpoint["run_fingerprint"] = "different"
+    checkpoint["fingerprint_manifest"] = {
+        "version": 1,
+        "sections": {"training": "same"},
+        "sources": {"algorithms/sac.py": "old"},
+    }
+    case.coordinator._fingerprint_manifest = {
+        "version": 1,
+        "sections": {"training": "same"},
+        "sources": {"algorithms/sac.py": "new"},
+    }
+    try:
+        with pytest.raises(ValueError, match=r"source:algorithms/sac\.py"):
+            case.coordinator.restore_checkpoint(tmp_path / "checkpoint.pt")
+    finally:
+        case.coordinator._close_runtime()
+
+
+def test_unavailable_optional_fingerprint_manifest_does_not_block_checkpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    case = _restore_case(tmp_path)
+    case.coordinator.fingerprint = "a" * 64
+    case.coordinator.run.base_dir = tmp_path
+
+    def unavailable(*args: Any) -> Any:
+        raise OSError("sensitive path")
+
+    monkeypatch.setattr(coordinator_checkpoint, "fingerprint_details", unavailable)
+    try:
+        assert coordinator_checkpoint._coordinator_fingerprint_manifest(case.coordinator) is None
+        checkpoint = case.coordinator.run.checkpoint_codec.load(tmp_path / "checkpoint.pt")
+        checkpoint["run_fingerprint"] = "other"
+        with pytest.raises(ValueError, match="run fingerprint mismatch"):
+            case.coordinator.restore_checkpoint(tmp_path / "checkpoint.pt")
+        assert "Unable to compute optional fingerprint diagnostics" in caplog.text
+        assert "sensitive path" not in caplog.text
+    finally:
+        case.coordinator._close_runtime()
 
 
 @pytest.mark.parametrize("invalid_rank", [(1.0, "-38.0", 0.8), (1.0, True, 0.8)])

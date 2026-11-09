@@ -11,6 +11,14 @@ if TYPE_CHECKING:
 
 
 def load(coordinator: Coordinator) -> None:
+    delivery = coordinator.journal.evaluation_delivery()
+    if delivery is not None:
+        (
+            coordinator._evaluation_due,
+            coordinator._evaluation_assignments,
+            coordinator._evaluation_schedule_frontier,
+        ) = delivery
+        return
     raw = coordinator.journal.evaluation_state()
     if raw is None:
         coordinator._evaluation_due = set()
@@ -29,6 +37,13 @@ def load(coordinator: Coordinator) -> None:
         }
         for actor, assignment in state["assignments"].items()
     }
+    coordinator.journal.save_evaluation_delivery(
+        coordinator._evaluation_due,
+        coordinator._evaluation_assignments,
+        coordinator._evaluation_schedule_frontier,
+        set(),
+        {},
+    )
 
 
 def save(  # noqa: PLR0913
@@ -43,19 +58,9 @@ def save(  # noqa: PLR0913
         if schedule_frontier is None
         else schedule_frontier
     )
-    state = {
-        "version": 1,
-        "due": sorted(due),
-        "schedule_frontier": frontier,
-        "assignments": {
-            actor: {
-                **assignment,
-                "snapshot": base64.b64encode(assignment["snapshot"]).decode("ascii"),
-            }
-            for actor, assignment in assignments.items()
-        },
-    }
-    coordinator.journal.save_evaluation_state(json.dumps(state, separators=(",", ":")))
+    coordinator.journal.save_evaluation_delivery(
+        due, assignments, frontier, coordinator._evaluation_due, coordinator._evaluation_assignments
+    )
     coordinator._evaluation_due = due
     coordinator._evaluation_assignments = assignments
     coordinator._evaluation_schedule_frontier = frontier

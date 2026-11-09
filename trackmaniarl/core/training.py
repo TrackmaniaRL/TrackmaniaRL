@@ -9,7 +9,7 @@ from typing import Any
 from trackmaniarl.core.checkpoint_milestones import CheckpointProgress, preserve_milestones
 from trackmaniarl.core.checkpoints import prune_checkpoint_family
 from trackmaniarl.core.data import PriorityUpdate
-from trackmaniarl.core.fingerprint import run_fingerprint
+from trackmaniarl.core.fingerprint import fingerprint_details, fingerprint_mismatch_details
 from trackmaniarl.core.runtime import ResolvedRun
 from trackmaniarl.core.training_loop import run_training
 from trackmaniarl.core.training_support import (
@@ -47,7 +47,7 @@ class Trainer:
         self.environment_factory = run.environment_factory
         self.resume_checkpoint = Path(resume_checkpoint) if resume_checkpoint is not None else None
         self.stop_file = Path(stop_file) if stop_file is not None else None
-        self.fingerprint = run_fingerprint(run.spec, run.base_dir)
+        self.fingerprint, self.fingerprint_manifest = fingerprint_details(run.spec, run.base_dir)
         self.on_policy = bool(getattr(run.learner, "on_policy", False))
         self._checkpoint_baseline_transitions = 0
         self._last_checkpoint_transitions = 0
@@ -129,6 +129,7 @@ class Trainer:
         return {
             "schema_version": _CHECKPOINT_SCHEMA_VERSION,
             "run_fingerprint": self.fingerprint,
+            "fingerprint_manifest": self.fingerprint_manifest,
             "learner": self.run.learner.state_dict(),
             "replay_store": None if self.on_policy else _state_dict(self.run.replay_store),
             "sampler": None if self.on_policy else _state_dict(self.run.sampler),
@@ -181,7 +182,10 @@ class Trainer:
         if state["schema_version"] != _CHECKPOINT_SCHEMA_VERSION:
             raise ValueError("Unsupported training checkpoint schema")
         if state["run_fingerprint"] != self.fingerprint:
-            raise ValueError("Training checkpoint run fingerprint mismatch")
+            details = fingerprint_mismatch_details(
+                state.get("fingerprint_manifest"), self.fingerprint_manifest
+            )
+            raise ValueError(f"Training checkpoint run fingerprint mismatch: {details}")
         learner_state = state["learner"]
         counters = state["counters"]
         if not isinstance(learner_state, Mapping):
@@ -195,7 +199,7 @@ class Trainer:
     @staticmethod
     def _validate_checkpoint_keys(state: Mapping[str, Any]) -> None:
         missing = _CHECKPOINT_KEYS - state.keys()
-        unexpected = state.keys() - _CHECKPOINT_KEYS
+        unexpected = state.keys() - _CHECKPOINT_KEYS - {"fingerprint_manifest"}
         if missing or unexpected:
             raise ValueError(
                 f"Training checkpoint keys differ: missing={sorted(missing)}, "

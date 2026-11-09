@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from trackmaniarl.core.checkpoint_milestones import CheckpointProgress, preserve_milestones
 from trackmaniarl.core.checkpoints import prune_checkpoint_family
+from trackmaniarl.core.fingerprint import fingerprint_details, fingerprint_mismatch_details
 from trackmaniarl.distributed.coordinator_support import (
     _CheckpointWrite,
     _Counters,
@@ -215,6 +216,7 @@ def _checkpoint_state(plan: _CheckpointPlan) -> dict[str, Any]:
         "journal_contract_version": _JOURNAL_CONTRACT_VERSION,
         "journal_id": coordinator.journal.identity,
         "run_fingerprint": coordinator.fingerprint,
+        "fingerprint_manifest": _coordinator_fingerprint_manifest(coordinator),
         "learner": snapshot_value(_learner_state(plan)),
         "replay_store": snapshot_value(state_dict(coordinator.run.replay_store)),
         "sampler": snapshot_value(state_dict(coordinator.run.sampler)),
@@ -223,6 +225,31 @@ def _checkpoint_state(plan: _CheckpointPlan) -> dict[str, Any]:
             plan.evaluated_policy.version if plan.evaluated_policy is not None else None
         ),
     }
+
+
+def _coordinator_fingerprint_manifest(coordinator: Coordinator) -> dict[str, Any] | None:
+    if hasattr(coordinator, "_fingerprint_manifest"):
+        return coordinator._fingerprint_manifest
+    identity = coordinator.fingerprint
+    manifest = None
+    if (
+        isinstance(identity, str)
+        and len(identity) == 64
+        and all(c in "0123456789abcdef" for c in identity)
+    ):
+        try:
+            actual, details = fingerprint_details(coordinator.run.spec, coordinator.run.base_dir)
+        except Exception as exc:
+            # This information is optional. A removed source file, inaccessible
+            # asset or component import must not prevent a durable checkpoint.
+            logger.warning(
+                "Unable to compute optional fingerprint diagnostics (%s)", type(exc).__name__
+            )
+        else:
+            if actual == identity:
+                manifest = details
+    coordinator._fingerprint_manifest = manifest
+    return manifest
 
 
 def _learner_state(plan: _CheckpointPlan) -> Mapping[str, Any]:
@@ -291,13 +318,15 @@ def _validate_checkpoint_state(request: _RestoreRequest, state: Mapping[str, Any
     if state["journal_contract_version"] != _JOURNAL_CONTRACT_VERSION:
         raise ValueError("distributed checkpoint requires journal contract version 2")
     if state["run_fingerprint"] != request.coordinator.fingerprint:
-        raise ValueError("distributed checkpoint run fingerprint mismatch")
+        current = _coordinator_fingerprint_manifest(request.coordinator)
+        details = fingerprint_mismatch_details(state.get("fingerprint_manifest"), current)
+        raise ValueError(f"distributed checkpoint run fingerprint mismatch: {details}")
     _validate_checkpoint_components(state)
 
 
 def _validate_checkpoint_keys(state: Mapping[str, Any]) -> None:
     missing = _CHECKPOINT_KEYS - state.keys()
-    unexpected = state.keys() - _CHECKPOINT_KEYS
+    unexpected = state.keys() - _CHECKPOINT_KEYS - {"fingerprint_manifest"}
     if missing or unexpected:
         raise ValueError(
             f"distributed checkpoint keys differ: missing={sorted(missing)}, "

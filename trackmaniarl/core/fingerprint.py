@@ -19,9 +19,19 @@ _FINGERPRINTED_ASSET_PATHS = frozenset(
 
 
 def run_fingerprint(spec: RunSpec, base_dir: Path) -> str:
+    return fingerprint_details(spec, base_dir)[0]
+
+
+def fingerprint_details(spec: RunSpec, base_dir: Path) -> tuple[str, dict[str, Any]]:
+    """Return the original identity and a value-free diagnostic manifest.
+
+    The manifest contains only hashes and relative library source paths, never
+    configuration values or absolute paths. It does not participate in the
+    compatibility decision.
+    """
     config, manifest = _fingerprint_config(spec)
     config["components"] = _semantic_component_tree(config["components"], manifest)
-    source_digest = _trackmaniarl_source_digest()
+    source_digest, source_files = _trackmaniarl_source_details()
     manifest = _bind_component_package_digests(manifest, {"trackmaniarl": source_digest})
     config["component_manifest"] = sorted(manifest, key=_canonical_sort_key)
     config["trackmaniarl_source_sha256"] = source_digest
@@ -30,7 +40,44 @@ def run_fingerprint(spec: RunSpec, base_dir: Path) -> str:
     config = _hash_asset_paths(config, base_dir)
     _remove_evaluation_map_paths(config)
     canonical = json.dumps(config, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode()).hexdigest()
+    identity = hashlib.sha256(canonical.encode()).hexdigest()
+    sections = {str(key): _diagnostic_digest(value) for key, value in config.items()}
+    components = config.get("components", {})
+    if isinstance(components, dict):
+        sections.update(
+            {f"component.{key}": _diagnostic_digest(value) for key, value in components.items()}
+        )
+    return identity, {"version": 1, "sections": sections, "sources": source_files}
+
+
+def _diagnostic_digest(value: Any) -> str:
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def fingerprint_mismatch_details(saved: Any, current: Any) -> str:
+    """Describe changed manifest parts without exposing configuration values."""
+    if not isinstance(saved, Mapping) or not isinstance(current, Mapping):
+        return "diagnostic manifest unavailable (older checkpoint or external fingerprint)"
+    if saved.get("version") != 1 or current.get("version") != 1:
+        return "diagnostic manifest version unavailable"
+    changed: list[str] = []
+    for field, prefix in (("sections", "section"), ("sources", "source")):
+        old, new = saved.get(field), current.get(field)
+        if not isinstance(old, Mapping) or not isinstance(new, Mapping):
+            return "diagnostic manifest malformed"
+        for key in sorted(set(old) | set(new), key=str):
+            # Only report safe, bounded identifiers from untrusted checkpoints.
+            if (
+                old.get(key) != new.get(key)
+                and isinstance(key, str)
+                and len(key) <= 180
+                and all(c.isascii() and (c.isalnum() or c in "._/-") for c in key)
+            ):
+                changed.append(f"{prefix}:{key}")
+    if not changed:
+        return "manifest parts match; fingerprint inputs may have changed while running"
+    return ", ".join(changed[:20]) + (f" (+{len(changed) - 20} more)" if len(changed) > 20 else "")
 
 
 def _fingerprint_config(spec: RunSpec) -> tuple[dict[str, Any], list[dict[str, Any]]]:
@@ -49,14 +96,20 @@ def _canonical_sort_key(value: Any) -> str:
 
 
 def _trackmaniarl_source_digest() -> str:
+    return _trackmaniarl_source_details()[0]
+
+
+def _trackmaniarl_source_details() -> tuple[str, dict[str, str]]:
     root = Path(__file__).parent.parent
     sources = sorted(root.rglob("*.py"), key=lambda path: path.relative_to(root).as_posix())
     digest = hashlib.sha256()
+    files = {}
     for source in sources:
         relative = source.relative_to(root).as_posix().encode()
         content = source.read_bytes().replace(b"\r\n", b"\n")
         digest.update(relative + b"\0" + content + b"\0")
-    return digest.hexdigest()
+        files[relative.decode()] = hashlib.sha256(content).hexdigest()
+    return digest.hexdigest(), files
 
 
 def _uses_trackmania(manifest: list[dict[str, Any]]) -> bool:

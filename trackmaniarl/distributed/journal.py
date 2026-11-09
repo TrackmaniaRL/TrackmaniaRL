@@ -2,17 +2,32 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections.abc import Iterator
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 from threading import RLock
+from typing import Any
 from uuid import uuid4
 
 _RECOVERY_BATCH_ROWS = 256
-_JOURNAL_SCHEMA_VERSION = "1"
-_SCHEMA_TABLES = frozenset({"chunks", "actor_profiles", "receipts", "metadata"})
+_JOURNAL_SCHEMA_VERSION = "2"
+_LEGACY_TABLES = frozenset({"chunks", "actor_profiles", "receipts", "metadata"})
+_SCHEMA_TABLES = _LEGACY_TABLES | {
+    "evaluation_due",
+    "evaluation_snapshots",
+    "evaluation_assignments",
+}
+_EVALUATION_SCHEMA = (
+    "CREATE TABLE evaluation_due (actor_id TEXT PRIMARY KEY)",
+    "CREATE TABLE evaluation_snapshots (digest BLOB PRIMARY KEY, payload BLOB NOT NULL)",
+    """CREATE TABLE evaluation_assignments (
+        actor_id TEXT PRIMARY KEY, details TEXT NOT NULL, snapshot_digest BLOB NOT NULL,
+        FOREIGN KEY(snapshot_digest) REFERENCES evaluation_snapshots(digest)
+    )""",
+)
 _SCHEMA_STATEMENTS = (
     """
     CREATE TABLE chunks (
@@ -105,6 +120,7 @@ class RolloutJournal:
     def _initialize_database(self) -> None:
         self._configure_connection()
         if self._database_tables():
+            self._migrate_schema()
             self._validate_schema()
         else:
             self._create_schema()
@@ -114,11 +130,33 @@ class RolloutJournal:
     def _configure_connection(self) -> None:
         self._connection.execute("PRAGMA journal_mode=WAL")
         self._connection.execute("PRAGMA synchronous=FULL")
+        self._connection.execute("PRAGMA foreign_keys=ON")
 
     def _create_schema(self) -> None:
         for statement in _SCHEMA_STATEMENTS:
             self._connection.execute(statement)
+        for statement in _EVALUATION_SCHEMA:
+            self._connection.execute(statement)
         self._connection.execute("CREATE INDEX receipts_row_id ON receipts(row_id)")
+
+    def _migrate_schema(self) -> None:
+        if self._database_tables() != _LEGACY_TABLES:
+            return
+        if self._metadata_value("schema_version") != "1":
+            return
+        # Schema and version move together; legacy evaluation JSON remains
+        # untouched until its contents have been migrated transactionally.
+        self._validate_receipts()
+        # sqlite3 does not implicitly begin a transaction for DDL; without
+        # this explicit BEGIN a failed migration can leave a partial schema.
+        with self._connection:
+            self._connection.execute("BEGIN IMMEDIATE")
+            for statement in _EVALUATION_SCHEMA:
+                self._connection.execute(statement)
+            self._connection.execute(
+                "UPDATE metadata SET value = ? WHERE key = 'schema_version'",
+                (_JOURNAL_SCHEMA_VERSION,),
+            )
 
     def _initialize_metadata(self) -> None:
         self._connection.executemany(
@@ -186,6 +224,84 @@ class RolloutJournal:
                 (state,),
             )
             self._connection.commit()
+
+    def evaluation_delivery(self) -> tuple[set[str], dict[str, dict[str, Any]], int] | None:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT value FROM metadata WHERE key = 'evaluation_delivery_frontier'"
+            ).fetchone()
+            if row is None:
+                return None
+            due = {
+                str(item[0])
+                for item in self._connection.execute("SELECT actor_id FROM evaluation_due")
+            }
+            assignments = {}
+            verified: dict[bytes, bytes] = {}
+            for actor, details, digest_value, snapshot in self._connection.execute(
+                """SELECT a.actor_id, a.details, a.snapshot_digest, s.payload
+                   FROM evaluation_assignments a
+                   LEFT JOIN evaluation_snapshots s ON a.snapshot_digest = s.digest"""
+            ):
+                digest = bytes(digest_value)
+                if snapshot is None:
+                    raise JournalSchemaError("evaluation assignment references missing snapshot")
+                payload = bytes(snapshot)
+                if digest not in verified:
+                    if sha256(payload).digest() != digest:
+                        raise JournalSchemaError("evaluation snapshot checksum mismatch")
+                    verified[digest] = payload
+                assignments[str(actor)] = {**json.loads(details), "snapshot": verified[digest]}
+            return due, assignments, int(row[0])
+
+    def save_evaluation_delivery(  # noqa: PLR0913
+        self,
+        due: set[str],
+        assignments: dict[str, dict[str, Any]],
+        frontier: int,
+        old_due: set[str],
+        old_assignments: dict[str, dict[str, Any]],
+    ) -> None:
+        """Commit only changed assignments and their content-addressed snapshots."""
+        with self._lock, self._connection:
+            for actor in old_due - due:
+                self._connection.execute("DELETE FROM evaluation_due WHERE actor_id = ?", (actor,))
+            self._connection.executemany(
+                "INSERT OR IGNORE INTO evaluation_due(actor_id) VALUES (?)",
+                ((actor,) for actor in due - old_due),
+            )
+            for actor in old_assignments.keys() - assignments.keys():
+                self._connection.execute(
+                    "DELETE FROM evaluation_assignments WHERE actor_id = ?", (actor,)
+                )
+            for actor, assignment in assignments.items():
+                if actor in old_assignments and assignment == old_assignments[actor]:
+                    continue
+                snapshot = assignment["snapshot"]
+                digest = sha256(snapshot).digest()
+                self._connection.execute(
+                    "INSERT OR IGNORE INTO evaluation_snapshots(digest, payload) VALUES (?, ?)",
+                    (digest, snapshot),
+                )
+                details = json.dumps(
+                    {key: value for key, value in assignment.items() if key != "snapshot"},
+                    separators=(",", ":"),
+                )
+                self._connection.execute(
+                    "INSERT OR REPLACE INTO evaluation_assignments"
+                    "(actor_id, details, snapshot_digest) VALUES (?, ?, ?)",
+                    (actor, details, digest),
+                )
+            self._connection.execute(
+                "DELETE FROM evaluation_snapshots WHERE digest NOT IN "
+                "(SELECT snapshot_digest FROM evaluation_assignments)"
+            )
+            self._connection.execute(
+                "INSERT OR REPLACE INTO metadata(key, value) "
+                "VALUES ('evaluation_delivery_frontier', ?)",
+                (str(frontier),),
+            )
+            self._connection.execute("DELETE FROM metadata WHERE key = 'evaluation_delivery'")
 
     def has_receipt(self, session_id: str, sequence: int, payload: bytes) -> bool:
         chunk = _JournalChunk(session_id, sequence, payload, sha256(payload).digest())

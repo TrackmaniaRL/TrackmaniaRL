@@ -154,7 +154,10 @@ def test_documented_feature_pipeline_handles_synthetic_transition(tmp_path: Path
         _python_block(markdown, "class SpeedFeaturePipeline:")
         + """
 pipeline = SpeedFeaturePipeline()
-transition = Transition({'speed': 3.0}, 2, 1.0, {'speed': 4.0}, False, True)
+transition = Transition(
+    pipeline.transform_observation({'speed': 3.0}), 2, 1.0,
+    pipeline.transform_observation({'speed': 4.0}), False, True,
+)
 batch = pipeline.collate([transition])
 np.testing.assert_array_equal(batch['observations'], [[3.0]])
 np.testing.assert_array_equal(batch['next_observations'], [[4.0]])
@@ -163,6 +166,19 @@ assert batch['rewards'].tolist() == [1.0]
 assert batch['terminated'].tolist() == [False]
 assert batch['truncated'].tolist() == [True]
 assert batch['_trackmaniarl_batch_collated'] is True
+
+from trackmaniarl.core.data import BatchRequest
+from trackmaniarl.core.replay import InMemoryReplayStore, SequenceSampler
+store = InMemoryReplayStore(capacity=8)
+for step in range(4):
+    current = pipeline.transform_observation({'speed': float(step)})
+    next_obs = pipeline.transform_observation({'speed': float(step + 1)})
+    store.append(Transition(current, 2, 1.0, next_obs, step == 3, False,
+                            episode_id='episode', step=step))
+sample = SequenceSampler(pipeline, sequence_length=2, seed=2).sample(
+    store, BatchRequest(batch_size=1, sequence_length=2)
+)
+np.testing.assert_array_equal(sample.next_observations, sample.observations + 1)
 """
     )
     result = _run_python(code, tmp_path)

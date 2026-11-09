@@ -201,6 +201,12 @@ class TransitionFeaturePipeline:
     def transform_observation(self, observation: Any) -> Any:
         return sanitize_finite(observation)
 
+    def collate_observations(self, observations: Sequence[Any]) -> PyTree:
+        """Batch observations, including terminal bootstrap states without transitions."""
+        if self._collator is not None:
+            return self._collator.collate_observations(observations)
+        return tree_collate(observations)
+
     def collate(self, transitions: list[Transition]) -> dict[str, Any]:
         if self._collator is not None:
             return dict(self._collator.collate_transitions(transitions))
