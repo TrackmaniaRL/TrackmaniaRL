@@ -8,6 +8,25 @@ from trackmaniarl.core.pytree import sanitize_finite, tree_collate
 from trackmaniarl.trackmania.native_headless.full_qr.environment import _checked_observation
 
 
+def test_collate_mappings_with_different_key_order() -> None:
+    first = {"x": 1, "nested": {"a": 2, "b": 3}}
+    second = {"nested": {"b": 30, "a": 20}, "x": 10}
+
+    batch = tree_collate([first, second])
+
+    assert list(batch) == ["x", "nested"]
+    assert list(batch["nested"]) == ["a", "b"]
+    assert batch["x"].tolist() == [1, 10]
+    assert batch["nested"]["a"].tolist() == [2, 20]
+    assert batch["nested"]["b"].tolist() == [3, 30]
+
+
+@pytest.mark.parametrize("second", [{"x": 3}, {"x": 3, "z": 4}])
+def test_collate_rejects_mappings_with_different_keys(second: dict[str, int]) -> None:
+    with pytest.raises(TypeError, match="different keys"):
+        tree_collate([{"x": 1, "y": 2}, second])
+
+
 def test_numpy_uint64_maximum_remains_exact() -> None:
     values = [np.uint64(0), np.uint64(2**64 - 1)]
     batch = tree_collate(values)

@@ -19,6 +19,7 @@ from trackmaniarl.core.spec import DEFAULT_EVALUATION_TIME_BUCKETS_S
 from trackmaniarl.core.training import TrainingResult
 from trackmaniarl.distributed import (
     coordinator_checkpoint,
+    coordinator_delivery,
     coordinator_evaluation,
     coordinator_ingest,
     coordinator_leaders,
@@ -78,7 +79,7 @@ class Coordinator:
         self._last_progress_print = 0
         self._last_heartbeats: dict[str, float] = {}
         self._timed_out_actors: set[str] = set()
-        self._evaluation_due: set[str] = set()
+        coordinator_delivery.load(self)
         self._last_ingest_at = monotonic()
         self._rollouts: Queue[tuple[int, float]] = Queue(
             maxsize=coordinator_support.ROLLOUT_QUEUE_MAXSIZE

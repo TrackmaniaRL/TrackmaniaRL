@@ -3,21 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 import torch
 
 from trackmaniarl.core.data import BatchRequest, TrainingBatch, TransitionId
-from trackmaniarl.core.pytree import tree_collate
 from trackmaniarl.core.replay.batches import (
     _BatchBuild,
     _history_padding_masks,
     _make_batch,
     _reshape_batch_sequences,
     _reshape_sequence_batch,
-    _sequence_target_observation_histories,
     _SequenceBatchLayout,
 )
+from trackmaniarl.core.replay.sequence_sampler import _collate_target_histories
 from trackmaniarl.core.replay.store import _IncrementalReplayStore
 
 if TYPE_CHECKING:
@@ -41,7 +40,7 @@ class _IncrementalSample:
 class _SequenceMaterialization:
     histories: list[list[TransitionId]]
     flattened: list[TransitionId]
-    next_observations: list[object]
+    next_observations: Any
     next_masks: torch.Tensor
 
 
@@ -101,9 +100,10 @@ def _sequence_materialization(sample: _IncrementalSample) -> _SequenceMaterializ
         raise RuntimeError("prioritized n-step index is out of sync with replay")
     history_values = [sample.store.get(history) for history in histories]
     horizon_values = [sample.store.get(horizon) for horizon in horizons]
-    next_histories = _sequence_target_observation_histories(history_values, horizon_values, length)
+    next_observations = _collate_target_histories(
+        sample.sampler.pipeline, history_values, horizon_values, length
+    )
     flattened = [item for history in histories for item in history]
-    next_observations = [item for history in next_histories for item in history]
     masks = _history_padding_masks(histories)
     next_masks = torch.stack(
         [
@@ -127,7 +127,7 @@ def _reshape_sequence_output(
     )
     reshaped = _reshape_batch_sequences(batch, layout)
     next_observations = _reshape_sequence_batch(
-        tree_collate(materialized.next_observations),
+        materialized.next_observations,
         request.batch_size,
         request.sequence_length,
     )

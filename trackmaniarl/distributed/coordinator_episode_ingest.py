@@ -3,25 +3,28 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
+from trackmaniarl.distributed import coordinator_delivery
+
 if TYPE_CHECKING:
     from trackmaniarl.distributed.coordinator import Coordinator
 
 
-def ingest_episode_summaries(coordinator: Coordinator, value: Mapping[str, Any]) -> None:
+def ingest_episode_summaries(
+    coordinator: Coordinator, value: Mapping[str, Any], row_id: int
+) -> None:
     for summary in value["episodes"]:
-        _ingest_episode_summary(coordinator, value, summary)
+        _ingest_episode_summary(coordinator, value, summary, row_id)
 
 
-def _ingest_episode_summary(
-    coordinator: Coordinator, value: Mapping[str, Any], summary: Mapping[str, Any]
+def _ingest_episode_summary(  # noqa: PLR0913
+    coordinator: Coordinator, value: Mapping[str, Any], summary: Mapping[str, Any], row_id: int
 ) -> None:
     coordinator.counters.episodes += 1
     labeled = _record_episode_outcome(coordinator, summary)
-    if coordinator._recovering:
-        return
-    logged = {**summary, "replay/labeled_transitions": labeled}
-    coordinator._log_episode(value, logged)
-    _schedule_training_evaluation(coordinator, value)
+    if not coordinator._recovering:
+        logged = {**summary, "replay/labeled_transitions": labeled}
+        coordinator._log_episode(value, logged)
+    _schedule_training_evaluation(coordinator, value, row_id)
 
 
 def _record_episode_outcome(coordinator: Coordinator, summary: Mapping[str, Any]) -> int:
@@ -37,12 +40,19 @@ def _record_episode_outcome(coordinator: Coordinator, summary: Mapping[str, Any]
     return labeled
 
 
-def _schedule_training_evaluation(coordinator: Coordinator, value: Mapping[str, Any]) -> None:
+def _schedule_training_evaluation(
+    coordinator: Coordinator, value: Mapping[str, Any], row_id: int
+) -> None:
     interval = coordinator.run.spec.training.evaluate_every_episodes
     if interval is None or coordinator.counters.episodes % interval:
         return
     with coordinator._lock:
-        coordinator._evaluation_due.add(str(value["actor_id"]))
+        if row_id <= coordinator._evaluation_schedule_frontier:
+            return
+        due = coordinator._evaluation_due | {str(value["actor_id"])}
+        coordinator_delivery.save(
+            coordinator, due, coordinator._evaluation_assignments, schedule_frontier=row_id
+        )
 
 
 def _label_episode_sampling_pace(

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 import grpc
 from google.protobuf.wrappers_pb2 import BytesValue
 
+from trackmaniarl.distributed import coordinator_delivery
 from trackmaniarl.distributed.codec import WirePayloadTooLargeError
 from trackmaniarl.distributed.coordinator_support import _RolloutRejection, snapshot_value
 from trackmaniarl.distributed.coordinator_validation import _validate_submit_payload
@@ -56,12 +57,12 @@ def submit(
         value = coordinator._request(message, context)
         _validate_submission(coordinator, value, context)
     submission = _submission(coordinator, value)
-    if _hard_lagged(submission):
+    if _hard_lagged(submission) and not _previously_accepted(submission, message, context):
         return _reject_hard_lag(submission, context)
     row_id, inserted = _append_journal(submission, message, context)
     if inserted:
         _wake_learner(coordinator, row_id)
-    evaluation = _assign_evaluation(coordinator, value)
+    evaluation = _assign_evaluation(coordinator, value, row_id)
     return _accepted_response(_AcceptedSubmission(submission, inserted, evaluation, context))
 
 
@@ -96,6 +97,18 @@ def _submission(coordinator: Coordinator, value: Mapping[str, Any]) -> _Submissi
 def _hard_lagged(submission: _Submission) -> bool:
     maximum = submission.coordinator.run.spec.distributed.hard_policy_lag_updates
     return bool(submission.value["transitions"]) and submission.lag > maximum
+
+
+def _previously_accepted(
+    submission: _Submission, message: BytesValue, context: grpc.ServicerContext[Any, Any]
+) -> bool:
+    try:
+        return submission.coordinator.journal.has_receipt(
+            str(submission.value["session_id"]), int(submission.value["sequence"]), message.value
+        )
+    except JournalPayloadConflictError as exc:
+        context.abort(grpc.StatusCode.FAILED_PRECONDITION, str(exc))
+        raise AssertionError("gRPC abort returned") from exc
 
 
 def _reject_hard_lag(
@@ -150,17 +163,65 @@ def _wake_learner(coordinator: Coordinator, row_id: int) -> None:
         coordinator._rollouts.put_nowait((row_id, monotonic()))
 
 
-def _assign_evaluation(coordinator: Coordinator, value: Mapping[str, Any]) -> _EvaluationAssignment:
+def _assign_evaluation(
+    coordinator: Coordinator, value: Mapping[str, Any], row_id: int
+) -> _EvaluationAssignment:
     with coordinator._lock:
         actor_id = str(value["actor_id"])
-        evaluate = actor_id in coordinator._evaluation_due
-        evaluate = evaluate and coordinator.counters.policy_version > 0
-        if evaluate:
-            coordinator._evaluation_due.discard(actor_id)
+        assignments = dict(coordinator._evaluation_assignments)
+        previous = assignments.get(actor_id)
+        evaluations = value["evaluations"]
+        if (
+            previous is not None
+            and row_id > previous["assigned_row_id"]
+            and evaluations
+            and all(int(item["policy_version"]) == previous["version"] for item in evaluations)
+        ):
+            del assignments[actor_id]
+            coordinator_delivery.save(coordinator, set(coordinator._evaluation_due), assignments)
+            previous = None
+        if previous is not None:
+            same_request = (
+                previous["session"] == value["session_id"]
+                and previous["sequence"] == value["sequence"]
+            )
+            if previous["session"] != value["session_id"] and value[
+                "session_id"
+            ] not in previous.get("retired_sessions", []):
+                previous = {
+                    **previous,
+                    "session": str(value["session_id"]),
+                    "sequence": int(value["sequence"]),
+                    "retired_sessions": [
+                        *previous.get("retired_sessions", []),
+                        previous["session"],
+                    ],
+                }
+                assignments[actor_id] = previous
+                coordinator_delivery.save(
+                    coordinator, set(coordinator._evaluation_due), assignments
+                )
+                same_request = True
+            if same_request:
+                return _EvaluationAssignment(True, previous["version"], previous["snapshot"])
+            return _EvaluationAssignment(False, coordinator.counters.policy_version, b"")
+        evaluate = (
+            actor_id in coordinator._evaluation_due and coordinator.counters.policy_version > 0
+        )
         version = coordinator.counters.policy_version
         snapshot = coordinator._policy_payload if evaluate else b""
         if evaluate:
             _remember_evaluation_policy(coordinator, version, snapshot)
+            assignments[actor_id] = {
+                "session": str(value["session_id"]),
+                "sequence": int(value["sequence"]),
+                "assigned_row_id": row_id,
+                "version": version,
+                "snapshot": snapshot,
+                "retired_sessions": [],
+            }
+            due = coordinator._evaluation_due - {actor_id}
+            coordinator_delivery.save(coordinator, due, assignments)
     return _EvaluationAssignment(evaluate, version, snapshot)
 
 

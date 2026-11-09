@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from trackmaniarl.core.contracts import ReplayStore
@@ -16,6 +16,7 @@ from trackmaniarl.core.replay.batches import (
     _make_batch,
     _n_step_horizon,
     _sequence_target_observation_histories,
+    _standard_collation,
 )
 from trackmaniarl.core.replay.sequence_batches import (
     _reshape_training_batch,
@@ -108,8 +109,7 @@ class SequenceSampler:
         windows = self._sample_windows(store, request, length)
         selection = _SelectedSequences(store, windows, request)
         histories, horizons = _selected_sequence_transitions(selection)
-        next_histories = _sequence_target_observation_histories(histories, horizons, length)
-        next_observations = tree_collate(_flatten_histories(next_histories))
+        next_observations = _collate_target_histories(self.pipeline, histories, horizons, length)
         batch = self._make_sequence_batch(selection, length)
         shape = _SequenceBatchShape(batch, request.batch_size, length, next_observations)
         return _reshape_training_batch(shape)
@@ -313,3 +313,32 @@ def _flatten_windows(windows: list[list[int]]) -> list[int]:
 
 def _flatten_histories(histories: list[list[Any]]) -> list[Any]:
     return [item for history in histories for item in history]
+
+
+def _collate_target_histories(  # noqa: PLR0913
+    pipeline: Any,
+    histories: list[list[Transition]],
+    horizons: list[list[Transition]],
+    length: int,
+) -> Any:
+    """Apply the same observation collation to bootstrap histories as inputs.
+
+    A bootstrap state can be the final next_observation of an episode, with
+    no transition starting there. Use its predecessor for the remaining
+    fields in that case. A collator must not assume those fields describe a
+    real action taken from that final bootstrap state.
+    """
+    observations = _sequence_target_observation_histories(histories, horizons, length)
+    targets = [
+        replace(transition, observation=observation)
+        for history, horizon, row in zip(histories, horizons, observations, strict=True)
+        for transition, observation in zip(
+            (history + horizon[1:] + horizon[-1:])[-length:], row, strict=True
+        )
+    ]
+    standard = _standard_collation(pipeline.collate(targets))
+    # Opaque collators do not supply TrainingBatch.observations either; match
+    # the fallback used for inputs by _collated_fields in batches.py.
+    return standard["observations"] if standard is not None else tree_collate(
+        _flatten_histories(observations)
+    )

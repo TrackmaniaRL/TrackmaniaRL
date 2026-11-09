@@ -172,6 +172,30 @@ class RolloutJournal:
     def _read_identity(self) -> str:
         return self._metadata_value("journal_id")
 
+    def evaluation_state(self) -> str | None:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT value FROM metadata WHERE key = 'evaluation_delivery'"
+            ).fetchone()
+        return None if row is None else str(row[0])
+
+    def save_evaluation_state(self, state: str) -> None:
+        with self._lock:
+            self._connection.execute(
+                "INSERT OR REPLACE INTO metadata(key, value) VALUES ('evaluation_delivery', ?)",
+                (state,),
+            )
+            self._connection.commit()
+
+    def has_receipt(self, session_id: str, sequence: int, payload: bytes) -> bool:
+        chunk = _JournalChunk(session_id, sequence, payload, sha256(payload).digest())
+        with self._lock:
+            receipt = self._find_receipt(chunk)
+            if receipt is None:
+                return False
+            self._receipt_row_id(chunk, receipt)
+            return True
+
     def append(self, session_id: str, sequence: int, payload: bytes) -> tuple[int, bool]:
         chunk = _JournalChunk(session_id, sequence, payload, sha256(payload).digest())
         with self._lock:

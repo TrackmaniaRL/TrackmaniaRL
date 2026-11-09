@@ -97,7 +97,7 @@ def ingest(coordinator: Coordinator, value: Mapping[str, Any], row_id: int) -> N
     _append_transitions(batch)
     _credit_updates(coordinator, before)
     _record_actor_sequence(coordinator, value)
-    coordinator_episode_ingest.ingest_episode_summaries(coordinator, value)
+    coordinator_episode_ingest.ingest_episode_summaries(coordinator, value, row_id)
     evaluations = [dict(summary) for summary in value["evaluations"]]
     _ingest_evaluation_snapshot(coordinator, value, evaluations)
     _ingest_evaluation_summaries(coordinator, value, evaluations)

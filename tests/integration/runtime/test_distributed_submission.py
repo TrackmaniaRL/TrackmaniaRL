@@ -210,6 +210,146 @@ def test_evaluation_waits_for_the_first_trained_policy_snapshot(tmp_path: Path) 
         _close(coordinator)
 
 
+def test_lost_evaluation_response_is_replayed_after_restart_and_policy_lag(tmp_path: Path) -> None:
+    coordinator = _coordinator(tmp_path, "evaluation-retry")
+    coordinator._evaluation_due.add("actor")
+    coordinator.counters.policy_version = 1
+    snapshot = coordinator.codec.encode({"model": {}})
+    coordinator._policy_payload = snapshot
+    request = _transition_request(coordinator, 0)
+    try:
+        first = coordinator.codec.decode(_submit(coordinator, request).value)
+        assert first["evaluate"] is True
+        assert first["evaluation_snapshot"] == snapshot
+    finally:
+        _close(coordinator)
+
+    restarted = _coordinator(tmp_path, "evaluation-retry")
+    try:
+        restarted.counters.updates = restarted.run.spec.distributed.hard_policy_lag_updates + 1
+        retry = restarted.codec.decode(_submit(restarted, request).value)
+        assert retry["accepted"] is True
+        assert retry["duplicate"] is True
+        assert retry["evaluate"] is True
+        assert retry["evaluation_policy_version"] == 1
+        assert retry["evaluation_snapshot"] == snapshot
+    finally:
+        _close(restarted)
+
+
+def test_pending_evaluation_is_reassigned_to_restarted_actor(tmp_path: Path) -> None:
+    coordinator = _coordinator(tmp_path, "evaluation-actor-restart")
+    coordinator._evaluation_due.add("actor")
+    coordinator.counters.policy_version = 1
+    snapshot = coordinator.codec.encode({"model": {}})
+    coordinator._policy_payload = snapshot
+    try:
+        first = coordinator.codec.decode(_submit(coordinator, _empty_request(coordinator, 0)).value)
+        assert first["evaluate"] is True
+        new_session = _base_payload(0)
+        new_session["session_id"] = "new-session"
+        response = coordinator.codec.decode(
+            _submit(coordinator, _request(coordinator, new_session)).value
+        )
+        assert response["evaluate"] is True
+        assert response["evaluation_snapshot"] == snapshot
+        old_retry = coordinator.codec.decode(
+            _submit(coordinator, _empty_request(coordinator, 0)).value
+        )
+        assert old_retry["evaluate"] is False
+    finally:
+        _close(coordinator)
+
+
+def test_evaluation_result_acknowledges_assignment(tmp_path: Path) -> None:
+    coordinator = _coordinator(tmp_path, "evaluation-ack")
+    coordinator._evaluation_due.add("actor")
+    coordinator.counters.policy_version = 1
+    coordinator._policy_payload = coordinator.codec.encode({"model": {}})
+    try:
+        _submit(coordinator, _empty_request(coordinator, 0))
+        payload = _base_payload(1)
+        payload["evaluations"] = [
+            summarize_episode(
+                0.0,
+                {"policy_version": 1, "termination_reason": "finished", "race_time_ms": 36_000.0},
+                1,
+            )
+        ]
+        payload["evaluation_snapshot"] = coordinator._policy_payload
+        response = coordinator.codec.decode(
+            _submit(coordinator, _request(coordinator, payload)).value
+        )
+        assert response["evaluate"] is False
+        assert "actor" not in coordinator._evaluation_assignments
+        coordinator.journal.close()
+        from trackmaniarl.distributed.journal import RolloutJournal
+
+        coordinator.journal = RolloutJournal(coordinator.journal.path)
+        from trackmaniarl.distributed.coordinator_delivery import load
+
+        load(coordinator)
+        assert "actor" not in coordinator._evaluation_assignments
+    finally:
+        _close(coordinator)
+
+
+def test_retry_of_old_result_does_not_acknowledge_new_assignment(tmp_path: Path) -> None:
+    coordinator = _coordinator(tmp_path, "evaluation-result-retry")
+    coordinator._evaluation_due.add("actor")
+    coordinator.counters.policy_version = 1
+    coordinator._policy_payload = coordinator.codec.encode({"model": {}})
+    try:
+        _submit(coordinator, _empty_request(coordinator, 0))
+        coordinator._evaluation_due.add("actor")
+        payload = _base_payload(1)
+        payload["evaluations"] = [
+            summarize_episode(
+                0.0,
+                {"policy_version": 1, "termination_reason": "finished", "race_time_ms": 36_000.0},
+                1,
+            )
+        ]
+        payload["evaluation_snapshot"] = coordinator._policy_payload
+        request = _request(coordinator, payload)
+        first = coordinator.codec.decode(_submit(coordinator, request).value)
+        retry = coordinator.codec.decode(_submit(coordinator, request).value)
+        assert first["evaluate"] is True
+        assert retry["evaluate"] is True
+        assert retry["evaluation_snapshot"] == first["evaluation_snapshot"]
+        assert "actor" in coordinator._evaluation_assignments
+    finally:
+        _close(coordinator)
+
+
+def test_recovery_schedules_unprocessed_evaluation_once(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+
+    from trackmaniarl.distributed import coordinator_delivery, coordinator_episode_ingest
+
+    coordinator = _coordinator(tmp_path, "evaluation-schedule-recovery")
+    original_run = coordinator.run
+    coordinator.run = cast(
+        Any,
+        SimpleNamespace(spec=SimpleNamespace(training=SimpleNamespace(evaluate_every_episodes=1))),
+    )
+    value = {"actor_id": "actor", "episodes": [{"finished": False}]}
+    try:
+        coordinator._recovering = True
+        coordinator_episode_ingest.ingest_episode_summaries(coordinator, value, 5)
+        assert coordinator._evaluation_due == {"actor"}
+        assert coordinator._evaluation_schedule_frontier == 5
+        coordinator_delivery.save(coordinator, set(), {})
+        coordinator.counters.episodes = 0
+        coordinator_episode_ingest.ingest_episode_summaries(coordinator, value, 5)
+        assert not coordinator._evaluation_due
+        coordinator_episode_ingest.ingest_episode_summaries(coordinator, value, 6)
+        assert coordinator._evaluation_due == {"actor"}
+    finally:
+        coordinator.run = original_run
+        _close(coordinator)
+
+
 def test_rollout_and_wal_failure_events(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     coordinator = _coordinator(tmp_path, "runtime-incidents")
     try:

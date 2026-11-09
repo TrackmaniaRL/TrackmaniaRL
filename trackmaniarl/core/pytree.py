@@ -101,8 +101,13 @@ def _collate_sequence(
 
 def _collate_mapping(values: Sequence[PyTree], first: Mapping[Any, Any]) -> PyTree:
     keys = tuple(first)
-    if not all(isinstance(value, Mapping) and tuple(value) == keys for value in values):
-        raise TypeError("Cannot collate mappings with different keys or key order")
+    if not all(
+        isinstance(value, Mapping)
+        and len(value) == len(first)
+        and all(key in value for key in keys)
+        for value in values
+    ):
+        raise TypeError("Cannot collate mappings with different keys")
     return {key: tree_collate([value[key] for value in values]) for key in keys}
 
 
