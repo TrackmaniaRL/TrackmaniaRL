@@ -115,6 +115,7 @@ class SequenceSampler:
         # The built-in store guarantees reentrant queries during this
         # transaction. External implementations retain the prior behavior.
         owned_store = type(store) is InMemoryReplayStore
+        hook = _observation_collator(self.pipeline) if owned_store else None
         transaction = store.sampling_transaction() if owned_store else nullcontext()
         with transaction:
             windows = self._sample_windows(store, request, length)
@@ -123,15 +124,18 @@ class SequenceSampler:
             build = self._sequence_batch_build(selection, length)
             materialized = _materialize_batch(build)
             if owned_store:
-                histories = [[_owned_transition(item) for item in row] for row in histories]
-                horizons = [[_owned_transition(item) for item in row] for row in horizons]
+                targets = _snapshot_target_histories(hook, histories, horizons, length)
                 materialized = replace(
                     materialized,
                     transitions=[_owned_transition(item) for item in materialized.transitions],
                 )
         # User collators can perform arbitrary work. Materialize the entire
         # replay snapshot first, then release the store lock before invoking them.
-        next_observations = _collate_target_histories(self.pipeline, histories, horizons, length)
+        next_observations = (
+            _collate_target_snapshot(self.pipeline, targets)
+            if owned_store
+            else _collate_target_histories(self.pipeline, histories, horizons, length)
+        )
         collated = self.pipeline.collate(materialized.transitions)
         standard = _standard_collation(collated)
         batch = _training_batch(
@@ -413,3 +417,40 @@ def _collate_target_histories(  # noqa: PLR0913
         if standard is not None
         else tree_collate(_flatten_histories(observations))
     )
+
+
+@dataclass(frozen=True, slots=True)
+class _TargetSnapshot:
+    observations: list[Any]
+    transitions: list[Transition] | None
+    collate_observations: Callable[..., Any] | None
+
+
+def _snapshot_target_histories(  # noqa: PLR0913
+    hook: Callable[..., Any] | None,
+    histories: list[list[Transition]],
+    horizons: list[list[Transition]],
+    length: int,
+) -> _TargetSnapshot:
+    """Own only target inputs, keeping each occurrence isolated from user mutations."""
+    rows = _sequence_target_observation_histories(histories, horizons, length)
+    if hook is not None:
+        return _TargetSnapshot(
+            [tree_snapshot(item) for item in _flatten_histories(rows)], None, hook
+        )
+    transitions = [
+        _owned_transition(replace(transition, observation=observation))
+        for history, horizon, row in zip(histories, horizons, rows, strict=True)
+        for transition, observation in zip(
+            (history + horizon[1:] + horizon[-1:])[-length:], row, strict=True
+        )
+    ]
+    return _TargetSnapshot([item.observation for item in transitions], transitions, None)
+
+
+def _collate_target_snapshot(pipeline: Any, snapshot: _TargetSnapshot) -> Any:
+    if snapshot.collate_observations is not None:
+        return snapshot.collate_observations(snapshot.observations)
+    assert snapshot.transitions is not None
+    standard = _standard_collation(pipeline.collate(snapshot.transitions))
+    return standard["observations"] if standard is not None else tree_collate(snapshot.observations)

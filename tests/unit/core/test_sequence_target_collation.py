@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
 import pytest
 import torch
 
@@ -12,6 +13,7 @@ from trackmaniarl.builtins.features import TransitionFeaturePipeline
 from trackmaniarl.core.data import BatchRequest, Transition
 from trackmaniarl.core.replay import PrioritizedSampler, SequenceSampler
 from trackmaniarl.core.replay.sequence_sampler import _collate_target_histories
+from trackmaniarl.core.replay.store import InMemoryReplayStore
 
 
 class _ScalingPipeline:
@@ -46,9 +48,9 @@ def test_sequence_bootstrap_history_uses_pipeline_collation(*, prioritized: bool
         history = store.get(window)
         horizon = store.get(store.n_step_ids(anchor, 2))
         current = [10 * item.observation for item in history]
-        target = ([item.observation for item in history] + [
-            item.next_observation for item in horizon
-        ])[-3:]
+        target = (
+            [item.observation for item in history] + [item.next_observation for item in horizon]
+        )[-3:]
         assert batch.observations["scaled"][row].tolist() == pytest.approx(current)
         assert batch.next_observations["scaled"][row].tolist() == pytest.approx(
             [10 * item for item in target]
@@ -100,9 +102,9 @@ def test_sequence_bootstrap_uses_explicit_observation_collator(*, prioritized: b
         ids = batch.transition_ids[row * 3 : (row + 1) * 3]
         history = store.get(list(ids))
         horizon = store.get(store.n_step_ids(anchor, 2))
-        target = ([item.observation for item in history] + [
-            item.next_observation for item in horizon
-        ])[-3:]
+        target = (
+            [item.observation for item in history] + [item.next_observation for item in horizon]
+        )[-3:]
         assert batch.next_observations["scaled"][row].tolist() == pytest.approx(
             [10 * item for item in target]
         )
@@ -143,7 +145,84 @@ def test_instance_collate_override_does_not_use_inherited_observation_hook() -> 
 
     pipeline.collate = custom_collate  # type: ignore[method-assign]
     store = _store(episodes=1, steps=5)
-    result = _collate_target_histories(
-        pipeline, [store.get([0, 1, 2])], [store.get([2, 3])], 3
-    )
+    result = _collate_target_histories(pipeline, [store.get([0, 1, 2])], [store.get([2, 3])], 3)
     assert result.tolist() == [20, 30, 40]
+
+
+@pytest.mark.parametrize("prioritized", [False, True])
+def test_mutating_target_hook_cannot_change_replay_or_training_inputs(*, prioritized: bool) -> None:
+    store = InMemoryReplayStore(capacity=10)
+    for step in range(6):
+        store.append(
+            Transition(
+                observation=np.array([step], dtype=np.float32),
+                action=0,
+                reward=1.0,
+                next_observation=np.array([step + 1], dtype=np.float32),
+                terminated=False,
+                truncated=False,
+                episode_id="e",
+                step=step,
+            )
+        )
+
+    class MutatingPipeline(TransitionFeaturePipeline):
+        def collate_observations(self, observations: list[Any]) -> Any:
+            # Overlapping sampled windows may refer to the same replay entry;
+            # every hook argument must remain independent of the others.
+            assert len({id(item) for item in observations}) == len(observations)
+            for index, observation in enumerate(observations):
+                observation[:] = 100 + index
+            return super().collate_observations(observations)
+
+    pipeline = MutatingPipeline()
+    sampler = (
+        PrioritizedSampler(pipeline, seed=7, allow_padded_history=True)
+        if prioritized
+        else SequenceSampler(pipeline, sequence_length=3, seed=7)
+    )
+    batch = sampler.sample(store, BatchRequest(batch_size=3, sequence_length=3, n_step=2))
+    assert batch.observations.max() < 6
+    assert batch.next_observations.min() >= 100
+    assert all(item.observation[0] == index for index, item in enumerate(store.get(list(range(6)))))
+
+
+@pytest.mark.parametrize("prioritized", [False, True])
+def test_mutating_fallback_cannot_change_replay_or_training_inputs(*, prioritized: bool) -> None:
+    store = InMemoryReplayStore(capacity=10)
+    for step in range(6):
+        store.append(
+            Transition(
+                observation=np.array([step], dtype=np.float32),
+                action=0,
+                reward=1.0,
+                next_observation=np.array([step + 1], dtype=np.float32),
+                terminated=False,
+                truncated=False,
+                episode_id="e",
+                step=step,
+            )
+        )
+
+    class MutatingFallback(TransitionFeaturePipeline):
+        calls = 0
+
+        def collate(self, transitions: list[Transition]) -> dict[str, Any]:
+            self.calls += 1
+            if self.calls == 1:
+                assert len({id(item.observation) for item in transitions}) == len(transitions)
+                for index, item in enumerate(transitions):
+                    item.observation[:] = index + 100
+            return super().collate(transitions)
+
+    pipeline = MutatingFallback()
+    sampler = (
+        PrioritizedSampler(pipeline, seed=7, allow_padded_history=True)
+        if prioritized
+        else SequenceSampler(pipeline, sequence_length=3, seed=7)
+    )
+    batch = sampler.sample(store, BatchRequest(batch_size=3, sequence_length=3, n_step=2))
+    assert pipeline.calls == 2
+    assert batch.observations.max() < 6
+    assert batch.next_observations.min() >= 100
+    assert all(item.observation[0] == index for index, item in enumerate(store.get(list(range(6)))))

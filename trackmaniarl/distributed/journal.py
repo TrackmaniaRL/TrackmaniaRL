@@ -231,7 +231,10 @@ class RolloutJournal:
             self._connection.commit()
 
     def evaluation_delivery(self) -> tuple[set[str], dict[str, dict[str, Any]], int] | None:
-        with self._lock:
+        with self._lock, self._connection:
+            # Multiple SELECTs must observe the same database version even if
+            # another journal connection commits during recovery.
+            self._connection.execute("BEGIN")
             row = self._connection.execute(
                 "SELECT value FROM metadata WHERE key = 'evaluation_delivery_frontier'"
             ).fetchone()
@@ -241,21 +244,25 @@ class RolloutJournal:
                 str(item[0])
                 for item in self._connection.execute("SELECT actor_id FROM evaluation_due")
             }
-            assignments = {}
             verified: dict[bytes, bytes] = {}
-            for actor, details, digest_value, snapshot in self._connection.execute(
-                """SELECT a.actor_id, a.details, a.snapshot_digest, s.payload
-                   FROM evaluation_assignments a
-                   LEFT JOIN evaluation_snapshots s ON a.snapshot_digest = s.digest"""
+            # Read each referenced BLOB once, rather than transferring it for
+            # every actor sharing the same policy snapshot.
+            for digest_value, snapshot in self._connection.execute(
+                """SELECT digest, payload FROM evaluation_snapshots
+                   WHERE digest IN (SELECT snapshot_digest FROM evaluation_assignments)"""
             ):
                 digest = bytes(digest_value)
-                if snapshot is None:
-                    raise JournalSchemaError("evaluation assignment references missing snapshot")
                 payload = bytes(snapshot)
+                if sha256(payload).digest() != digest:
+                    raise JournalSchemaError("evaluation snapshot checksum mismatch")
+                verified[digest] = payload
+            assignments = {}
+            for actor, details, digest_value in self._connection.execute(
+                "SELECT actor_id, details, snapshot_digest FROM evaluation_assignments"
+            ):
+                digest = bytes(digest_value)
                 if digest not in verified:
-                    if sha256(payload).digest() != digest:
-                        raise JournalSchemaError("evaluation snapshot checksum mismatch")
-                    verified[digest] = payload
+                    raise JournalSchemaError("evaluation assignment references missing snapshot")
                 assignments[str(actor)] = {**json.loads(details), "snapshot": verified[digest]}
             return due, assignments, int(row[0])
 

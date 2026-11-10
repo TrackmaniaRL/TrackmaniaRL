@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import json
 import sqlite3
+from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -86,6 +87,71 @@ def test_shared_snapshots_incremental_updates_and_rollback(tmp_path: Path) -> No
     with sqlite3.connect(path) as connection:
         assert connection.execute("SELECT COUNT(*) FROM evaluation_snapshots").fetchone()[0] == 1
     reopened.close()
+
+
+def test_shared_snapshot_is_fetched_once_and_reused(tmp_path: Path) -> None:
+    journal = RolloutJournal(tmp_path / "journal.db")
+    coordinator = _coordinator(journal)
+    shared = b"large snapshot" * 1000
+    assignments = {f"actor-{i}": _assignment(shared, i) for i in range(20)}
+    assignments["other"] = _assignment(b"other snapshot")
+    coordinator_delivery.save(coordinator, set(), assignments)
+    fetched_blobs = []
+
+    def observe_blobs(cursor: sqlite3.Cursor, row: tuple) -> tuple:
+        columns = tuple(item[0] for item in cursor.description)
+        if columns == ("digest", "payload"):
+            fetched_blobs.append(row[0])
+        return row
+
+    journal._connection.row_factory = observe_blobs
+    result = journal.evaluation_delivery()
+    assert result is not None
+    restored = result[1]
+    assert restored == assignments
+    assert len(fetched_blobs) == 2
+    assert restored["actor-0"]["snapshot"] is restored["actor-1"]["snapshot"]
+    journal.close()
+
+
+def test_delivery_read_is_consistent_during_another_connection_commit(tmp_path: Path) -> None:
+    path = tmp_path / "journal.db"
+    journal = RolloutJournal(path)
+    coordinator = _coordinator(journal)
+    old = b"old snapshot"
+    coordinator_delivery.save(coordinator, {"waiting"}, {"actor": _assignment(old)})
+    changed = False
+
+    def commit_after_frontier(cursor: sqlite3.Cursor, row: tuple) -> tuple:
+        nonlocal changed
+        columns = tuple(item[0] for item in cursor.description)
+        if columns == ("value",) and not changed:
+            changed = True
+            new = b"new snapshot"
+            digest = sha256(new).digest()
+            with sqlite3.connect(path) as connection:
+                connection.execute(
+                    "INSERT INTO evaluation_snapshots(digest, payload) VALUES (?, ?)",
+                    (digest, new),
+                )
+                connection.execute(
+                    "UPDATE evaluation_assignments SET snapshot_digest = ?", (digest,)
+                )
+                connection.execute("DELETE FROM evaluation_due")
+        return row
+
+    journal._connection.row_factory = commit_after_frontier
+    result = journal.evaluation_delivery()
+    assert changed
+    assert result is not None
+    assert result[0] == {"waiting"}
+    assert result[1]["actor"]["snapshot"] == old
+    journal._connection.row_factory = None
+    current = journal.evaluation_delivery()
+    assert current is not None
+    assert current[0] == set()
+    assert current[1]["actor"]["snapshot"] == b"new snapshot"
+    journal.close()
 
 
 def test_schema_migration_rolls_back_ddl_on_failure(

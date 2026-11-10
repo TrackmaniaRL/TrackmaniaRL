@@ -311,4 +311,5 @@ def _asset_hash(value: Any, base_dir: Path, name: str) -> str | None:
     if not isinstance(value, str):
         raise TypeError(f"{name} must be a string")
     asset = (base_dir / value).resolve()
-    return hashlib.sha256(asset.read_bytes()).hexdigest()
+    with asset.open("rb") as stream:
+        return hashlib.file_digest(stream, "sha256").hexdigest()

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import torch
 
-from trackmaniarl.core.data import BatchRequest, TrainingBatch, Transition, TransitionId
+from trackmaniarl.core.data import BatchRequest, TrainingBatch, TransitionId
 from trackmaniarl.core.replay.batches import (
     _batch_data,
     _BatchAssembly,
@@ -20,7 +20,13 @@ from trackmaniarl.core.replay.batches import (
     _standard_collation,
     _training_batch,
 )
-from trackmaniarl.core.replay.sequence_sampler import _collate_target_histories, _owned_transition
+from trackmaniarl.core.replay.sequence_sampler import (
+    _collate_target_snapshot,
+    _observation_collator,
+    _owned_transition,
+    _snapshot_target_histories,
+    _TargetSnapshot,
+)
 from trackmaniarl.core.replay.store import _IncrementalReplayStore
 
 if TYPE_CHECKING:
@@ -44,8 +50,7 @@ class _IncrementalSample:
 class _SequenceMaterialization:
     histories: list[list[TransitionId]]
     flattened: list[TransitionId]
-    history_values: list[list[Transition]]
-    horizon_values: list[list[Transition]]
+    targets: _TargetSnapshot
     next_masks: torch.Tensor
 
 
@@ -54,6 +59,7 @@ def _sample_incremental_snapshot(
     store: _IncrementalReplayStore,
     request: BatchRequest,
 ) -> TrainingBatch:
+    hook = _observation_collator(sampler.pipeline) if request.sequence_length > 1 else None
     with store.sampling_transaction():
         transition_ids, weights, beta, sampling = sampler._sample_incremental_ids(store, request)
         sample = _IncrementalSample(
@@ -67,7 +73,7 @@ def _sample_incremental_snapshot(
             tuple(store.demo_flags(transition_ids)),
             _expert_flags(sampler, transition_ids),
         )
-        sequence = _sequence_materialization(sample) if request.sequence_length > 1 else None
+        sequence = _sequence_materialization(sample, hook) if request.sequence_length > 1 else None
         build = _batch_build(sample, sequence)
         materialized = _materialize_batch(build)
         materialized = replace(
@@ -77,12 +83,7 @@ def _sample_incremental_snapshot(
     # Keep the existing target-before-transition collation order while running
     # both user hooks outside the producer's replay lock.
     targets = (
-        _collate_target_histories(
-            sample.sampler.pipeline,
-            sequence.history_values,
-            sequence.horizon_values,
-            request.sequence_length,
-        )
+        _collate_target_snapshot(sample.sampler.pipeline, sequence.targets)
         if sequence is not None
         else None
     )
@@ -106,7 +107,7 @@ def _expert_flags(
     return tuple(bool(sampler._expert_slots[item % sampler._tree.size]) for item in transition_ids)
 
 
-def _sequence_materialization(sample: _IncrementalSample) -> _SequenceMaterialization:
+def _sequence_materialization(sample: _IncrementalSample, hook: Any) -> _SequenceMaterialization:
     length = sample.request.sequence_length
     histories = [sample.store.history_ids(item, length) for item in sample.transition_ids]
     if any(len(history) != length for history in histories):
@@ -116,12 +117,9 @@ def _sequence_materialization(sample: _IncrementalSample) -> _SequenceMaterializ
     ]
     if any(not horizon for horizon in horizons):
         raise RuntimeError("prioritized n-step index is out of sync with replay")
-    history_values = [
-        [_owned_transition(item) for item in sample.store.get(history)] for history in histories
-    ]
-    horizon_values = [
-        [_owned_transition(item) for item in sample.store.get(horizon)] for horizon in horizons
-    ]
+    history_values = [sample.store.get(history) for history in histories]
+    horizon_values = [sample.store.get(horizon) for horizon in horizons]
+    targets = _snapshot_target_histories(hook, history_values, horizon_values, length)
     flattened = [item for history in histories for item in history]
     masks = _history_padding_masks(histories)
     next_masks = torch.stack(
@@ -130,9 +128,7 @@ def _sequence_materialization(sample: _IncrementalSample) -> _SequenceMaterializ
             for row, horizon in zip(masks, horizons, strict=True)
         ]
     )
-    return _SequenceMaterialization(
-        histories, flattened, history_values, horizon_values, next_masks
-    )
+    return _SequenceMaterialization(histories, flattened, targets, next_masks)
 
 
 def _reshape_sequence_output(  # noqa: PLR0913
