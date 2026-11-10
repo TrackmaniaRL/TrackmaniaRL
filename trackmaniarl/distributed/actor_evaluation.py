@@ -39,6 +39,11 @@ def evaluate(runtime: CollectionRuntime, environment: Any, pipeline: Any) -> Non
     policy, version = runtime._evaluation_policy()
     plan = EvaluationPlan(runtime, environment, pipeline, policy, version)
     summaries = _evaluation_trials(plan, trials)
+    assignment_id = getattr(runtime, "_active_evaluation_assignment_id", "")
+    if assignment_id:
+        summaries = [
+            {**summary, "evaluation_assignment_id": assignment_id} for summary in summaries
+        ]
     snapshot = runtime.codec.encode(dict(policy.export_state()))
     runtime._spool(SpoolRequest([], [], version, summaries, snapshot))
 
@@ -90,9 +95,12 @@ def evaluation_policy(runtime: CollectionRuntime) -> tuple[ReplicablePolicy, int
         request = runtime._evaluation_request
         runtime._evaluation_request = None
     if request is None:
+        runtime._active_evaluation_assignment_id = ""
         policy, _, version = runtime._policy()
         return policy, version
-    return _policy_from_request(runtime, request)
+    snapshot, version, assignment_id = request
+    runtime._active_evaluation_assignment_id = assignment_id
+    return _policy_from_request(runtime, (snapshot, version))
 
 
 def _policy_from_request(

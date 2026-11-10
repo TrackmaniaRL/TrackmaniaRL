@@ -38,7 +38,7 @@ class BackgroundRuntime(SpoolRuntime, Protocol):
     external_stop: Any | None
     client: Client
     _policy_ref: PolicyReference | None
-    _evaluation_request: tuple[bytes, int] | None
+    _evaluation_request: tuple[bytes, int, str] | None
     _evaluation_request_lock: Any
     _background_failure: ActorBackgroundError | None
     _background_failure_lock: Any
@@ -199,10 +199,13 @@ def _handle_rejected_rollout(runtime: BackgroundRuntime, submitted: SubmittedRol
 def _accept_evaluation_request(runtime: BackgroundRuntime, response: Mapping[str, Any]) -> None:
     snapshot = response["evaluation_snapshot"]
     version = response["evaluation_policy_version"]
+    assignment_id = response.get("evaluation_assignment_id", "")
     if not isinstance(snapshot, bytes) or not snapshot or version < 0:
         raise ValueError("evaluation request requires a policy snapshot/version")
+    if not isinstance(assignment_id, str):
+        raise ValueError("invalid evaluation assignment ID")
     with runtime._evaluation_request_lock:
-        runtime._evaluation_request = (snapshot, version)
+        runtime._evaluation_request = (snapshot, version, assignment_id)
     runtime.evaluate.set()
 
 

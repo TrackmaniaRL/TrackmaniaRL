@@ -233,6 +233,7 @@ def test_lost_evaluation_response_is_replayed_after_restart_and_policy_lag(tmp_p
         assert retry["evaluate"] is True
         assert retry["evaluation_policy_version"] == 1
         assert retry["evaluation_snapshot"] == snapshot
+        assert retry["evaluation_assignment_id"] == first["evaluation_assignment_id"]
     finally:
         _close(restarted)
 
@@ -267,7 +268,9 @@ def test_evaluation_result_acknowledges_assignment(tmp_path: Path) -> None:
     coordinator.counters.policy_version = 1
     coordinator._policy_payload = coordinator.codec.encode({"model": {}})
     try:
-        _submit(coordinator, _empty_request(coordinator, 0))
+        assignment = coordinator.codec.decode(
+            _submit(coordinator, _empty_request(coordinator, 0)).value
+        )
         payload = _base_payload(1)
         payload["evaluations"] = [
             summarize_episode(
@@ -277,6 +280,9 @@ def test_evaluation_result_acknowledges_assignment(tmp_path: Path) -> None:
             )
         ]
         payload["evaluation_snapshot"] = coordinator._policy_payload
+        payload["evaluations"][0]["evaluation_assignment_id"] = assignment[
+            "evaluation_assignment_id"
+        ]
         response = coordinator.codec.decode(
             _submit(coordinator, _request(coordinator, payload)).value
         )
@@ -300,7 +306,9 @@ def test_retry_of_old_result_does_not_acknowledge_new_assignment(tmp_path: Path)
     coordinator.counters.policy_version = 1
     coordinator._policy_payload = coordinator.codec.encode({"model": {}})
     try:
-        _submit(coordinator, _empty_request(coordinator, 0))
+        assignment = coordinator.codec.decode(
+            _submit(coordinator, _empty_request(coordinator, 0)).value
+        )
         coordinator._evaluation_due.add("actor")
         payload = _base_payload(1)
         payload["evaluations"] = [
@@ -311,6 +319,9 @@ def test_retry_of_old_result_does_not_acknowledge_new_assignment(tmp_path: Path)
             )
         ]
         payload["evaluation_snapshot"] = coordinator._policy_payload
+        payload["evaluations"][0]["evaluation_assignment_id"] = assignment[
+            "evaluation_assignment_id"
+        ]
         request = _request(coordinator, payload)
         first = coordinator.codec.decode(_submit(coordinator, request).value)
         retry = coordinator.codec.decode(_submit(coordinator, request).value)
@@ -318,6 +329,104 @@ def test_retry_of_old_result_does_not_acknowledge_new_assignment(tmp_path: Path)
         assert retry["evaluate"] is True
         assert retry["evaluation_snapshot"] == first["evaluation_snapshot"]
         assert "actor" in coordinator._evaluation_assignments
+    finally:
+        _close(coordinator)
+
+
+def test_delayed_same_version_result_cannot_ack_new_assignment(tmp_path: Path) -> None:
+    coordinator = _coordinator(tmp_path, "evaluation-out-of-order-results")
+    coordinator._evaluation_due.add("actor")
+    coordinator.counters.policy_version = 1
+    coordinator._policy_payload = coordinator.codec.encode({"model": {}})
+
+    def result(sequence: int, assignment_id: str) -> dict[str, Any]:
+        payload = _base_payload(sequence)
+        summary = summarize_episode(
+            0.0,
+            {"policy_version": 1, "termination_reason": "finished", "race_time_ms": 36_000.0},
+            1,
+        )
+        summary["evaluation_assignment_id"] = assignment_id
+        payload["evaluations"] = [summary]
+        payload["evaluation_snapshot"] = coordinator._policy_payload
+        return payload
+
+    try:
+        first = coordinator.codec.decode(_submit(coordinator, _empty_request(coordinator, 0)).value)
+        coordinator._evaluation_due.add("actor")
+        second = coordinator.codec.decode(
+            _submit(
+                coordinator, _request(coordinator, result(1, first["evaluation_assignment_id"]))
+            ).value
+        )
+        assert second["evaluate"] is True
+        assert second["evaluation_assignment_id"] != first["evaluation_assignment_id"]
+        _submit(coordinator, _request(coordinator, result(2, first["evaluation_assignment_id"])))
+        assert (
+            coordinator._evaluation_assignments["actor"]["assignment_id"]
+            == second["evaluation_assignment_id"]
+        )
+        _submit(coordinator, _request(coordinator, result(3, second["evaluation_assignment_id"])))
+        assert "actor" not in coordinator._evaluation_assignments
+    finally:
+        _close(coordinator)
+
+
+def test_retired_session_cannot_ack_reassigned_evaluation(tmp_path: Path) -> None:
+    coordinator = _coordinator(tmp_path, "evaluation-retired-result")
+    coordinator._evaluation_due.add("actor")
+    coordinator.counters.policy_version = 1
+    coordinator._policy_payload = coordinator.codec.encode({"model": {}})
+    try:
+        first = coordinator.codec.decode(_submit(coordinator, _empty_request(coordinator, 0)).value)
+        request = _base_payload(0)
+        request["session_id"] = "new-session"
+        reassigned = coordinator.codec.decode(
+            _submit(coordinator, _request(coordinator, request)).value
+        )
+        assert reassigned["evaluation_assignment_id"] == first["evaluation_assignment_id"]
+        stale = _base_payload(1)
+        summary = summarize_episode(
+            0.0,
+            {"policy_version": 1, "termination_reason": "finished", "race_time_ms": 36_000.0},
+            1,
+        )
+        summary["evaluation_assignment_id"] = first["evaluation_assignment_id"]
+        stale["evaluations"] = [summary]
+        stale["evaluation_snapshot"] = coordinator._policy_payload
+        _submit(coordinator, _request(coordinator, stale))
+        assert coordinator._evaluation_assignments["actor"]["session"] == "new-session"
+    finally:
+        _close(coordinator)
+
+
+def test_legacy_assignment_without_identity_accepts_legacy_result(tmp_path: Path) -> None:
+    from trackmaniarl.distributed import coordinator_delivery
+
+    coordinator = _coordinator(tmp_path, "evaluation-legacy-result")
+    coordinator.counters.policy_version = 1
+    coordinator._policy_payload = coordinator.codec.encode({"model": {}})
+    payload = _base_payload(1)
+    assignment = {
+        "session": payload["session_id"],
+        "sequence": 0,
+        "assigned_row_id": 0,
+        "version": 1,
+        "snapshot": coordinator._policy_payload,
+        "retired_sessions": [],
+    }
+    try:
+        coordinator_delivery.save(coordinator, set(), {"actor": assignment})
+        payload["evaluations"] = [
+            summarize_episode(
+                0.0,
+                {"policy_version": 1, "termination_reason": "finished", "race_time_ms": 36_000.0},
+                1,
+            )
+        ]
+        payload["evaluation_snapshot"] = coordinator._policy_payload
+        _submit(coordinator, _request(coordinator, payload))
+        assert "actor" not in coordinator._evaluation_assignments
     finally:
         _close(coordinator)
 

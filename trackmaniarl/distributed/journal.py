@@ -123,8 +123,13 @@ class RolloutJournal:
             self._migrate_schema()
             self._validate_schema()
         else:
-            self._create_schema()
-            self._initialize_metadata()
+            # sqlite3 does not implicitly begin transactions for DDL.  Keep
+            # every table and the initial metadata together so an interrupted
+            # first start can retry on the same empty database.
+            with self._connection:
+                self._connection.execute("BEGIN IMMEDIATE")
+                self._create_schema()
+                self._initialize_metadata()
         self._connection.commit()
 
     def _configure_connection(self) -> None:

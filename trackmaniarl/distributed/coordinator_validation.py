@@ -208,6 +208,8 @@ def _validate_episode_outcome(value: Mapping[str, Any]) -> None:
 def _validate_evaluation_summary(value: object) -> None:
     if not isinstance(value, Mapping):
         raise TypeError("evaluations must contain mappings")
+    if "evaluation_assignment_id" in value:
+        _required_nonempty_string(value, "evaluation_assignment_id")
     _validate_binary_flag(value["finished"], "evaluation finished")
     _validate_finite_number(value["finish_time_s"], "evaluation finish_time_s")
     _validate_evaluation_outcome(value)

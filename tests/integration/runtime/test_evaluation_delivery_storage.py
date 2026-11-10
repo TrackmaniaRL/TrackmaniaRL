@@ -121,6 +121,36 @@ def test_schema_migration_rolls_back_ddl_on_failure(
     reopened.close()
 
 
+@pytest.mark.parametrize("failure_phase", ["ddl", "metadata"])
+def test_new_journal_creation_rolls_back_before_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failure_phase: str
+) -> None:
+    path = tmp_path / "journal.db"
+    with monkeypatch.context() as context:
+        if failure_phase == "ddl":
+            schema = journal_module._EVALUATION_SCHEMA
+            context.setattr(journal_module, "_EVALUATION_SCHEMA", (schema[0], "INVALID SQL"))
+        else:
+            original = RolloutJournal._initialize_metadata
+
+            def fail_after_metadata(journal: RolloutJournal) -> None:
+                original(journal)
+                raise OSError("simulated metadata failure")
+
+            context.setattr(RolloutJournal, "_initialize_metadata", fail_after_metadata)
+        with pytest.raises((sqlite3.OperationalError, OSError)):
+            RolloutJournal(path)
+    with sqlite3.connect(path) as connection:
+        tables = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchall()
+        assert tables == []
+    reopened = RolloutJournal(path)
+    assert reopened.identity
+    assert _coordinator(reopened)._evaluation_assignments == {}
+    reopened.close()
+
+
 @pytest.mark.parametrize("damage", ["missing", "corrupt"])
 def test_corrupt_or_missing_snapshot_is_rejected(tmp_path: Path, damage: str) -> None:
     path = tmp_path / "journal.db"

@@ -7,16 +7,20 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import torch
 
-from trackmaniarl.core.data import BatchRequest, TrainingBatch, TransitionId
+from trackmaniarl.core.data import BatchRequest, TrainingBatch, Transition, TransitionId
 from trackmaniarl.core.replay.batches import (
+    _batch_data,
+    _BatchAssembly,
     _BatchBuild,
     _history_padding_masks,
-    _make_batch,
+    _materialize_batch,
     _reshape_batch_sequences,
     _reshape_sequence_batch,
     _SequenceBatchLayout,
+    _standard_collation,
+    _training_batch,
 )
-from trackmaniarl.core.replay.sequence_sampler import _collate_target_histories
+from trackmaniarl.core.replay.sequence_sampler import _collate_target_histories, _owned_transition
 from trackmaniarl.core.replay.store import _IncrementalReplayStore
 
 if TYPE_CHECKING:
@@ -40,7 +44,8 @@ class _IncrementalSample:
 class _SequenceMaterialization:
     histories: list[list[TransitionId]]
     flattened: list[TransitionId]
-    next_observations: Any
+    history_values: list[list[Transition]]
+    horizon_values: list[list[Transition]]
     next_masks: torch.Tensor
 
 
@@ -49,19 +54,48 @@ def _sample_incremental_snapshot(
     store: _IncrementalReplayStore,
     request: BatchRequest,
 ) -> TrainingBatch:
-    transition_ids, weights, beta, sampling = sampler._sample_incremental_ids(store, request)
-    sample = _IncrementalSample(
-        sampler,
-        store,
-        request,
-        transition_ids,
-        weights,
-        beta,
-        sampling,
-        tuple(store.demo_flags(transition_ids)),
-        _expert_flags(sampler, transition_ids),
+    with store.sampling_transaction():
+        transition_ids, weights, beta, sampling = sampler._sample_incremental_ids(store, request)
+        sample = _IncrementalSample(
+            sampler,
+            store,
+            request,
+            transition_ids,
+            weights,
+            beta,
+            sampling,
+            tuple(store.demo_flags(transition_ids)),
+            _expert_flags(sampler, transition_ids),
+        )
+        sequence = _sequence_materialization(sample) if request.sequence_length > 1 else None
+        build = _batch_build(sample, sequence)
+        materialized = _materialize_batch(build)
+        materialized = replace(
+            materialized,
+            transitions=[_owned_transition(item) for item in materialized.transitions],
+        )
+    # Keep the existing target-before-transition collation order while running
+    # both user hooks outside the producer's replay lock.
+    targets = (
+        _collate_target_histories(
+            sample.sampler.pipeline,
+            sequence.history_values,
+            sequence.horizon_values,
+            request.sequence_length,
+        )
+        if sequence is not None
+        else None
     )
-    return _sequence_batch(sample) if request.sequence_length > 1 else _flat_batch(sample)
+    collated = build.pipeline.collate(materialized.transitions)
+    standard = _standard_collation(collated)
+    batch = _training_batch(
+        _BatchAssembly(build, materialized, standard, _batch_data(collated, standard))
+    )
+    return (
+        _reshape_sequence_output(sample, sequence, batch, targets)
+        if sequence is not None
+        else batch
+    )
 
 
 def _expert_flags(
@@ -70,22 +104,6 @@ def _expert_flags(
     if sampler._tree is None:
         raise RuntimeError("prioritized replay index is not initialized")
     return tuple(bool(sampler._expert_slots[item % sampler._tree.size]) for item in transition_ids)
-
-
-def _sequence_batch(sample: _IncrementalSample) -> TrainingBatch:
-    materialized = _sequence_materialization(sample)
-    batch = _make_batch(
-        _BatchBuild(
-            sample.store,
-            sample.sampler.pipeline,
-            materialized.flattened,
-            sample.request,
-            importance_weights=sample.weights,
-            metadata=_sample_metadata(sample, "prioritized_sequence"),
-            bootstrap_stride=sample.request.sequence_length,
-        )
-    )
-    return _reshape_sequence_output(sample, materialized, batch)
 
 
 def _sequence_materialization(sample: _IncrementalSample) -> _SequenceMaterialization:
@@ -98,11 +116,12 @@ def _sequence_materialization(sample: _IncrementalSample) -> _SequenceMaterializ
     ]
     if any(not horizon for horizon in horizons):
         raise RuntimeError("prioritized n-step index is out of sync with replay")
-    history_values = [sample.store.get(history) for history in histories]
-    horizon_values = [sample.store.get(horizon) for horizon in horizons]
-    next_observations = _collate_target_histories(
-        sample.sampler.pipeline, history_values, horizon_values, length
-    )
+    history_values = [
+        [_owned_transition(item) for item in sample.store.get(history)] for history in histories
+    ]
+    horizon_values = [
+        [_owned_transition(item) for item in sample.store.get(horizon)] for horizon in horizons
+    ]
     flattened = [item for history in histories for item in history]
     masks = _history_padding_masks(histories)
     next_masks = torch.stack(
@@ -111,13 +130,16 @@ def _sequence_materialization(sample: _IncrementalSample) -> _SequenceMaterializ
             for row, horizon in zip(masks, horizons, strict=True)
         ]
     )
-    return _SequenceMaterialization(histories, flattened, next_observations, next_masks)
+    return _SequenceMaterialization(
+        histories, flattened, history_values, horizon_values, next_masks
+    )
 
 
-def _reshape_sequence_output(
+def _reshape_sequence_output(  # noqa: PLR0913
     sample: _IncrementalSample,
     materialized: _SequenceMaterialization,
     batch: TrainingBatch,
+    targets: Any,
 ) -> TrainingBatch:
     request = sample.request
     layout = _SequenceBatchLayout(
@@ -127,7 +149,7 @@ def _reshape_sequence_output(
     )
     reshaped = _reshape_batch_sequences(batch, layout)
     next_observations = _reshape_sequence_batch(
-        materialized.next_observations,
+        targets,
         request.batch_size,
         request.sequence_length,
     )
@@ -138,16 +160,19 @@ def _reshape_sequence_output(
     )
 
 
-def _flat_batch(sample: _IncrementalSample) -> TrainingBatch:
-    return _make_batch(
-        _BatchBuild(
-            sample.store,
-            sample.sampler.pipeline,
-            sample.transition_ids,
-            sample.request,
-            importance_weights=sample.weights,
-            metadata=_sample_metadata(sample, "prioritized"),
-        )
+def _batch_build(
+    sample: _IncrementalSample, sequence: _SequenceMaterialization | None
+) -> _BatchBuild:
+    return _BatchBuild(
+        sample.store,
+        sample.sampler.pipeline,
+        sample.transition_ids if sequence is None else sequence.flattened,
+        sample.request,
+        importance_weights=sample.weights,
+        metadata=_sample_metadata(
+            sample, "prioritized" if sequence is None else "prioritized_sequence"
+        ),
+        bootstrap_stride=1 if sequence is None else sample.request.sequence_length,
     )
 
 

@@ -100,7 +100,8 @@ class ActorRuntime:
         self.collect_allowed = threading.Event()
         self.collect_allowed.set()
         self._evaluation_request_lock = threading.Lock()
-        self._evaluation_request: tuple[bytes, int] | None = None
+        self._evaluation_request: tuple[bytes, int, str] | None = None
+        self._active_evaluation_assignment_id = ""
         self._evaluation_index = 0
         self.queue: Queue[Path] = Queue()
 
@@ -128,7 +129,8 @@ class ActorRuntime:
         if not legacy.is_dir() or legacy == self.spool_dir:
             return
         pending = [
-            path for path in legacy.iterdir()
+            path
+            for path in legacy.iterdir()
             if path.stem.isdigit() and path.suffix in {".rollout", ".tmp"}
         ]
         if not pending:

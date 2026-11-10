@@ -115,6 +115,30 @@ def test_actor_evaluation_is_greedy_and_never_spooled_as_training_data() -> None
     assert summary["timing/step_race_measurements_valid"] == 1.0
 
 
+def test_assigned_evaluation_spools_assignment_identity() -> None:
+    from trackmaniarl.distributed.actor_background import _accept_evaluation_request
+
+    probe = _EvaluationProbe()
+    actor = _evaluation_actor(probe)
+
+    class LoadedPolicy(_EvaluationPolicy):
+        def load_state(self, state: Any) -> None:
+            assert state == {}
+
+    actor._new_policy = lambda: LoadedPolicy(probe)
+    actor.evaluate = threading.Event()
+    _accept_evaluation_request(
+        actor,
+        {
+            "evaluation_snapshot": actor.codec.encode({}),
+            "evaluation_policy_version": 9,
+            "evaluation_assignment_id": "assignment-1",
+        },
+    )
+    actor._evaluate(_EvaluationEnvironment(), _Pipeline())
+    assert probe.requests[0].evaluations[0]["evaluation_assignment_id"] == "assignment-1"
+
+
 class _MarginPolicy:
     def __init__(self, version: int) -> None:
         self.version = version

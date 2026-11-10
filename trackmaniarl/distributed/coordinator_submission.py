@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from queue import Full
 from time import monotonic
 from typing import TYPE_CHECKING, Any
+from uuid import uuid4
 
 import grpc
 from google.protobuf.wrappers_pb2 import BytesValue
@@ -35,6 +36,7 @@ class _EvaluationAssignment:
     evaluate: bool
     policy_version: int
     snapshot: bytes
+    assignment_id: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,8 +176,14 @@ def _assign_evaluation(
         if (
             previous is not None
             and row_id > previous["assigned_row_id"]
+            and value["session_id"] == previous["session"]
+            and int(value["sequence"]) > previous["sequence"]
             and evaluations
             and all(int(item["policy_version"]) == previous["version"] for item in evaluations)
+            and all(
+                item.get("evaluation_assignment_id") == previous.get("assignment_id")
+                for item in evaluations
+            )
         ):
             del assignments[actor_id]
             coordinator_delivery.save(coordinator, set(coordinator._evaluation_due), assignments)
@@ -203,13 +211,19 @@ def _assign_evaluation(
                 )
                 same_request = True
             if same_request:
-                return _EvaluationAssignment(True, previous["version"], previous["snapshot"])
+                return _EvaluationAssignment(
+                    True,
+                    previous["version"],
+                    previous["snapshot"],
+                    previous.get("assignment_id", ""),
+                )
             return _EvaluationAssignment(False, coordinator.counters.policy_version, b"")
         evaluate = (
             actor_id in coordinator._evaluation_due and coordinator.counters.policy_version > 0
         )
         version = coordinator.counters.policy_version
         snapshot = coordinator._policy_payload if evaluate else b""
+        assignment_id = uuid4().hex if evaluate else ""
         if evaluate:
             _remember_evaluation_policy(coordinator, version, snapshot)
             assignments[actor_id] = {
@@ -218,11 +232,12 @@ def _assign_evaluation(
                 "assigned_row_id": row_id,
                 "version": version,
                 "snapshot": snapshot,
+                "assignment_id": assignment_id,
                 "retired_sessions": [],
             }
             due = coordinator._evaluation_due - {actor_id}
             coordinator_delivery.save(coordinator, due, assignments)
-    return _EvaluationAssignment(evaluate, version, snapshot)
+    return _EvaluationAssignment(evaluate, version, snapshot, assignment_id)
 
 
 def _remember_evaluation_policy(coordinator: Coordinator, version: int, snapshot: bytes) -> None:
@@ -248,5 +263,6 @@ def _accepted_response(accepted: _AcceptedSubmission) -> BytesValue:
         "evaluate": evaluation.evaluate,
         "evaluation_policy_version": evaluation.policy_version,
         "evaluation_snapshot": evaluation.snapshot,
+        "evaluation_assignment_id": evaluation.assignment_id,
     }
     return coordinator._response(payload, accepted.context)

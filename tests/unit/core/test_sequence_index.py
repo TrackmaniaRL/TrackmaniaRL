@@ -84,6 +84,32 @@ def test_index_rebuild_has_same_slot_order_after_restore() -> None:
     assert index.draw(Random(42), 3) == rebuilt.draw(Random(42), 3)
 
 
+def test_index_rejects_history_linked_back_across_terminal_boundary() -> None:
+    store = InMemoryReplayStore(capacity=3)
+    for episode, step, terminated in (("x", 9, True), ("x", 10, False)):
+        store.append(
+            Transition(
+                float(step),
+                0,
+                1.0,
+                float(step + 1),
+                terminated,
+                False,
+                episode_id=episode,
+                step=step,
+            )
+        )
+    index = SequenceIndex(store, 2, 1)
+    index.synchronize()
+    assert index.tree.total == 0
+    for episode in ("y", "z"):
+        store.append(Transition(0.0, 0, 1.0, 1.0, False, False, episode_id=episode, step=0))
+    index.synchronize()
+    assert index.tree.total == 0
+    with pytest.raises(RuntimeError, match="Need 1 valid sequences"):
+        index.draw(Random(0), 1)
+
+
 def test_external_store_subclass_does_not_assume_modulo_slot_contract() -> None:
     class CustomStore(InMemoryReplayStore):
         def sampling_transaction(self) -> Never:

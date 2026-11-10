@@ -19,8 +19,7 @@ def _sample_incrementally(
     store: _IncrementalReplayStore,
     request: BatchRequest,
 ) -> TrainingBatch:
-    with store.sampling_transaction():
-        return sampler._sample_incremental_snapshot(store, request)
+    return sampler._sample_incremental_snapshot(store, request)
 
 
 def _sample_incremental_snapshot(

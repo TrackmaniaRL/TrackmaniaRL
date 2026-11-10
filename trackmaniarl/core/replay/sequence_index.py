@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from itertools import pairwise
 from random import Random
 
 from trackmaniarl.core.replay.store_support import _IncrementalReplayStore, _ReplayChange
@@ -62,10 +63,18 @@ class SequenceIndex:
         return candidates
 
     def _refresh(self, candidate: int) -> None:
+        history = self.store.history_ids(candidate, self.length)
         if (
             self.store.contains(candidate)
             and self.store.is_n_step_eligible(candidate, self.n_step)
-            and len(set(self.store.history_ids(candidate, self.length))) == self.length
+            and len(set(history)) == self.length
+            # Out-of-order episode data can leave a predecessor pointer to a
+            # terminal transition without a matching forward link. Such a
+            # history crosses an episode boundary and must never be indexed.
+            and all(
+                self.store.n_step_ids(previous, 2) == [previous, following]
+                for previous, following in pairwise(history)
+            )
         ):
             slot = candidate % self.store.capacity
             self.ids[slot] = candidate
