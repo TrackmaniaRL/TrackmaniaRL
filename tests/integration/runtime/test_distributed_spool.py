@@ -59,9 +59,7 @@ def test_actor_recovers_valid_numeric_temporary_without_overwriting_spool(
     quarantined = list(tmp_path.glob("00000000000000000002.*.invalid"))
     assert len(quarantined) == 1
     assert quarantined[0].read_bytes() == b"incomplete"
-    assert actor._scan_spool_bytes() == sum(
-        path.stat().st_size for path in (existing, recovered)
-    )
+    assert actor._scan_spool_bytes() == sum(path.stat().st_size for path in (existing, recovered))
     assert actor._next_sequence() == 4
 
 

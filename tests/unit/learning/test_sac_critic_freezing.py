@@ -34,6 +34,7 @@ def test_actor_step_restores_critic_parameter_flags(
     frozen_before = parameters[0].detach().clone()
 
     if fail_actor:
+
         def fail(*args: Any, **kwargs: Any) -> Any:
             raise RuntimeError("actor failure")
 
