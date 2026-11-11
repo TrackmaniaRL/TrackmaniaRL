@@ -20,10 +20,10 @@ from trackmaniarl.core.replay.batches import (
     _standard_collation,
     _training_batch,
 )
+from trackmaniarl.core.replay.ownership import owned_transition
 from trackmaniarl.core.replay.sequence_sampler import (
     _collate_target_snapshot,
     _observation_collator,
-    _owned_transition,
     _snapshot_target_histories,
     _TargetSnapshot,
 )
@@ -78,7 +78,7 @@ def _sample_incremental_snapshot(
         materialized = _materialize_batch(build)
         materialized = replace(
             materialized,
-            transitions=[_owned_transition(item) for item in materialized.transitions],
+            transitions=[owned_transition(item) for item in materialized.transitions],
         )
     # Keep the existing target-before-transition collation order while running
     # both user hooks outside the producer's replay lock.

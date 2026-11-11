@@ -301,6 +301,14 @@ policies must not rely on mutations through one view appearing in another.
 Torch snapshots are detached from autograd. Copying observations also has a
 per-decision cost, especially for image inputs.
 
+The built-in in-memory replay takes its checkpoint snapshot while holding its
+store lock. Column arrays and nested transition metadata and next-observation
+overrides belong to that snapshot; subsequent mutations of the replay or the
+returned state do not alter each other. Loading also copies these values, so the
+caller may retain the input state independently. Custom mutable objects must
+honor the same copying contract described above. Snapshot copying has a cost;
+measure complete training runs before drawing throughput conclusions.
+
 If resume behavior would change after recreating a component, its relevant state
 belongs in the checkpoint. Do not hide configuration in module globals or read
 environment variables inside hot-path objects.

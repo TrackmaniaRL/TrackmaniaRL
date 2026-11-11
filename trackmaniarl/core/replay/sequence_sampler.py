@@ -22,6 +22,7 @@ from trackmaniarl.core.replay.batches import (
     _standard_collation,
     _training_batch,
 )
+from trackmaniarl.core.replay.ownership import owned_transition
 from trackmaniarl.core.replay.sequence_batches import (
     _reshape_training_batch,
     _SequenceBatchShape,
@@ -132,7 +133,7 @@ class SequenceSampler:
                 targets = _snapshot_target_histories(hook, histories, horizons, length)
                 materialized = replace(
                     materialized,
-                    transitions=[_owned_transition(item) for item in materialized.transitions],
+                    transitions=[owned_transition(item) for item in materialized.transitions],
                 )
         # User collators can perform arbitrary work. Materialize the entire
         # replay snapshot first, then release the store lock before invoking them.
@@ -234,16 +235,6 @@ class SequenceSampler:
     def load_state_dict(self, state: Mapping[str, Any]) -> None:
         self._rng.setstate(state["rng"])
         self._reset_cache()
-
-
-def _owned_transition(item: Transition) -> Transition:
-    return replace(
-        item,
-        observation=tree_snapshot(item.observation),
-        action=tree_snapshot(item.action),
-        next_observation=tree_snapshot(item.next_observation),
-        info=tree_snapshot(item.info),
-    )
 
 
 def _linked_history(store: ReplayStore) -> _LinkedHistory | None:
@@ -444,7 +435,7 @@ def _snapshot_target_histories(  # noqa: PLR0913
             [tree_snapshot(item) for item in _flatten_histories(rows)], None, hook
         )
     transitions = [
-        _owned_transition(replace(transition, observation=observation))
+        owned_transition(replace(transition, observation=observation))
         for history, horizon, row in zip(histories, horizons, rows, strict=True)
         for transition, observation in zip(
             (history + horizon[1:] + horizon[-1:])[-length:], row, strict=True

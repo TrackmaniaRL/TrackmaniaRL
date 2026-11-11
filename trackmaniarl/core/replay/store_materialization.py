@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from trackmaniarl.core.data import BatchRequest, Transition, TransitionId
 from trackmaniarl.core.pytree import tree_snapshot
+from trackmaniarl.core.replay.ownership import owned_transition
 
 if TYPE_CHECKING:
     from trackmaniarl.core.replay.store import InMemoryReplayStore
@@ -58,19 +59,9 @@ def get(store: InMemoryReplayStore, transition_ids: list[TransitionId]) -> list[
                 _transition(store, transition_id, owned=True) for transition_id in transition_ids
             ]
         return [
-            _snapshot_transition(store._transition(transition_id))
+            owned_transition(store._transition(transition_id))
             for transition_id in transition_ids
         ]
-
-
-def _snapshot_transition(transition: Transition) -> Transition:
-    return replace(
-        transition,
-        observation=tree_snapshot(transition.observation),
-        action=tree_snapshot(transition.action),
-        next_observation=tree_snapshot(transition.next_observation),
-        info=tree_snapshot(transition.info),
-    )
 
 
 def materialize_n_step(

@@ -398,6 +398,9 @@ class RolloutJournal:
     ) -> tuple[int, bool]:
         chunk = _JournalChunk(session_id, sequence, payload, sha256(payload).digest())
         with self._lock, self._connection:
+            # Serialize the receipt check and insert across independent journal
+            # connections, not just threads sharing this instance's lock.
+            self._connection.execute("BEGIN IMMEDIATE")
             receipt = self._find_receipt(chunk)
             if receipt is not None:
                 return self._receipt_row_id(chunk, receipt), False
