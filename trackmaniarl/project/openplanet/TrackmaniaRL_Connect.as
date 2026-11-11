@@ -7,6 +7,20 @@ const uint SESSION_PORT = 9001;
 const string PROTOCOL_VERSION = "2";
 const uint MAX_COMMAND_BYTES = 16 * 1024;
 
+// Experimental developer protocol.  The signed 2.4.0 release does not expose
+// this capability. Enable only in an isolated, exclusively controlled game.
+[Setting name="Enable experimental map switching"]
+bool g_enableMapSwitch = false;
+const string SWITCH_PROTOCOL_VERSION = "3";
+const uint SWITCH_TIMEOUT_MS = 30000;
+string g_switchEpoch = "";
+string g_switchInstanceEpoch = "";
+string g_switchOperation = "";
+string g_switchPath = "";
+string g_switchUid = "";
+string g_switchState = "idle";
+array<string> g_usedSwitchOperations;
+
 Net::Socket@ g_telemetryServer;
 Net::Socket@ g_sessionServer;
 
@@ -62,6 +76,150 @@ string JsonOk(const string &in uid, bool ready) {
         + (ready ? "true" : "false") + "\"}\n";
 }
 
+bool IsHexToken(const string &in value) {
+    if (value.Length != 32) return false;
+    for (int i = 0; i < int(value.Length); i++) {
+        if ("0123456789abcdef".IndexOf(value.SubStr(i, 1)) < 0) return false;
+    }
+    return true;
+}
+
+bool HasString(Json::Value@ value, const string &in key) {
+    return value.HasKey(key) && value[key].GetType() == Json::Type::String;
+}
+
+string SwitchReply(const string &in status, const string &in error = "") {
+    auto response = Json::Object();
+    response["status"] = status;
+    response["protocol_version"] = SWITCH_PROTOCOL_VERSION;
+    // Do not disclose lease or operation tokens to a client that failed a check.
+    response["instance_epoch"] = g_switchInstanceEpoch;
+    response["epoch"] = status == "ok" ? g_switchEpoch : "";
+    response["operation_id"] = status == "ok" ? g_switchOperation : "";
+    response["state"] = g_switchState;
+    string uid = ActiveMapUid();
+    response["map_uid"] = uid;
+    response["ready"] = (uid.Length > 0 && IsReadyToDrive()) ? "true" : "false";
+    if (error.Length > 0) response["error"] = error;
+    return Json::Write(response) + "\n";
+}
+
+// At most one coroutine can be launched by a claimed plugin epoch. Any error
+// after the operation is accepted is indeterminate, including a timeout after
+// PlayMap: the game may complete an asynchronous request later.
+void SwitchMapWorker() {
+    try {
+        auto app = cast<CTrackMania>(GetApp());
+        if (app is null || app.ManiaTitleControlScriptAPI is null || !Permissions::PlayLocalMap()) {
+            g_switchState = "indeterminate"; return;
+        }
+        g_switchState = "leaving";
+        app.BackToMainMenu();
+        uint64 started = Time::Now;
+        while (Time::Now - started < SWITCH_TIMEOUT_MS) {
+            if (app.ManiaTitleControlScriptAPI.IsReady && app.Switcher.ModuleStack.Length > 0
+                && cast<CTrackManiaMenus>(app.Switcher.ModuleStack[0]) !is null
+                && ActiveMapUid().Length == 0) break;
+            yield();
+        }
+        if (Time::Now - started >= SWITCH_TIMEOUT_MS) {
+            g_switchState = "indeterminate"; return;
+        }
+        g_switchState = "loading";
+        app.ManiaTitleControlScriptAPI.PlayMap(g_switchPath, "", "");
+        started = Time::Now;
+        uint stableFrames = 0;
+        CSmArenaClient@ lastPlayground = null;
+        while (Time::Now - started < SWITCH_TIMEOUT_MS) {
+            auto playground = cast<CSmArenaClient>(app.CurrentPlayground);
+            if (playground !is null && playground is lastPlayground
+                && ActiveMapUid() == g_switchUid && IsReadyToDrive()) {
+                stableFrames++;
+            } else {
+                @lastPlayground = playground;
+                stableFrames = 0;
+            }
+            if (stableFrames >= 3) {
+                // No more game mutations in this operation after publishing ready.
+                g_switchState = "ready"; return;
+            }
+            yield();
+        }
+    } catch {
+        // Do not reissue a request whose side effects may already be in flight.
+    }
+    g_switchState = "indeterminate";
+}
+
+string HandleSwitchCommand(Json::Value@ request) {
+    if (!g_enableMapSwitch) return SwitchReply("error", "switching_disabled");
+    if (!HasString(request, "command")) return SwitchReply("error", "invalid_request");
+    string command = string(request["command"]);
+    if (command == "get_instance") {
+        if (request.GetKeys().Length != 2) return SwitchReply("error", "invalid_request");
+        if (g_switchInstanceEpoch.Length == 0) return SwitchReply("error", "instance_unavailable");
+        auto response = Json::Object();
+        response["status"] = "ok";
+        response["protocol_version"] = SWITCH_PROTOCOL_VERSION;
+        response["instance_epoch"] = g_switchInstanceEpoch;
+        return Json::Write(response) + "\n";
+    }
+    if (!HasString(request, "epoch") || !HasString(request, "instance_epoch"))
+        return SwitchReply("error", "invalid_request");
+    if (g_switchInstanceEpoch.Length == 0
+        || string(request["instance_epoch"]) != g_switchInstanceEpoch)
+        return SwitchReply("error", "instance_epoch_mismatch");
+    string epoch = string(request["epoch"]);
+    if (!IsHexToken(epoch)) return SwitchReply("error", "invalid_epoch");
+    if (command == "claim") {
+        if (request.GetKeys().Length != 4) return SwitchReply("error", "invalid_request");
+        if (g_switchEpoch.Length == 0) g_switchEpoch = epoch;
+        if (g_switchEpoch != epoch) return SwitchReply("error", "epoch_mismatch");
+        return SwitchReply("ok");
+    }
+    if (g_switchEpoch.Length == 0 || g_switchEpoch != epoch)
+        return SwitchReply("error", "epoch_mismatch");
+    if (!HasString(request, "operation_id")) return SwitchReply("error", "invalid_request");
+    string operation = string(request["operation_id"]);
+    if (!IsHexToken(operation)) return SwitchReply("error", "invalid_operation");
+    if (command == "switch_status") {
+        if (request.GetKeys().Length != 5) return SwitchReply("error", "invalid_request");
+        if (operation != g_switchOperation) return SwitchReply("error", "unknown_operation");
+        return SwitchReply("ok");
+    }
+    if (command != "switch_map" || request.GetKeys().Length != 7
+        || !HasString(request, "map_path") || !HasString(request, "expected_map_uid"))
+        return SwitchReply("error", "invalid_request");
+    string path = string(request["map_path"]);
+    string uid = string(request["expected_map_uid"]);
+    if (path.Length == 0 || path.Length > 2048 || uid.Length == 0 || uid.Length > 256)
+        return SwitchReply("error", "invalid_target");
+    if (operation == g_switchOperation) {
+        if (path != g_switchPath || uid != g_switchUid)
+            return SwitchReply("error", "operation_conflict");
+        return SwitchReply("ok");
+    }
+    // Retain every used ID for the lease lifetime. A late retry of an older
+    // operation must never initiate another game load.
+    if (g_usedSwitchOperations.Find(operation) >= 0)
+        return SwitchReply("error", "stale_operation");
+    if (g_switchState != "idle" && g_switchState != "ready")
+        return SwitchReply("error", "operation_pending");
+    // A manual change or another plugin invalidates the previous confirmation.
+    if (g_switchState == "ready" && ActiveMapUid() != g_switchUid) {
+        g_switchState = "indeterminate";
+        return SwitchReply("error", "active_map_changed");
+    }
+    if (g_usedSwitchOperations.Length >= 4096)
+        return SwitchReply("error", "operation_limit");
+    g_usedSwitchOperations.InsertLast(operation);
+    g_switchOperation = operation; g_switchPath = path; g_switchUid = uid;
+    g_switchState = "accepted";
+    try { startnew(SwitchMapWorker); }
+    catch { g_switchState = "indeterminate"; }
+    return SwitchReply("ok");
+}
+
 string ReadJsonLine(Net::Socket@ sock, uint timeoutMs = 2000) {
     string request = "";
     uint started = Time::Now;
@@ -78,8 +236,20 @@ string ReadJsonLine(Net::Socket@ sock, uint timeoutMs = 2000) {
 void HandleSessionClient(Net::Socket@ sock) {
     string request = ReadJsonLine(sock);
     if (request.Length == 0) { sock.WriteRaw(JsonError("invalid_or_too_large_request")); return; }
+    Json::Value@ parsed = null;
+    try { @parsed = Json::Parse(request); } catch { }
+    if (parsed is null || parsed.GetType() != Json::Type::Object) {
+        sock.WriteRaw(JsonError("invalid_request")); return;
+    }
+    if (HasString(parsed, "protocol_version")
+        && string(parsed["protocol_version"]) == SWITCH_PROTOCOL_VERSION) {
+        sock.WriteRaw(HandleSwitchCommand(parsed)); return;
+    }
     if (request.IndexOf("\"protocol_version\":\"" + PROTOCOL_VERSION + "\"") < 0) {
         sock.WriteRaw(JsonError("unsupported_protocol")); return;
+    }
+    if (g_switchState != "idle" && g_switchState != "ready") {
+        sock.WriteRaw(JsonError("map_switch_unresolved")); return;
     }
     string uid = ActiveMapUid();
     if (uid.Length == 0) { sock.WriteRaw(JsonError("no_local_map_loaded")); return; }
@@ -108,6 +278,10 @@ void SessionServer() {
 }
 
 void Main() {
+    // A new random identity is required on every plugin load. A client must
+    // quarantine any unresolved operation on a changed or missing identity.
+    try { g_switchInstanceEpoch = Crypto::RandomBase64(32, true); }
+    catch { g_switchInstanceEpoch = ""; }
     startnew(SessionServer);
     while (true) {
         @g_telemetryServer = Net::Socket();
