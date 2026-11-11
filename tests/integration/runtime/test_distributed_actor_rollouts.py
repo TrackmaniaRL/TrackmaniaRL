@@ -115,6 +115,30 @@ def test_actor_evaluation_is_greedy_and_never_spooled_as_training_data() -> None
     assert summary["timing/step_race_measurements_valid"] == 1.0
 
 
+def test_assigned_evaluation_spools_assignment_identity() -> None:
+    from trackmaniarl.distributed.actor_background import _accept_evaluation_request
+
+    probe = _EvaluationProbe()
+    actor = _evaluation_actor(probe)
+
+    class LoadedPolicy(_EvaluationPolicy):
+        def load_state(self, state: Any) -> None:
+            assert state == {}
+
+    actor._new_policy = lambda: LoadedPolicy(probe)
+    actor.evaluate = threading.Event()
+    _accept_evaluation_request(
+        actor,
+        {
+            "evaluation_snapshot": actor.codec.encode({}),
+            "evaluation_policy_version": 9,
+            "evaluation_assignment_id": "assignment-1",
+        },
+    )
+    actor._evaluate(_EvaluationEnvironment(), _Pipeline())
+    assert probe.requests[0].evaluations[0]["evaluation_assignment_id"] == "assignment-1"
+
+
 class _MarginPolicy:
     def __init__(self, version: int) -> None:
         self.version = version
@@ -234,7 +258,7 @@ def _assert_chunked_episode_requests(requests: list[SpoolRequest]) -> None:
     summary_requests = [request for request in requests if request.summaries]
     assert len(transition_requests) == 6
     assert len(summary_requests) == 2
-    assert all(not request.transitions for request in summary_requests)
+    assert all(len(request.transitions) == 1 for request in summary_requests)
     transition_ids = {
         transition.episode_id
         for request in transition_requests
@@ -255,6 +279,29 @@ def test_actor_sends_identified_summary_after_flushed_chunks() -> None:
     actor._collect(_TrainingEnvironment(actor.stop), _Pipeline())
 
     _assert_chunked_episode_requests(probe.requests)
+
+
+def test_stop_after_periodic_flush_closes_final_transition() -> None:
+    probe = _TrainingProbe()
+    actor = _training_actor(probe)
+    actor.spec.distributed.rollout_chunk_transitions = 1
+
+    class StoppedEnvironment(_TrainingEnvironment):
+        def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
+            result = super().step(action)
+            if self.total_steps == 2:
+                self.stop.set()
+            return result
+
+    actor._collect(StoppedEnvironment(actor.stop), _Pipeline())
+
+    transitions = [item for request in probe.requests for item in request.transitions]
+    assert len(transitions) == 2
+    assert not transitions[0].truncated
+    assert transitions[1].truncated
+    assert not transitions[1].terminated
+    assert transitions[1].info["termination_reason"] == "actor_shutdown"
+    assert probe.requests[-1].summaries
 
 
 class _PrewarmPolicy:

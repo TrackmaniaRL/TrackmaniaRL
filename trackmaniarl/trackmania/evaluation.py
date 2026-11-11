@@ -22,6 +22,10 @@ from trackmaniarl.core.contracts import (
     PolicyMode,
 )
 from trackmaniarl.core.environment_errors import EnvironmentPausedError
+from trackmaniarl.core.environment_errors import (
+    EvaluationCancelledError as EvaluationCancelledError,
+)
+from trackmaniarl.core.pytree import policy_observation_snapshot, tree_snapshot
 from trackmaniarl.core.spec import EvaluationMapSpec, EvaluationSuiteSpec
 from trackmaniarl.experiments.evaluation import EvaluationResult, aggregate_results
 from trackmaniarl.trackmania.diagnostics import (
@@ -63,16 +67,14 @@ _TRIAL_FIELDS = (
     "telemetry_skipped_frames_mean",
     "telemetry_skipped_frames_max",
     "telemetry_steps_with_skipped_frames_fraction",
+    "telemetry_skipped_frames_measurement_count",
+    "telemetry_skipped_frames_measurements_valid",
     "throughput_fps",
     "progress_pct",
     "telemetry_error",
     "controller_error",
     "progress_bins",
 )
-
-
-class EvaluationCancelledError(RuntimeError):
-    """The operator stopped an incomplete suite; retained trials are not a full benchmark."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,6 +160,11 @@ class TrackmaniaEvaluator:
         """Set an optional cancellation check, including while the game is unavailable."""
 
         self._stop_requested = stop_requested
+
+    @property
+    def requires_evaluation_artifact(self) -> bool:
+        """Whether a completed evaluation must have its durable result artifact."""
+        return self.run_dir is not None
 
     def _check_stop_requested(self) -> None:
         if self._stop_requested():
@@ -327,7 +334,9 @@ class TrackmaniaEvaluator:
             observation if getattr(request.policy, "requires_raw_observation", False) else prepared
         )
         try:
-            request.policy.act(policy_observation, PolicyMode.EVALUATION)
+            request.policy.act(
+                policy_observation_snapshot(policy_observation), PolicyMode.EVALUATION
+            )
         finally:
             self._reset_component(self.feature_pipeline)
             self._reset_component(request.policy)
@@ -353,8 +362,9 @@ class TrackmaniaEvaluator:
             else loop.prepared
         )
         started = perf_counter()
-        action = loop.policy.act(observation, PolicyMode.EVALUATION)
+        action = loop.policy.act(policy_observation_snapshot(observation), PolicyMode.EVALUATION)
         action_duration_ms = (perf_counter() - started) * 1_000.0
+        recorded_action = tree_snapshot(action)
         next_observation, reward, terminated, truncated, info = loop.environment.step(action)
         return _EvaluatedStep(
             next_observation,
@@ -362,7 +372,7 @@ class TrackmaniaEvaluator:
             bool(terminated),
             bool(truncated),
             info,
-            action,
+            recorded_action,
             action_duration_ms,
         )
 

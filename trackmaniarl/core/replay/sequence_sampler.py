@@ -4,23 +4,30 @@ from __future__ import annotations
 
 import random
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
-from typing import Any
+from contextlib import nullcontext
+from dataclasses import dataclass, replace
+from typing import Any, cast
 
 from trackmaniarl.core.contracts import ReplayStore
 from trackmaniarl.core.data import BatchRequest, PriorityUpdate, TrainingBatch, Transition
-from trackmaniarl.core.pytree import tree_collate
+from trackmaniarl.core.pytree import tree_collate, tree_snapshot
 from trackmaniarl.core.replay.batches import (
+    _batch_data,
+    _BatchAssembly,
     _BatchBuild,
     _has_complete_n_step,
-    _make_batch,
+    _materialize_batch,
     _n_step_horizon,
     _sequence_target_observation_histories,
+    _standard_collation,
+    _training_batch,
 )
 from trackmaniarl.core.replay.sequence_batches import (
     _reshape_training_batch,
     _SequenceBatchShape,
 )
+from trackmaniarl.core.replay.sequence_index import SequenceIndex
+from trackmaniarl.core.replay.store import InMemoryReplayStore
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +96,7 @@ class SequenceSampler:
     """Samples only contiguous transitions from one identified episode."""
 
     supports_sequence_sampling = True
+    _incremental_index: SequenceIndex | None
     _cached_store: ReplayStore | None
     _cached_request: tuple[int, int] | None
     _cached_revision: int | None
@@ -105,18 +113,57 @@ class SequenceSampler:
 
     def sample(self, store: ReplayStore, request: BatchRequest) -> TrainingBatch:
         length = request.sequence_length if request.sequence_length > 1 else self.sequence_length
-        windows = self._sample_windows(store, request, length)
-        selection = _SelectedSequences(store, windows, request)
-        histories, horizons = _selected_sequence_transitions(selection)
-        next_histories = _sequence_target_observation_histories(histories, horizons, length)
-        next_observations = tree_collate(_flatten_histories(next_histories))
-        batch = self._make_sequence_batch(selection, length)
+        # The built-in store guarantees reentrant queries during this
+        # transaction. External implementations retain the prior behavior.
+        owned_store = type(store) is InMemoryReplayStore
+        hook = _observation_collator(self.pipeline) if owned_store else None
+        transaction = (
+            cast(InMemoryReplayStore, store).sampling_transaction()
+            if owned_store
+            else nullcontext()
+        )
+        with transaction:
+            windows = self._sample_windows(store, request, length)
+            selection = _SelectedSequences(store, windows, request)
+            histories, horizons = _selected_sequence_transitions(selection)
+            build = self._sequence_batch_build(selection, length)
+            materialized = _materialize_batch(build)
+            if owned_store:
+                targets = _snapshot_target_histories(hook, histories, horizons, length)
+                materialized = replace(
+                    materialized,
+                    transitions=[_owned_transition(item) for item in materialized.transitions],
+                )
+        # User collators can perform arbitrary work. Materialize the entire
+        # replay snapshot first, then release the store lock before invoking them.
+        next_observations = (
+            _collate_target_snapshot(self.pipeline, targets)
+            if owned_store
+            else _collate_target_histories(self.pipeline, histories, horizons, length)
+        )
+        collated = self.pipeline.collate(materialized.transitions)
+        standard = _standard_collation(collated)
+        batch = _training_batch(
+            _BatchAssembly(build, materialized, standard, _batch_data(collated, standard))
+        )
         shape = _SequenceBatchShape(batch, request.batch_size, length, next_observations)
         return _reshape_training_batch(shape)
 
     def _sample_windows(
         self, store: ReplayStore, request: BatchRequest, length: int
     ) -> list[list[int]]:
+        if type(store) is InMemoryReplayStore:
+            if (
+                self._incremental_index is None
+                or self._incremental_index.store is not store
+                or self._incremental_index.length != length
+                or self._incremental_index.n_step != request.n_step
+            ):
+                self._incremental_index = SequenceIndex(store, length, request.n_step)
+            index = self._incremental_index
+            index.synchronize()
+            chosen = index.draw(self._rng, request.batch_size)
+            return [store.history_ids(final_id, length) for final_id in chosen]
         starts = self._window_starts(store, request, length)
         if len(starts) < request.batch_size:
             raise RuntimeError(
@@ -128,18 +175,16 @@ class SequenceSampler:
             return [linked.history_ids(final_id, length) for final_id in chosen]
         return [list(range(start, start + length)) for start in chosen]
 
-    def _make_sequence_batch(self, selection: _SelectedSequences, length: int) -> TrainingBatch:
+    def _sequence_batch_build(self, selection: _SelectedSequences, length: int) -> _BatchBuild:
         flattened = [transition_id for window in selection.windows for transition_id in window]
         metadata = _sequence_metadata(selection, length)
-        return _make_batch(
-            _BatchBuild(
-                selection.store,
-                self.pipeline,
-                flattened,
-                selection.request,
-                metadata=metadata,
-                bootstrap_stride=length,
-            )
+        return _BatchBuild(
+            selection.store,
+            self.pipeline,
+            flattened,
+            selection.request,
+            metadata=metadata,
+            bootstrap_stride=length,
         )
 
     def _window_starts(self, store: ReplayStore, request: BatchRequest, length: int) -> list[int]:
@@ -173,6 +218,7 @@ class SequenceSampler:
         self._cached_starts = update.starts
 
     def _reset_cache(self) -> None:
+        self._incremental_index = None
         self._cached_store = None
         self._cached_request = None
         self._cached_revision = None
@@ -188,6 +234,16 @@ class SequenceSampler:
     def load_state_dict(self, state: Mapping[str, Any]) -> None:
         self._rng.setstate(state["rng"])
         self._reset_cache()
+
+
+def _owned_transition(item: Transition) -> Transition:
+    return replace(
+        item,
+        observation=tree_snapshot(item.observation),
+        action=tree_snapshot(item.action),
+        next_observation=tree_snapshot(item.next_observation),
+        info=tree_snapshot(item.info),
+    )
 
 
 def _linked_history(store: ReplayStore) -> _LinkedHistory | None:
@@ -313,3 +369,93 @@ def _flatten_windows(windows: list[list[int]]) -> list[int]:
 
 def _flatten_histories(histories: list[list[Any]]) -> list[Any]:
     return [item for history in histories for item in history]
+
+
+def _observation_collator(pipeline: Any) -> Callable[..., Any] | None:
+    """Avoid an inherited hook after a subclass changes transition collation."""
+    hook = getattr(pipeline, "collate_observations", None)
+    if not callable(hook):
+        return None
+    # Instance hooks and dynamically supplied methods are explicit opt-ins.
+    instance_methods = getattr(pipeline, "__dict__", {})
+    if "collate_observations" in instance_methods:
+        return cast(Callable[..., Any], hook)
+    if "collate" in instance_methods:
+        return None
+    for cls in type(pipeline).__mro__:
+        if "collate_observations" in cls.__dict__:
+            return cast(Callable[..., Any], hook)
+        if "collate" in cls.__dict__:
+            return None
+    return cast(Callable[..., Any], hook)
+
+
+def _collate_target_histories(  # noqa: PLR0913
+    pipeline: Any,
+    histories: list[list[Transition]],
+    horizons: list[list[Transition]],
+    length: int,
+) -> Any:
+    """Apply the same observation collation to bootstrap histories as inputs.
+
+    A bootstrap state can be the final next_observation of an episode, with
+    no transition starting there. Use its predecessor for the remaining
+    fields in that case. A collator must not assume those fields describe a
+    real action taken from that final bootstrap state.
+    """
+    observations = _sequence_target_observation_histories(histories, horizons, length)
+    collate_observations = _observation_collator(pipeline)
+    if collate_observations is not None:
+        return collate_observations(_flatten_histories(observations))
+    targets = [
+        replace(transition, observation=observation)
+        for history, horizon, row in zip(histories, horizons, observations, strict=True)
+        for transition, observation in zip(
+            (history + horizon[1:] + horizon[-1:])[-length:], row, strict=True
+        )
+    ]
+    standard = _standard_collation(pipeline.collate(targets))
+    # Opaque collators do not supply TrainingBatch.observations either; match
+    # the fallback used for inputs by _collated_fields in batches.py.
+    return (
+        standard["observations"]
+        if standard is not None
+        else tree_collate(_flatten_histories(observations))
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _TargetSnapshot:
+    observations: list[Any]
+    transitions: list[Transition] | None
+    collate_observations: Callable[..., Any] | None
+
+
+def _snapshot_target_histories(  # noqa: PLR0913
+    hook: Callable[..., Any] | None,
+    histories: list[list[Transition]],
+    horizons: list[list[Transition]],
+    length: int,
+) -> _TargetSnapshot:
+    """Own only target inputs, keeping each occurrence isolated from user mutations."""
+    rows = _sequence_target_observation_histories(histories, horizons, length)
+    if hook is not None:
+        return _TargetSnapshot(
+            [tree_snapshot(item) for item in _flatten_histories(rows)], None, hook
+        )
+    transitions = [
+        _owned_transition(replace(transition, observation=observation))
+        for history, horizon, row in zip(histories, horizons, rows, strict=True)
+        for transition, observation in zip(
+            (history + horizon[1:] + horizon[-1:])[-length:], row, strict=True
+        )
+    ]
+    return _TargetSnapshot([item.observation for item in transitions], transitions, None)
+
+
+def _collate_target_snapshot(pipeline: Any, snapshot: _TargetSnapshot) -> Any:
+    if snapshot.collate_observations is not None:
+        return snapshot.collate_observations(snapshot.observations)
+    assert snapshot.transitions is not None
+    standard = _standard_collation(pipeline.collate(snapshot.transitions))
+    return standard["observations"] if standard is not None else tree_collate(snapshot.observations)

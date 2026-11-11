@@ -43,8 +43,14 @@ def finish_evaluation_batch(coordinator: Coordinator, summaries: list[dict[str, 
     _log_progress_bins(coordinator, stats)
     _log_evaluation_summary(coordinator, stats)
     candidate = candidate_from_stats(stats)
-    coordinator._record_evaluation_leaders(candidate)
     coordinator._record_evaluation_stop(stats)
+    coordinator._record_evaluation_leaders(candidate)
+
+
+def recover_evaluation_stop(coordinator: Coordinator, summaries: list[dict[str, Any]]) -> None:
+    """Reconstruct the early-stop decision without emitting replayed events."""
+    stats = _evaluation_batch_stats(summaries, coordinator._time_buckets)
+    record_evaluation_stop(coordinator, stats)
 
 
 def _log_progress_bins(coordinator: Coordinator, stats: Mapping[str, float]) -> None:
@@ -74,8 +80,14 @@ def record_evaluation_stop(coordinator: Coordinator, stats: Mapping[str, float])
     if target is None:
         return
     required_finish_rate, maximum_median_s, required_batches = target
-    passed = stats["finish_rate"] >= required_finish_rate
-    passed = passed and stats["finish_time_median_s"] <= maximum_median_s
+    finish_rate = stats["finish_rate"]
+    median_s = stats["finish_time_median_s"]
+    # A batch without finishes reports median 0.0 for display.  It cannot
+    # establish that the median time meets an early-stop target, even when
+    # the configured minimum finish rate is zero.
+    passed = isfinite(finish_rate) and 0.0 < finish_rate <= 1.0
+    passed = passed and finish_rate >= required_finish_rate
+    passed = passed and isfinite(median_s) and 0.0 < median_s <= maximum_median_s
     coordinator._consecutive_evaluation_passes = (
         coordinator._consecutive_evaluation_passes + 1 if passed else 0
     )
@@ -101,6 +113,8 @@ def _record_evaluation_stop(coordinator: Coordinator, stats: Mapping[str, float]
         f"finish_rate={stats['finish_rate']:.3f}, "
         f"median_finish_time_s={stats['finish_time_median_s']:.3f}"
     )
+    if getattr(coordinator, "_recovering", False):
+        return
     coordinator.run.logger.log(
         "train/early_stop",
         {

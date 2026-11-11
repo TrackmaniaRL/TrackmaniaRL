@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from copy import deepcopy
+from dataclasses import fields, is_dataclass
 from numbers import Number
+from types import MappingProxyType, MemberDescriptorType
 from typing import Any, Literal
 
 import numpy as np
@@ -101,8 +103,13 @@ def _collate_sequence(
 
 def _collate_mapping(values: Sequence[PyTree], first: Mapping[Any, Any]) -> PyTree:
     keys = tuple(first)
-    if not all(isinstance(value, Mapping) and tuple(value) == keys for value in values):
-        raise TypeError("Cannot collate mappings with different keys or key order")
+    if not all(
+        isinstance(value, Mapping)
+        and len(value) == len(first)
+        and all(key in value for key in keys)
+        for value in values
+    ):
+        raise TypeError("Cannot collate mappings with different keys")
     return {key: tree_collate([value[key] for value in values]) for key in keys}
 
 
@@ -117,6 +124,67 @@ def tree_snapshot(value: PyTree) -> PyTree:
         return deepcopy(leaf)
 
     return tree_map(snapshot, value)
+
+
+def policy_observation_snapshot(value: PyTree) -> PyTree:
+    """Isolate a policy's input while retaining its Python container types.
+
+    PyTorch cannot deepcopy non-leaf tensors. Seed deepcopy's memo with owned
+    tensor snapshots, then let deepcopy preserve custom mappings, namedtuples,
+    and shared references without converting them to generic containers.
+    """
+    memo: dict[int, Any] = {}
+    visited: set[int] = set()
+
+    def visit(item: Any) -> None:
+        identity = id(item)
+        if identity in visited:
+            return
+        visited.add(identity)
+        if isinstance(item, torch.Tensor):
+            memo[identity] = item.detach().clone()
+        elif isinstance(item, memoryview):
+            # memoryview does not support deepcopy. Keep element format and
+            # dimensions while giving the policy its own writable backing
+            # store (or a readonly view if the source is readonly).
+            copied = memoryview(np.array(item, copy=True, order="C"))
+            memo[identity] = copied.toreadonly() if item.readonly else copied
+        elif isinstance(item, MappingProxyType):
+            copied_mapping: dict[Any, Any] = {}
+            memo[identity] = MappingProxyType(copied_mapping)
+            for key, nested in item.items():
+                visit(key)
+                visit(nested)
+                copied_mapping[deepcopy(key, memo)] = deepcopy(nested, memo)
+        elif isinstance(item, Mapping):
+            for key, nested in item.items():
+                visit(key)
+                visit(nested)
+        elif isinstance(item, (tuple, list, set, frozenset)):
+            for nested in item:
+                visit(nested)
+        elif is_dataclass(item) and not isinstance(item, type):
+            for field in fields(item):
+                visit(getattr(item, field.name))
+        if not isinstance(item, (torch.Tensor, memoryview)) and (
+            hasattr(item, "__dict__") or hasattr(type(item), "__slots__")
+        ):
+            # Seed tensors nested in ordinary objects before deepcopy reaches
+            # them; non-leaf tensors otherwise reject deepcopy. Avoid walking
+            # arbitrary properties by looking only at real slot descriptors.
+            for nested in getattr(item, "__dict__", {}).values():
+                visit(nested)
+            for cls in type(item).__mro__:
+                for descriptor in vars(cls).values():
+                    if isinstance(descriptor, MemberDescriptorType):
+                        try:
+                            nested = descriptor.__get__(item, type(item))
+                        except AttributeError:
+                            continue
+                        visit(nested)
+
+    visit(value)
+    return deepcopy(value, memo)
 
 
 def sanitize_finite(value: PyTree) -> PyTree:

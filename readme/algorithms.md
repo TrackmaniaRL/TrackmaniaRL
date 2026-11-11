@@ -1,6 +1,6 @@
 # Algorithms
 
-This page describes the algorithm implementations in TrackmaniaRL 1.3.0 with
+This page describes the algorithm implementations in TrackmaniaRL 1.4.0 with
 RunSpec 2.0. It is a support contract, not a claim that a class reproduces every
 detail, hyperparameter, benchmark, or result from the paper whose name it uses.
 The paper links identify the closest primary reference.
@@ -28,7 +28,7 @@ SAC, REDQ and TQC use continuous gas, brake and steering. Stable discrete SAC
 uses the environment's 78-action table. Their generated feature pipeline is
 33-field telemetry. All RL families also have generated camera configurations
 named `run-ALGORITHM-vision.yaml`, with `q`, `qr`, `iqn`, `fqf`, `sac`, `redq`,
-`tqc`, `discrete-sac` and `ppo` as algorithm names. See the
+`tqc`, `sd-sac` and `ppo` as algorithm names. See the
 [camera vision guide](vision.md) for model factories and memory requirements.
 The default IQN project continues to use lidar features.
 

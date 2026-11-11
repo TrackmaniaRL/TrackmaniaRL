@@ -292,6 +292,37 @@ class OpenPlanetEnvironmentFactory:
         self.config = _resolve_environment_paths(parsed, Path(base_dir))
         self._controller = controller
 
+    def validate_scheduled_evaluation_map(self, evaluation_map: Any, pipeline: Any) -> None:
+        """Attest the already-loaded training map; this backend cannot switch maps."""
+        if (
+            type(self) is not OpenPlanetEnvironmentFactory
+            and "validate_scheduled_evaluation_map" not in type(self).__dict__
+        ):
+            raise ValueError("factory subclasses must explicitly attest their map binding")
+        from trackmaniarl.distributed.evaluation_contract import validate_pipeline_binding
+        from trackmaniarl.trackmania.reward_points import load_reward_asset
+
+        config = self.config
+        if (
+            not config.expected_map_uid
+            or config.expected_map_uid != evaluation_map.expected_map_uid
+        ):
+            raise ValueError("scheduled evaluation map UID differs from the training environment")
+        training = load_reward_asset(
+            config.geometry_path, config.reward_points_path, config.expected_map_uid
+        )
+        evaluated = load_reward_asset(
+            evaluation_map.geometry_path,
+            evaluation_map.reward_points_path,
+            evaluation_map.expected_map_uid,
+        )
+        if type(training) is not type(evaluated) or training.sha256 != evaluated.sha256:
+            raise ValueError(
+                "scheduled evaluation reward asset differs from the training environment"
+            )
+        evaluated.validate_map(evaluation_map.map_path)
+        validate_pipeline_binding(pipeline, evaluated, evaluation_map)
+
     def create(self, *, seed: int, evaluation_map: Any | None = None) -> OpenPlanetEnvironment:
         del seed
         controller = self._controller

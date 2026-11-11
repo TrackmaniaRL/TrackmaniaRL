@@ -10,7 +10,11 @@ from typing import Any
 
 import pytest
 
-from tests.integration.runtime.core_runtime_support import FakeEnvironment, runtime_spec
+from tests.integration.runtime.core_runtime_support import (
+    FakeEnvironment,
+    PpoFakeEnvironment,
+    runtime_spec,
+)
 from trackmaniarl.core.builtins import SmokeLearner
 from trackmaniarl.core.contracts import Policy
 from trackmaniarl.core.runtime import ResolvedRun, resolve_run
@@ -194,8 +198,8 @@ def test_ppo_stop_during_evaluation_preserves_checkpoint(
     evaluator = _StopDuringEvaluation(stop)
     run = replace(resolve_run(spec.model_copy(update={"training": training})), evaluator=evaluator)
     try:
-        with pytest.raises(EvaluationCancelledError, match="suite is incomplete"):
-            Trainer(run, stop_file=stop).train()
+        result = Trainer(run, stop_file=stop).train()
+        assert result.evaluation is None
         assert evaluator.checkpoint is not None
         assert evaluator.checkpoint.read_bytes() == evaluator.checkpoint_bytes
         state = run.checkpoint_codec.load(evaluator.checkpoint)
@@ -203,6 +207,8 @@ def test_ppo_stop_during_evaluation_preserves_checkpoint(
         assert state["counters"]["updates"] == expected_updates
         assert state["counters"]["transitions"] == expected_updates * 2
         assert "eval/suite" not in _event_names(run.run_dir)
+        assert "train/stopped" in _event_names(run.run_dir)
+        assert "run/failure" not in _event_names(run.run_dir)
     finally:
         run.logger.close()
 
@@ -307,3 +313,224 @@ def test_trainer_emits_run_failure_event(tmp_path: Path) -> None:
     assert sum(item["event"] == "run/failure" for item in events) == 1
     assert failure["payload"]["exception_type"] == "RuntimeError"
     assert failure["payload"]["message"] == "simulated environment failure"
+
+
+class _InterruptAfterFirstStep(FakeEnvironment):
+    def step(self, action: object) -> tuple[dict[str, float], float, bool, bool, dict[str, object]]:
+        if self.step_index == 1:
+            raise KeyboardInterrupt
+        return super().step(action)
+
+
+class _InterruptAfterFirstStepFactory:
+    def __init__(self) -> None:
+        self.created = 0
+
+    def create(self, *, seed: int) -> FakeEnvironment:
+        del seed
+        self.created += 1
+        return FakeEnvironment() if self.created == 1 else _InterruptAfterFirstStep()
+
+
+def test_local_resume_after_interrupt_during_episode(tmp_path: Path) -> None:
+    training = {
+        "total_transitions": 4,
+        "max_episode_steps": 2,
+        "batch_size": 1,
+        "warmup_transitions": 1,
+        "updates_per_transition": 1.0,
+        "checkpoint_interval_updates": 1,
+    }
+    spec = _trainer_spec(tmp_path, training, _FAKE_ENVIRONMENT)
+    resolved = resolve_run(spec)
+    interrupted = replace(resolved, environment_factory=_InterruptAfterFirstStepFactory())
+    checkpoint = interrupted.run_dir / "checkpoints" / "update-00000001.pt"
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            Trainer(interrupted).train()
+    finally:
+        interrupted.logger.close()
+    resumed = resolve_run(spec)
+    try:
+        result = Trainer(resumed, resume_checkpoint=checkpoint).train()
+    finally:
+        resumed.logger.close()
+    assert result.transitions == 4
+
+
+def test_local_interrupt_before_first_checkpoint_reports_no_resume(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    spec = _trainer_spec(tmp_path, _CHECKPOINT_TRAINING, _FAKE_ENVIRONMENT)
+    resolved = resolve_run(spec)
+    factory = _InterruptAfterFirstStepFactory()
+    factory.created = 1
+    interrupted = replace(resolved, environment_factory=factory)
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            Trainer(interrupted).train()
+    finally:
+        interrupted.logger.close()
+    assert not list((interrupted.run_dir / "checkpoints").glob("*.pt"))
+    output = capsys.readouterr().out
+    assert "no new checkpoint was saved" in output
+    assert "No previous checkpoint is known" in output
+
+
+def test_resume_consumes_update_credit_after_final_collection(tmp_path: Path) -> None:
+    training = {
+        "total_transitions": 2,
+        "max_episode_steps": 2,
+        "batch_size": 1,
+        "warmup_transitions": 1,
+        "updates_per_transition": 3.0,
+        "checkpoint_interval_updates": 1,
+    }
+    spec = _trainer_spec(tmp_path, training, _FAKE_ENVIRONMENT)
+    run = resolve_run(spec)
+    try:
+        original = Trainer(run).train()
+    finally:
+        run.logger.close()
+    checkpoint = run.run_dir / "checkpoints" / "update-00000001.pt"
+    stop_file = tmp_path / "stop"
+    stop_file.touch()
+    stopped = resolve_run(spec)
+    try:
+        stopped_result = Trainer(stopped, resume_checkpoint=checkpoint, stop_file=stop_file).train()
+    finally:
+        stopped.logger.close()
+    assert stopped_result.updates == 1
+    resumed = resolve_run(spec)
+    try:
+        result = Trainer(resumed, resume_checkpoint=checkpoint).train()
+    finally:
+        resumed.logger.close()
+    assert original.updates == 3
+    assert result.updates == original.updates
+
+
+def test_resume_consumes_credit_before_collecting_again(tmp_path: Path) -> None:
+    training = {
+        "total_transitions": 4,
+        "max_episode_steps": 2,
+        "batch_size": 1,
+        "warmup_transitions": 1,
+        "updates_per_transition": 3.0,
+        "checkpoint_interval_updates": 1,
+    }
+    spec = _trainer_spec(tmp_path, training, _FAKE_ENVIRONMENT)
+    run = resolve_run(spec)
+    _train_and_close(run)
+    checkpoint = run.run_dir / "checkpoints" / "update-00000001.pt"
+    resumed = resolve_run(spec)
+    seen_updates: list[int] = []
+
+    class _RecordingFactory:
+        def create(self, *, seed: int) -> FakeEnvironment:
+            del seed
+            seen_updates.append(int(resumed.learner.state_dict()["updates"]))
+            return FakeEnvironment()
+
+    resumed = replace(resumed, environment_factory=_RecordingFactory())
+    _train_and_close(resumed, checkpoint)
+    assert seen_updates[0] == 3
+
+
+class _InterruptPpoEnvironment(PpoFakeEnvironment):
+    def __init__(self) -> None:
+        super().__init__()
+        self.total_steps = 0
+
+    def step(self, action: object) -> tuple[Any, float, bool, bool, dict[str, object]]:
+        if self.total_steps == 3:
+            raise KeyboardInterrupt
+        self.total_steps += 1
+        return super().step(action)
+
+
+class _InterruptPpoFactory:
+    def create(self, *, seed: int) -> _InterruptPpoEnvironment:
+        del seed
+        return _InterruptPpoEnvironment()
+
+
+def test_on_policy_resume_uses_last_complete_checkpoint_after_interrupt(tmp_path: Path) -> None:
+    payload = _ppo_spec(tmp_path).model_dump(mode="json")
+    payload["training"]["checkpoint_interval_updates"] = 1
+    spec = RunSpec.model_validate(payload)
+    resolved = resolve_run(spec)
+    interrupted = replace(resolved, environment_factory=_InterruptPpoFactory())
+    checkpoint = interrupted.run_dir / "checkpoints" / "update-00000001.pt"
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            Trainer(interrupted).train()
+    finally:
+        interrupted.logger.close()
+    state = interrupted.checkpoint_codec.load(checkpoint)
+    assert state["counters"]["transitions"] == 2
+    resumed = resolve_run(spec)
+    try:
+        result = Trainer(resumed, resume_checkpoint=checkpoint).train()
+    finally:
+        resumed.logger.close()
+    assert result.transitions == 4
+
+
+def test_on_policy_resume_rejects_pending_updates_without_rollout(tmp_path: Path) -> None:
+    spec = _ppo_spec(tmp_path)
+    run = resolve_run(spec)
+    result = _train_and_close(run)
+    checkpoint = result.checkpoints[-1]
+    state = dict(run.checkpoint_codec.load(checkpoint))
+    state["counters"]["fractional_updates"] = 1.0
+    run.checkpoint_codec.save(state, checkpoint)
+    resumed = resolve_run(spec)
+    try:
+        with pytest.raises(ValueError, match="pending updates"):
+            Trainer(resumed, resume_checkpoint=checkpoint).train()
+    finally:
+        resumed.logger.close()
+
+
+@pytest.mark.parametrize("on_policy", [False, True])
+def test_interrupt_during_update_preserves_previous_checkpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, on_policy: bool
+) -> None:
+    if on_policy:
+        payload = _ppo_spec(tmp_path).model_dump(mode="json")
+        payload["training"]["checkpoint_interval_updates"] = 1
+        spec = RunSpec.model_validate(payload)
+    else:
+        training = {
+            "total_transitions": 4,
+            "max_episode_steps": 2,
+            "batch_size": 1,
+            "warmup_transitions": 1,
+            "updates_per_transition": 1.0,
+            "checkpoint_interval_updates": 1,
+        }
+        spec = _trainer_spec(tmp_path, training, _FAKE_ENVIRONMENT)
+    run = resolve_run(spec)
+    update = run.learner.update
+    calls = 0
+
+    def interrupted_update(batch: Any) -> Any:
+        nonlocal calls
+        result = update(batch)
+        calls += 1
+        if calls == 2:
+            raise KeyboardInterrupt
+        return result
+
+    monkeypatch.setattr(run.learner, "update", interrupted_update)
+    checkpoint = run.run_dir / "checkpoints" / "update-00000001.pt"
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            Trainer(run).train()
+    finally:
+        run.logger.close()
+    state = run.checkpoint_codec.load(checkpoint)
+    assert state["counters"]["updates"] == 1
+    assert state["counters"]["transitions"] == 2
+    assert _train_and_close(resolve_run(spec), checkpoint).transitions == 4

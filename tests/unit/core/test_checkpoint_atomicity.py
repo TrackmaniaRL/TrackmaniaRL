@@ -66,6 +66,23 @@ def test_json_save_failure_preserves_checkpoint_and_removes_partial_file(tmp_pat
 
 
 @pytest.mark.parametrize("codec", [JsonCheckpointCodec(), TorchCheckpointCodec()])
+def test_interrupt_before_replace_preserves_previous_checkpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, codec: Any
+) -> None:
+    target = tmp_path / "state.checkpoint"
+    codec.save({"updates": 7}, target)
+
+    def interrupt(source: Path, destination: Path) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(builtins.os, "replace", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        codec.save({"updates": 8}, target)
+    assert codec.load(target) == {"updates": 7}
+    assert list(tmp_path.iterdir()) == [target]
+
+
+@pytest.mark.parametrize("codec", [JsonCheckpointCodec(), TorchCheckpointCodec()])
 def test_overlapping_checkpoint_saves_publish_one_complete_state(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, codec: Any
 ) -> None:

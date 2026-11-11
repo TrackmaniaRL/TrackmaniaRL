@@ -29,6 +29,21 @@ _RELIABLE = EvaluationCheckpointKind.RELIABLE
 _FASTEST = EvaluationCheckpointKind.FASTEST
 
 
+@pytest.mark.parametrize("target_mean", [None, 40.0])
+def test_reliable_leader_requires_a_finished_trial(
+    tmp_path: Path, target_mean: float | None
+) -> None:
+    checkpoints: list[EvaluationCheckpointKind] = []
+    coordinator = _evaluation_coordinator(tmp_path, [], checkpoints)
+    coordinator.run.spec.evaluation.min_finish_rate = 0.0
+    coordinator.run.spec.evaluation.target_mean_s = target_mean
+    candidate = EvaluationCandidate(0.0, 0, 1, 0.0, 0.0, 0.0, 41)
+
+    record_evaluation_leaders(coordinator, candidate)
+
+    assert checkpoints == []
+
+
 class _PartialPromotionProbe:
     def __init__(self, directory: Path, coordinator: Any) -> None:
         self.directory = directory

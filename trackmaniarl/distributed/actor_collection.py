@@ -19,7 +19,7 @@ from trackmaniarl.core.observation_endpoints import (
     prepare_bootstrap_observation,
     validate_endpoint_step_limit,
 )
-from trackmaniarl.core.pytree import tree_map
+from trackmaniarl.core.pytree import policy_observation_snapshot, tree_map
 from trackmaniarl.distributed.actor_errors import ActorEnvironmentError
 from trackmaniarl.distributed.actor_metrics import EpisodeMetrics, summarize_episode
 from trackmaniarl.distributed.actor_protocols import CollectionRuntime
@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 _TELEMETRY_RESET_ATTEMPTS = 5
 _TELEMETRY_RETRY_INITIAL_S = 5.0
 _TELEMETRY_RETRY_MAX_S = 60.0
+_UNSET_OBSERVATION = object()
 
 
 @dataclass(slots=True)
@@ -38,9 +39,14 @@ class CollectionBuffers:
     summaries: list[dict[str, Any]] = field(default_factory=list)
     started: float = field(default_factory=monotonic)
 
-    def flush(self, runtime: CollectionRuntime, version: int) -> None:
-        runtime._spool(SpoolRequest(self.transitions, self.summaries, version))
-        self.transitions = []
+    def flush(self, runtime: CollectionRuntime, version: int, *, hold_last: bool = False) -> None:
+        # Keep the latest nonterminal transition until the next step or an
+        # episode boundary, so a concurrent stop can close it as a truncation.
+        count = max(0, len(self.transitions) - int(hold_last))
+        if not count and not self.summaries:
+            return
+        runtime._spool(SpoolRequest(self.transitions[:count], self.summaries, version))
+        self.transitions = self.transitions[count:]
         self.summaries = []
         self.started = monotonic()
 
@@ -76,6 +82,7 @@ class PolicyStep:
     info: Mapping[str, Any]
     inference_s: float
     environment_s: float = 0.0
+    current_observation: Any = _UNSET_OBSERVATION
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,7 +133,7 @@ def _prewarm_initial_policy(context: CollectionContext) -> bool:
     reset_policy(policy)
     try:
         prepared = context.pipeline.transform_observation(observation)
-        policy.act(prepared, PolicyMode.EVALUATION)
+        policy.act(policy_observation_snapshot(prepared), PolicyMode.EVALUATION)
     finally:
         reset_pipeline(context.pipeline)
         reset_policy(policy)
@@ -185,9 +192,13 @@ def _take_training_step(
     started = monotonic()
     action, policy_info = _sample_policy(state.policy, state.prepared)
     inference_s = monotonic() - started
+    current_observation = snapshot_observation(state.prepared)
+    recorded_action = snapshot_observation(action)
+    policy_info = snapshot_observation(policy_info)
     started = monotonic()
     next_observation, reward, terminated, truncated, info = _step_environment(context, action)
     environment_s = monotonic() - started
+    info = snapshot_observation(info)
     final_step = step_index == context.runtime.spec.training.max_episode_steps - 1
     if (
         final_step
@@ -198,7 +209,7 @@ def _take_training_step(
         raise ActorEnvironmentError("environment endpoint required before actor step limit")
     return PolicyStep(
         step_index,
-        action,
+        recorded_action,
         policy_info,
         next_observation,
         float(reward),
@@ -207,6 +218,7 @@ def _take_training_step(
         cast(Mapping[str, Any], info),
         inference_s,
         environment_s,
+        current_observation,
     )
 
 
@@ -217,6 +229,7 @@ def _step_environment(context: CollectionContext, action: Any) -> Any:
 
 
 def _sample_policy(policy: ReplicablePolicy, observation: Any) -> tuple[Any, Mapping[str, Any]]:
+    observation = policy_observation_snapshot(observation)
     sample = getattr(policy, "act_with_info", None)
     if not callable(sample):
         return policy.act(observation), {}
@@ -245,7 +258,7 @@ def _record_training_step(
     state.steps = step.index + 1
     metrics.record_reward(step.reward, step.info)
     if context.runtime._should_flush(context.buffers.transitions, context.buffers.started):
-        context.buffers.flush(context.runtime, state.version)
+        context.buffers.flush(context.runtime, state.version, hold_last=True)
     metrics.record_phase("bookkeeping", monotonic() - started)
 
 
@@ -255,7 +268,11 @@ def _transition(
     next_prepared: Any,
 ) -> Transition:
     return Transition(
-        observation=snapshot_observation(state.prepared),
+        observation=(
+            snapshot_observation(state.prepared)
+            if step.current_observation is _UNSET_OBSERVATION
+            else step.current_observation
+        ),
         action=step.action,
         reward=step.reward,
         next_observation=snapshot_observation(next_prepared),
@@ -316,6 +333,10 @@ def _truncate_interrupted_rollout(
 
 
 def _finish_training_episode(context: CollectionContext, state: TrainingEpisode) -> None:
+    if context.runtime.stop.is_set() and context.buffers.transitions:
+        last = context.buffers.transitions[-1]
+        if not last.terminated and not last.truncated:
+            _truncate_interrupted_rollout(context.buffers, reason="actor_shutdown")
     info = state.metrics.summary_info(state.epsilon, state.version, state.steps)
     summary = {
         **context.runtime._summary(state.metrics.total_reward, info, state.steps),

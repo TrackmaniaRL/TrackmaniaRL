@@ -85,15 +85,22 @@ class _PpoPolicy:
         return {
             **{f"actor.{key}": value for key, value in self.actor.state_dict().items()},
             **{f"value.{key}": value for key, value in self.value.state_dict().items()},
+            "observation_normalizer": deepcopy(self.observation_normalizer.state_dict()),
         }
 
     def load_state(self, state: Mapping[str, Any]) -> None:
         expected = {
             *(f"actor.{key}" for key in self.actor.state_dict()),
             *(f"value.{key}" for key in self.value.state_dict()),
+            "observation_normalizer",
         }
         if set(state) != expected:
             raise ValueError("PPO policy state does not match the actor-value model")
+        normalizer_state = state["observation_normalizer"]
+        if not isinstance(normalizer_state, Mapping):
+            raise ValueError("PPO policy observation normalizer state must be a mapping")
+        normalizer = deepcopy(self.observation_normalizer)
+        normalizer.load_state_dict(deepcopy(normalizer_state))
         actor = {
             key.removeprefix("actor."): value
             for key, value in state.items()
@@ -106,6 +113,7 @@ class _PpoPolicy:
         }
         self.actor.load_state_dict(actor)
         self.value.load_state_dict(value)
+        self.observation_normalizer = normalizer
 
 
 class ProximalPolicyOptimization(TorchLearnerBase):

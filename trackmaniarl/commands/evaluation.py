@@ -31,6 +31,7 @@ class _BenchmarkArtifact:
 class _BenchmarkGate:
     trials: int
     completed: int
+    finish_times_valid: bool
     required: int
     median_s: float
     mean_s: float | None
@@ -201,9 +202,14 @@ def _benchmark_gate(
 ) -> _BenchmarkGate:
     trial_count = len(trials)
     maximum_step_ms, runtime_trials_valid = _runtime_trial_statistics(trials)
+    completed = _completed_trials(trials)
     return _BenchmarkGate(
         trials=trial_count,
-        completed=len(_completed_trials(trials)),
+        completed=len(completed),
+        finish_times_valid=bool(completed)
+        and all(
+            _positive_finite_number(trial.get("finish_time_s")) is not None for trial in completed
+        ),
         required=ceil(evaluation.min_finish_rate * trial_count),
         median_s=float(metrics["eval/median_finish_time_s"]),
         mean_s=_gated_metric(metrics, "eval/finish_time_s", evaluation.target_mean_s),
@@ -261,7 +267,10 @@ def _nonnegative_integer(value: object) -> bool:
 def _benchmark_gate_passed(gate: _BenchmarkGate) -> bool:
     evaluation = gate.evaluation
     mean_ok = evaluation.target_mean_s is None or (
-        gate.mean_s is not None and gate.mean_s < evaluation.target_mean_s
+        gate.finish_times_valid
+        and _positive_finite_number(gate.mean_s) is not None
+        and gate.mean_s is not None
+        and gate.mean_s < evaluation.target_mean_s
     )
     runtime_ok = evaluation.max_step_race_time_ms is None or (
         gate.runtime_trials_valid
@@ -269,8 +278,16 @@ def _benchmark_gate_passed(gate: _BenchmarkGate) -> bool:
         and 0.0 < gate.maximum_step_ms <= evaluation.max_step_race_time_ms
     )
     telemetry_ok = not evaluation.reject_telemetry_skips or gate.skipped_telemetry_trials == 0
-    median_ok = evaluation.target_median_s is None or gate.median_s < evaluation.target_median_s
-    finishes_ok = gate.trials > 0 and gate.completed >= gate.required
+    median_ok = evaluation.target_median_s is None or (
+        gate.finish_times_valid
+        and _positive_finite_number(gate.median_s) is not None
+        and gate.median_s < evaluation.target_median_s
+    )
+    finishes_ok = (
+        gate.trials > 0
+        and gate.completed >= gate.required
+        and (gate.completed == 0 or gate.finish_times_valid)
+    )
     return finishes_ok and median_ok and mean_ok and runtime_ok and telemetry_ok
 
 
@@ -311,7 +328,7 @@ def _runtime_requirement(evaluation: EvaluationSuiteSpec) -> str:
 def _telemetry_skip_requirement(gate: _BenchmarkGate) -> str:
     if not gate.evaluation.reject_telemetry_skips:
         return ""
-    return "zero skipped telemetry frames in every trial, "
+    return "zero skipped telemetry frames with complete measurements in every trial, "
 
 
 def _median_requirement(evaluation: EvaluationSuiteSpec) -> str:
@@ -328,8 +345,22 @@ def _telemetry_skipped_trials(trials: list[dict[str, Any]]) -> list[dict[str, An
 
 
 def _skipped_telemetry_frames(trial: dict[str, Any]) -> int:
-    value = trial.get("telemetry_skipped_frames_total", 0)
-    return int(value) if isinstance(value, int | float) else 1
+    steps = trial.get("steps")
+    count = trial.get("telemetry_skipped_frames_measurement_count")
+    value = trial.get("telemetry_skipped_frames_total")
+    if not (
+        _positive_integer(steps)
+        and _nonnegative_integer(count)
+        and count == steps
+        and trial.get("telemetry_skipped_frames_measurements_valid") is True
+        and not isinstance(value, bool)
+        and isinstance(value, int | float)
+        and isfinite(value)
+        and value >= 0
+        and value % 1 == 0
+    ):
+        return 1
+    return int(value)
 
 
 def _has_runtime_errors(trials: list[dict[str, Any]]) -> bool:

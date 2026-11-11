@@ -70,6 +70,38 @@ def test_single_actor_keeps_exact_q_diagnostics_and_reset_semantics() -> None:
     assert adapter.serial_recheck_count == 0
 
 
+def test_q_diagnostics_use_only_available_actions() -> None:
+    policy = _policy()
+    policy.policy_action_ids = (5,)
+    policy.act(_observations(1)[0], PolicyMode.EVALUATION)
+    assert policy.last_q_max is not None
+    assert policy.last_q_margin is None
+
+    policy.policy_action_ids = (1, 5)
+    policy.act(_observations(1)[0], PolicyMode.EVALUATION)
+    assert policy.last_q_max is not None
+    assert policy.last_q_margin is not None
+    assert policy.last_q_margin >= 0
+
+
+@pytest.mark.parametrize(
+    ("values", "maximum", "margin"),
+    [
+        ([3.0, 1.0, float("-inf")], 3.0, 2.0),
+        ([0.0, 0.0], 0.0, 0.0),
+        ([2.0], 2.0, None),
+        ([float("nan"), 1.0], None, None),
+    ],
+)
+def test_q_diagnostics_distinguish_missing_and_zero(
+    values: list[float], maximum: float | None, margin: float | None
+) -> None:
+    policy = _policy()
+    policy._record_gap(torch.tensor([values]))
+    assert policy.last_q_max == maximum
+    assert policy.last_q_margin == margin
+
+
 @pytest.mark.parametrize("choices", [(5,), (1, 0, 77)])
 def test_action_mask_preserves_rng_and_valid_actions(choices: tuple[int, ...]) -> None:
     serial = _policy()

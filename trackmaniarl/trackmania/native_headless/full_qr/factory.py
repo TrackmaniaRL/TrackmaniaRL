@@ -17,7 +17,7 @@ from typing import Any, cast
 from uuid import uuid4
 
 from trackmaniarl.core.runtime import import_symbol
-from trackmaniarl.core.spec import ComponentSpec
+from trackmaniarl.core.spec import ComponentSpec, EvaluationMapSpec
 from trackmaniarl.trackmania.geometry import BoundaryGeometry
 from trackmaniarl.trackmania.native_headless.assets import (
     VerifiedAssets,
@@ -38,6 +38,7 @@ from trackmaniarl.trackmania.native_headless.full_qr.native_provider import (
     NativeFullQrProviderSettings,
 )
 from trackmaniarl.trackmania.native_headless.full_qr.profile import ASSET_SCHEMA, PROFILE, PROTOCOL
+from trackmaniarl.trackmania.native_headless.full_qr.reward_reference import load_reward_reference
 from trackmaniarl.trackmania.native_headless.full_qr.trace_retention import (
     ClosedTraceRetention,
     TraceRetentionSettings,
@@ -114,6 +115,8 @@ class FullQrEnvironmentFactory:
         self._geometry_path = Path(config["geometry_path"])
         self._map_uid = str(config["expected_map_uid"])
         self._reward = RewardConfig(**config["reward"])
+        reference = config.get("reward_reference")
+        self._reward_reference = None if reference is None else dict(reference)
         self._archive_root = Path(config["trace_archive_root"])
         if (
             not self._archive_root.is_absolute()
@@ -135,12 +138,47 @@ class FullQrEnvironmentFactory:
         if self._reward.maximum_race_time_s != 150:
             raise ValueError("full QR requires the historical150s reward horizon")
 
-    def create(self, *, seed: int) -> FullQrEnvironment:
+    def validate_scheduled_evaluation_map(self, evaluation_map: Any, pipeline: Any) -> None:
+        """Attest the immutable map used by this native runtime."""
+        if (
+            type(self) is not FullQrEnvironmentFactory
+            and "validate_scheduled_evaluation_map" not in type(self).__dict__
+        ):
+            raise ValueError("factory subclasses must explicitly attest their map binding")
+        from trackmaniarl.distributed.evaluation_contract import validate_pipeline_binding
+
+        if (
+            evaluation_map.expected_map_uid != self._map_uid
+            or evaluation_map.geometry_path is None
+            or evaluation_map.geometry_path.resolve() != self._geometry_path.resolve()
+        ):
+            raise ValueError("native scheduled evaluation requires the pinned map and geometry")
+        geometry = BoundaryGeometry(self._geometry_path, expected_map_uid=self._map_uid)
+        if not geometry.map_sha256:
+            raise ValueError("native scheduled evaluation requires a source map checksum")
+        geometry.validate_map(evaluation_map.map_path)
+        verified = verify_bound_assets(self._runtime, self._manifest_sha)
+        geometry.validate_map(verified.paths["map"])
+        validate_pipeline_binding(pipeline, geometry, evaluation_map)
+        self._validate_native_pipeline_binding(self._create_pipeline(), geometry, evaluation_map)
+        self._scheduled_evaluation_map = evaluation_map
+
+    def create(
+        self, *, seed: int, evaluation_map: EvaluationMapSpec | None = None
+    ) -> FullQrEnvironment:
         if isinstance(seed, bool) or not isinstance(seed, Integral):
             raise ValueError("seed must be an integer")
         geometry = BoundaryGeometry(self._geometry_path)
         if geometry.map_uid != self._map_uid or not geometry.map_sha256:
             raise ValueError("the historical map UID and source geometry checksum are required")
+        if evaluation_map is not None:
+            if (
+                evaluation_map.expected_map_uid != self._map_uid
+                or evaluation_map.geometry_path is None
+                or evaluation_map.geometry_path.resolve() != self._geometry_path.resolve()
+            ):
+                raise ValueError("native evaluation requires the pinned map and geometry")
+            geometry.validate_map(evaluation_map.map_path)
         lease = "full-qr-" + uuid4().hex
         settings = replace(
             self._runtime,
@@ -150,6 +188,9 @@ class FullQrEnvironmentFactory:
         assets = verify_bound_assets(settings, self._manifest_sha)
         geometry.validate_map(assets.paths["map"])
         pipeline = self._create_pipeline()
+        scheduled_map = getattr(self, "_scheduled_evaluation_map", None)
+        if scheduled_map is not None:
+            self._validate_native_pipeline_binding(pipeline, geometry, scheduled_map)
         retention = ClosedTraceRetention(
             TraceRetentionSettings(
                 trace_parent=settings.trace_dir,
@@ -166,20 +207,38 @@ class FullQrEnvironmentFactory:
             self._driver_episode_limit,
             self._episode_reserve,
         )
-        environment_settings = FullQrEnvironmentSettings(
-            geometry.reward_center, self._reward, lease
+        trajectory = (
+            geometry.reward_center
+            if self._reward_reference is None
+            else load_reward_reference(
+                self._reward_reference, map_uid=geometry.map_uid, map_sha256=geometry.map_sha256
+            )
         )
+        environment_settings = FullQrEnvironmentSettings(trajectory, self._reward, lease)
         events = self._source_class(**self._source_kwargs)
         provider = None
         try:
-            provider = NativeFullQrProvider(provider_settings, events)
-            return FullQrEnvironment(provider, pipeline, environment_settings)
+            provider = self._create_provider(provider_settings, events)
+            return self._create_environment(provider, pipeline, environment_settings)
         except BaseException as error:
             try:
                 (events if provider is None else provider).close()
             except BaseException as cleanup_error:
                 error.add_note(f"Closing the native event source also failed: {cleanup_error!r}")
             raise
+
+    def _create_provider(
+        self, settings: NativeFullQrProviderSettings, events: Any
+    ) -> NativeFullQrProvider:
+        return NativeFullQrProvider(settings, events)
+
+    def _create_environment(
+        self,
+        provider: NativeFullQrProvider,
+        pipeline: NativeObservationPipeline,
+        settings: FullQrEnvironmentSettings,
+    ) -> FullQrEnvironment:
+        return FullQrEnvironment(provider, pipeline, settings)
 
     def _create_pipeline(self) -> NativeObservationPipeline:
         if self._pipeline_spec is None:
@@ -194,3 +253,22 @@ class FullQrEnvironmentFactory:
         if not all(callable(getattr(component, name, None)) for name in methods):
             raise TypeError("native observation pipeline must handle reset and all frame forms")
         return cast(NativeObservationPipeline, component)
+
+    @staticmethod
+    def _validate_native_pipeline_binding(
+        pipeline: NativeObservationPipeline, geometry: BoundaryGeometry, evaluation_map: Any
+    ) -> None:
+        from trackmaniarl.trackmania.native_headless.vision import NativeSchematicVisionPipeline
+
+        if type(pipeline) in (NativeGraphFeaturePipeline, NativeSchematicVisionPipeline):
+            pipeline_geometry = pipeline.geometry  # type: ignore[attr-defined]
+            if (
+                pipeline_geometry.map_uid != geometry.map_uid
+                or pipeline_geometry.sha256 != geometry.sha256
+            ):
+                raise ValueError("native observation pipeline geometry differs from the pinned map")
+            return
+        validate = getattr(pipeline, "validate_scheduled_evaluation_map", None)
+        if not callable(validate):
+            raise ValueError("native observation pipeline must attest its scheduled evaluation map")
+        validate(evaluation_map)

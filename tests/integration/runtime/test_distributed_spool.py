@@ -6,6 +6,7 @@ import threading
 from collections.abc import Mapping
 from pathlib import Path
 from queue import Queue
+from types import SimpleNamespace
 from typing import Any, cast
 
 import grpc
@@ -19,6 +20,7 @@ from trackmaniarl.distributed.actor import (
     ActorBackgroundError,
     ActorRuntime,
 )
+from trackmaniarl.distributed.actor_requests import SpoolRequest
 from trackmaniarl.distributed.codec import (
     WireCodec,
 )
@@ -53,11 +55,53 @@ def test_actor_recovers_valid_numeric_temporary_without_overwriting_spool(
     assert existing.read_bytes() == existing_payload
     assert recovered.read_bytes() == orphan_payload
     assert not orphan.exists()
-    assert invalid.read_bytes() == b"incomplete"
-    assert actor._scan_spool_bytes() == sum(
-        path.stat().st_size for path in (existing, recovered, invalid)
-    )
+    assert not invalid.exists()
+    quarantined = list(tmp_path.glob("00000000000000000002.*.invalid"))
+    assert len(quarantined) == 1
+    assert quarantined[0].read_bytes() == b"incomplete"
+    assert actor._scan_spool_bytes() == sum(path.stat().st_size for path in (existing, recovered))
     assert actor._next_sequence() == 4
+
+
+def test_stopping_actor_persists_final_buffer_even_when_spool_is_full(tmp_path: Path) -> None:
+    actor = object.__new__(ActorRuntime)
+    actor.actor_id = "actor"
+    actor.session_id = "session"
+    actor.fingerprint = "fingerprint"
+    actor.spool_dir = tmp_path
+    actor.codec = WireCodec(1024 * 1024)
+    actor.spec = SimpleNamespace(distributed=SimpleNamespace(spool_max_bytes=1024))
+    actor.stop = threading.Event()
+    actor.stop.set()
+    actor.queue = Queue()
+    actor.sequence = 0
+    actor._spool_lock = threading.Lock()
+    actor._spool_bytes_total = 1024
+
+    actor._spool(SpoolRequest([], [{"episode_id": "last"}], 0))
+
+    path = actor.queue.get_nowait()
+    assert actor.codec.decode(path.read_bytes())["episodes"] == [{"episode_id": "last"}]
+
+
+def test_sender_waits_for_final_collection_after_stop(tmp_path: Path) -> None:
+    codec = WireCodec(1024 * 1024)
+    path = tmp_path / "00000000000000000000.rollout"
+    path.write_bytes(codec.encode({"sequence": 0, "identity": "durable-rollout"}))
+    stop = threading.Event()
+    actor = _sender_actor(path, codec, _AcknowledgingClient(path, stop))
+    actor.queue.get_nowait()
+    actor.collection_done = threading.Event()
+    stop.set()
+    worker = threading.Thread(target=actor._sender_loop)
+    worker.start()
+    actor.queue.put(path)
+    actor.collection_done.set()
+    worker.join(3)
+
+    assert not worker.is_alive()
+    assert actor.client.calls == 1
+    assert not path.exists()
 
 
 def _patch_durability_calls(monkeypatch: pytest.MonkeyPatch, path: Path, events: list[str]) -> None:
@@ -203,4 +247,19 @@ def test_actor_sender_retries_transient_rpc_but_preserves_spool_on_permanent_rpc
     assert path.exists()
     assert actor._spool_bytes_total == path.stat().st_size
     with pytest.raises(ActorBackgroundError, match="rollout sender failed"):
+        actor._raise_background_failure()
+
+
+def test_failed_shutdown_submission_is_reported_and_spool_is_preserved(tmp_path: Path) -> None:
+    codec = WireCodec(1024 * 1024)
+    path = tmp_path / "00000000000000000000.rollout"
+    path.write_bytes(codec.encode({"sequence": 0}))
+    client = _FailingSubmitClient()
+    client.stop.set()
+    actor = _sender_actor(path, codec, cast(Any, client))
+
+    actor._sender_loop()
+
+    assert path.exists()
+    with pytest.raises(ActorBackgroundError, match="could not drain rollout"):
         actor._raise_background_failure()

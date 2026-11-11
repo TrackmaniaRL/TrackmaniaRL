@@ -19,7 +19,7 @@ from tests.integration.runtime.distributed_runtime_support import (
     _SlowLearner,
     _spawn_probe,
 )
-from trackmaniarl.distributed import coordinator_metrics
+from trackmaniarl.distributed import coordinator_checkpoint, coordinator_metrics
 from trackmaniarl.distributed.actor_transport import Client
 from trackmaniarl.distributed.coordinator import Coordinator
 from trackmaniarl.distributed.coordinator_support import _Counters
@@ -87,6 +87,141 @@ def _restore_run(parts: _RestoreParts) -> SimpleNamespace:
         sampler=parts.sampler,
         checkpoint_codec=SimpleNamespace(load=lambda _: parts.checkpoint),
     )
+
+
+def test_restore_preserves_evaluation_stop_progress(tmp_path: Path) -> None:
+    case = _restore_case(tmp_path)
+    checkpoint = case.coordinator.run.checkpoint_codec.load(tmp_path / "checkpoint.pt")
+    checkpoint["distributed"]["consecutive_evaluation_passes"] = 1
+    checkpoint["distributed"]["evaluation_stop_reason"] = None
+    try:
+        case.coordinator.restore_checkpoint(tmp_path / "checkpoint.pt")
+        assert case.coordinator._consecutive_evaluation_passes == 1
+        assert case.coordinator._evaluation_stop_reason is None
+        saved = coordinator_checkpoint._distributed_state(case.coordinator)
+        assert saved["consecutive_evaluation_passes"] == 1
+    finally:
+        case.coordinator._close_runtime()
+
+
+def test_legacy_evaluated_checkpoint_rejects_full_resume(tmp_path: Path) -> None:
+    case = _restore_case(tmp_path)
+    checkpoint = case.coordinator.run.checkpoint_codec.load(tmp_path / "checkpoint.pt")
+    checkpoint["evaluated_policy_version"] = 5
+    try:
+        with pytest.raises(ValueError, match="lacks full training state"):
+            case.coordinator.restore_checkpoint(tmp_path / "checkpoint.pt")
+        case.coordinator.restore_checkpoint(
+            tmp_path / "checkpoint.pt", ReplayRestoreMode.LEARNER_ONLY
+        )
+        assert case.learner.value == 7
+    finally:
+        case.coordinator._close_runtime()
+
+
+def test_legacy_checkpoint_with_early_stop_rejects_exact_resume_before_mutation(
+    tmp_path: Path,
+) -> None:
+    case = _restore_case(tmp_path)
+    case.coordinator.run.spec.training = SimpleNamespace(evaluation_stop_min_finish_rate=0.9)
+    try:
+        with pytest.raises(ValueError, match="lacks evaluation-stop progress"):
+            case.coordinator.restore_checkpoint(tmp_path / "checkpoint.pt")
+        assert case.learner.value == 0
+        assert case.replay.restored is None
+        assert case.sampler.restored is None
+        case.coordinator.restore_checkpoint(
+            tmp_path / "checkpoint.pt", ReplayRestoreMode.LEARNER_ONLY
+        )
+        assert case.learner.value == 7
+    finally:
+        case.coordinator._close_runtime()
+
+
+@pytest.mark.parametrize("reason_present", [0, 1])
+def test_restore_rejects_missing_or_inconsistent_early_stop_reason(
+    tmp_path: Path, reason_present: int
+) -> None:
+    case = _restore_case(tmp_path)
+    case.coordinator.run.spec.training = SimpleNamespace(
+        evaluation_stop_min_finish_rate=0.9, evaluation_stop_consecutive_batches=2
+    )
+    checkpoint = case.coordinator.run.checkpoint_codec.load(tmp_path / "checkpoint.pt")
+    checkpoint["distributed"]["consecutive_evaluation_passes"] = 2
+    if reason_present:
+        checkpoint["distributed"]["evaluation_stop_reason"] = None
+    try:
+        with pytest.raises(ValueError, match=r"evaluation.stop|evaluation stop"):
+            case.coordinator.restore_checkpoint(tmp_path / "checkpoint.pt")
+        assert case.learner.value == 0
+        assert case.replay.restored is None
+    finally:
+        case.coordinator._close_runtime()
+
+
+def test_restore_accepts_stop_reason_after_later_failed_drain_batch(tmp_path: Path) -> None:
+    case = _restore_case(tmp_path)
+    case.coordinator.run.spec.training = SimpleNamespace(
+        evaluation_stop_min_finish_rate=0.9, evaluation_stop_consecutive_batches=2
+    )
+    checkpoint = case.coordinator.run.checkpoint_codec.load(tmp_path / "checkpoint.pt")
+    checkpoint["distributed"]["consecutive_evaluation_passes"] = 0
+    checkpoint["distributed"]["evaluation_stop_reason"] = "evaluation target passed"
+    try:
+        case.coordinator.restore_checkpoint(tmp_path / "checkpoint.pt")
+        assert case.coordinator._evaluation_stop_reason == "evaluation target passed"
+        assert case.coordinator._consecutive_evaluation_passes == 0
+    finally:
+        case.coordinator._close_runtime()
+
+
+def test_recovery_replays_evaluation_stop_without_duplicate_events(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tests.integration.runtime.distributed_evaluation_support import _finished_evaluation
+    from tests.integration.runtime.distributed_runtime_support import _Logger
+    from tests.integration.runtime.test_distributed_submission import _base_payload
+    from trackmaniarl.distributed import coordinator_leaders
+
+    case = _restore_case(tmp_path)
+    coordinator = case.coordinator
+    checkpoint = coordinator.run.checkpoint_codec.load(tmp_path / "checkpoint.pt")
+    checkpoint["distributed"]["consecutive_evaluation_passes"] = 1
+    checkpoint["distributed"]["evaluation_stop_reason"] = None
+    coordinator.run.spec.training = SimpleNamespace(
+        warmup_transitions=10,
+        updates_per_transition=1.0,
+        evaluation_stop_min_finish_rate=0.9,
+        evaluation_stop_median_s=40.0,
+        evaluation_stop_consecutive_batches=2,
+    )
+    coordinator.run.logger = _Logger()
+    monkeypatch.setattr(coordinator_leaders, "record_evaluation_leaders", lambda *a, **k: None)
+    payload = _base_payload(0)
+    payload["evaluations"] = [_finished_evaluation(36.0)]
+    payload["evaluation_snapshot"] = coordinator.codec.encode({"model": {}})
+    coordinator.journal.append("session", 0, coordinator.codec.encode(payload))
+    try:
+        coordinator.restore_checkpoint(tmp_path / "checkpoint.pt")
+        assert coordinator._consecutive_evaluation_passes == 2
+        assert coordinator._evaluation_stop_reason is not None
+        assert coordinator.counters.evaluations == 1
+        assert "eval/summary" not in coordinator.run.logger.events
+        assert "train/early_stop" not in coordinator.run.logger.events
+    finally:
+        coordinator._close_runtime()
+
+
+@pytest.mark.parametrize("passes", [-1, True, 1.5])
+def test_restore_rejects_invalid_evaluation_stop_progress(tmp_path: Path, passes: object) -> None:
+    case = _restore_case(tmp_path)
+    checkpoint = case.coordinator.run.checkpoint_codec.load(tmp_path / "checkpoint.pt")
+    checkpoint["distributed"]["consecutive_evaluation_passes"] = passes
+    try:
+        with pytest.raises(ValueError, match="consecutive evaluation passes"):
+            case.coordinator.restore_checkpoint(tmp_path / "checkpoint.pt")
+    finally:
+        case.coordinator._close_runtime()
 
 
 def test_windows_compatible_spawn_entrypoint() -> None:
@@ -171,6 +306,50 @@ def test_coordinator_accepts_checkpoint_without_evaluation_leaders(tmp_path: Pat
 
     assert case.coordinator._best_evaluation is None
     assert case.coordinator._fastest_evaluation is None
+
+
+def test_coordinator_fingerprint_manifest_reports_source_changes(tmp_path: Path) -> None:
+    case = _restore_case(tmp_path)
+    checkpoint = case.coordinator.run.checkpoint_codec.load(tmp_path / "checkpoint.pt")
+    checkpoint["run_fingerprint"] = "different"
+    checkpoint["fingerprint_manifest"] = {
+        "version": 1,
+        "sections": {"training": "same"},
+        "sources": {"algorithms/sac.py": "old"},
+    }
+    case.coordinator._fingerprint_manifest = {
+        "version": 1,
+        "sections": {"training": "same"},
+        "sources": {"algorithms/sac.py": "new"},
+    }
+    try:
+        with pytest.raises(ValueError, match=r"source:algorithms/sac\.py"):
+            case.coordinator.restore_checkpoint(tmp_path / "checkpoint.pt")
+    finally:
+        case.coordinator._close_runtime()
+
+
+def test_unavailable_optional_fingerprint_manifest_does_not_block_checkpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    case = _restore_case(tmp_path)
+    case.coordinator.fingerprint = "a" * 64
+    case.coordinator.run.base_dir = tmp_path
+
+    def unavailable(*args: Any) -> Any:
+        raise OSError("sensitive path")
+
+    monkeypatch.setattr(coordinator_checkpoint, "fingerprint_details", unavailable)
+    try:
+        assert coordinator_checkpoint._coordinator_fingerprint_manifest(case.coordinator) is None
+        checkpoint = case.coordinator.run.checkpoint_codec.load(tmp_path / "checkpoint.pt")
+        checkpoint["run_fingerprint"] = "other"
+        with pytest.raises(ValueError, match="run fingerprint mismatch"):
+            case.coordinator.restore_checkpoint(tmp_path / "checkpoint.pt")
+        assert "Unable to compute optional fingerprint diagnostics" in caplog.text
+        assert "sensitive path" not in caplog.text
+    finally:
+        case.coordinator._close_runtime()
 
 
 @pytest.mark.parametrize("invalid_rank", [(1.0, "-38.0", 0.8), (1.0, True, 0.8)])

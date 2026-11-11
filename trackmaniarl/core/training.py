@@ -9,7 +9,18 @@ from typing import Any
 from trackmaniarl.core.checkpoint_milestones import CheckpointProgress, preserve_milestones
 from trackmaniarl.core.checkpoints import prune_checkpoint_family
 from trackmaniarl.core.data import PriorityUpdate
-from trackmaniarl.core.fingerprint import run_fingerprint
+from trackmaniarl.core.evaluation_checkpoint import (
+    EvaluationReceipt,
+    EvaluationReceiptCheck,
+    checkpoint_digest,
+    create_evaluation_snapshot,
+    create_evaluation_snapshot_with,
+    evaluation_completed,
+    prune_evaluation_snapshots,
+    receipt_path,
+    record_evaluation,
+)
+from trackmaniarl.core.fingerprint import fingerprint_details, fingerprint_mismatch_details
 from trackmaniarl.core.runtime import ResolvedRun
 from trackmaniarl.core.training_loop import run_training
 from trackmaniarl.core.training_support import (
@@ -47,8 +58,9 @@ class Trainer:
         self.environment_factory = run.environment_factory
         self.resume_checkpoint = Path(resume_checkpoint) if resume_checkpoint is not None else None
         self.stop_file = Path(stop_file) if stop_file is not None else None
-        self.fingerprint = run_fingerprint(run.spec, run.base_dir)
+        self.fingerprint, self.fingerprint_manifest = fingerprint_details(run.spec, run.base_dir)
         self.on_policy = bool(getattr(run.learner, "on_policy", False))
+        self._pending_periodic_evaluation = False
         self._checkpoint_baseline_transitions = 0
         self._last_checkpoint_transitions = 0
         self._validate_on_policy_run()
@@ -87,11 +99,60 @@ class Trainer:
 
     def _checkpoint_for_evaluation(
         self, checkpoints: list[Path], counters: TrainingCounters
-    ) -> None:
-        expected = self._checkpoint_path(counters.updates)
-        if not checkpoints or checkpoints[-1] != expected:
-            checkpoints.append(self._write_checkpoint(counters))
-        self._set_evaluation_checkpoint(checkpoints)
+    ) -> tuple[Path, Path | None, str]:
+        # Save even when the update count is unchanged: transitions and replay
+        # may have advanced since the previous checkpoint.
+        checkpoint = self._write_checkpoint(counters)
+        if not checkpoints or checkpoints[-1] != checkpoint:
+            checkpoints.append(checkpoint)
+        digest = checkpoint_digest(checkpoint)
+        if not callable(getattr(self.run.evaluator, "set_checkpoint", None)):
+            return checkpoint, None, digest
+        snapshot = create_evaluation_snapshot(
+            checkpoint, self.run.run_dir, self.run.spec.training.evaluation_snapshot_retention
+        )
+        self._set_evaluation_checkpoint([snapshot])
+        return checkpoint, snapshot, digest
+
+    def _evaluation_completed(self, checkpoint: Path) -> bool:
+        require_artifact = (
+            getattr(self.run.evaluator, "requires_evaluation_artifact", False) is True
+        )
+        return evaluation_completed(
+            EvaluationReceiptCheck(
+                checkpoint,
+                self.fingerprint,
+                self.run.run_dir,
+                require_artifact,
+                callable(getattr(self.run.evaluator, "set_checkpoint", None)),
+            )
+        )
+
+    def _record_evaluation(self, checkpoint: Path, snapshot: Path | None, digest: str) -> None:
+        require_artifact = (
+            getattr(self.run.evaluator, "requires_evaluation_artifact", False) is True
+        )
+        record_evaluation(
+            EvaluationReceipt(
+                checkpoint, self.fingerprint, digest, snapshot, self.run.run_dir, require_artifact
+            )
+        )
+        if snapshot is not None:
+            prune_evaluation_snapshots(
+                snapshot, self.run.spec.training.evaluation_snapshot_retention
+            )
+
+    def _snapshot_for_final_evaluation(self, counters: TrainingCounters) -> Path | None:
+        setter = getattr(self.run.evaluator, "set_checkpoint", None)
+        if not callable(setter):
+            return None
+        snapshot = create_evaluation_snapshot_with(
+            self.run.run_dir,
+            lambda path: self.run.checkpoint_codec.save(self._checkpoint_state(counters), path),
+            self.run.spec.training.evaluation_snapshot_retention,
+        )
+        setter(snapshot)
+        return snapshot
 
     def _write_checkpoint(self, counters: TrainingCounters) -> Path:
         path = self._checkpoint_path(counters.updates)
@@ -129,10 +190,12 @@ class Trainer:
         return {
             "schema_version": _CHECKPOINT_SCHEMA_VERSION,
             "run_fingerprint": self.fingerprint,
+            "fingerprint_manifest": self.fingerprint_manifest,
             "learner": self.run.learner.state_dict(),
             "replay_store": None if self.on_policy else _state_dict(self.run.replay_store),
             "sampler": None if self.on_policy else _state_dict(self.run.sampler),
             "counters": stored.as_mapping(),
+            "pending_periodic_evaluation": self._pending_periodic_evaluation,
         }
 
     def _log_checkpoint_failure(
@@ -153,6 +216,8 @@ class Trainer:
         if keep is None:
             return
         result = prune_checkpoint_family(path, self.run.run_dir / "checkpoints", keep)
+        for removed_path in result.removed:
+            receipt_path(removed_path).unlink(missing_ok=True)
         if not result.removed:
             return
         removed = [str(item) for item in result.removed]
@@ -181,13 +246,18 @@ class Trainer:
         if state["schema_version"] != _CHECKPOINT_SCHEMA_VERSION:
             raise ValueError("Unsupported training checkpoint schema")
         if state["run_fingerprint"] != self.fingerprint:
-            raise ValueError("Training checkpoint run fingerprint mismatch")
+            details = fingerprint_mismatch_details(
+                state.get("fingerprint_manifest"), self.fingerprint_manifest
+            )
+            raise ValueError(f"Training checkpoint run fingerprint mismatch: {details}")
         learner_state = state["learner"]
         counters = state["counters"]
         if not isinstance(learner_state, Mapping):
             raise ValueError("Training checkpoint is missing learner state")
         if not isinstance(counters, Mapping):
             raise ValueError("Training checkpoint is missing counters")
+        if not isinstance(state.get("pending_periodic_evaluation", False), bool):
+            raise ValueError("pending periodic evaluation must be a boolean")
         self._validate_replay_state(state)
         self._validate_checkpoint_counters(counters)
         return learner_state, counters
@@ -195,7 +265,14 @@ class Trainer:
     @staticmethod
     def _validate_checkpoint_keys(state: Mapping[str, Any]) -> None:
         missing = _CHECKPOINT_KEYS - state.keys()
-        unexpected = state.keys() - _CHECKPOINT_KEYS
+        unexpected = (
+            state.keys()
+            - _CHECKPOINT_KEYS
+            - {
+                "fingerprint_manifest",
+                "pending_periodic_evaluation",
+            }
+        )
         if missing or unexpected:
             raise ValueError(
                 f"Training checkpoint keys differ: missing={sorted(missing)}, "

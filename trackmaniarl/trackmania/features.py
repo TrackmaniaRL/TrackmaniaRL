@@ -23,6 +23,7 @@ from trackmaniarl.trackmania.lidar_feature_setup import (
     validate_feature_config,
 )
 from trackmaniarl.trackmania.pace import ReferencePaceProfile
+from trackmaniarl.trackmania.reward_points import RewardPoints
 from trackmaniarl.trackmania.telemetry import DEFAULT_TELEMETRY_FIELD_COUNT
 
 
@@ -203,11 +204,27 @@ class LidarFeaturePipeline:
         self._collator = GymnasiumObservationCollator(self.observation_space)
 
     def set_evaluation_map(self, map_spec: Any) -> None:
-        """Switch the immutable source asset before evaluating a different declared map."""
+        """Switch geometry, or reuse the current geometry for matching reward points.
 
-        geometry = BoundaryGeometry(
-            map_spec.geometry_path, expected_map_uid=map_spec.expected_map_uid
-        )
+        A reward-points-only map must match the geometry currently loaded by this
+        pipeline. In a multi-map suite, supply geometry to switch maps first.
+        """
+
+        if map_spec.geometry_path is None:
+            reward_points = RewardPoints(
+                map_spec.reward_points_path, expected_map_uid=map_spec.expected_map_uid
+            )
+            geometry = self.geometry
+            if geometry.map_uid != map_spec.expected_map_uid:
+                raise ValueError("configured lidar geometry map UID does not match evaluation map")
+            if not reward_points.map_sha256 or reward_points.map_sha256 != geometry.map_sha256:
+                raise ValueError("reward points and lidar geometry require the same map checksum")
+            geometry.validate_map(map_spec.map_path)
+            reward_points.validate_map(map_spec.map_path)
+        else:
+            geometry = BoundaryGeometry(
+                map_spec.geometry_path, expected_map_uid=map_spec.expected_map_uid
+            )
         if self.pace_profile is not None and geometry.sha256 != self.geometry.sha256:
             raise ValueError("pace reference profiles are only valid for their configured map")
         self.geometry = geometry

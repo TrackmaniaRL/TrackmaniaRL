@@ -271,6 +271,37 @@ def test_evaluation_stop_requires_consecutive_successful_batches() -> None:
     assert "evaluation target passed 2 consecutive times" in coordinator._evaluation_stop_reason
 
 
+@pytest.mark.parametrize("median_s", [0.0, -1.0, float("nan"), float("inf")])
+def test_evaluation_stop_rejects_missing_or_invalid_median(median_s: float) -> None:
+    coordinator = _evaluation_stop_coordinator()
+    coordinator.run.spec.training.evaluation_stop_min_finish_rate = 0.0
+    coordinator.run.spec.training.evaluation_stop_consecutive_batches = 1
+
+    coordinator._record_evaluation_stop({"finish_rate": 0.0, "finish_time_median_s": median_s})
+    assert coordinator._evaluation_stop_reason is None
+    coordinator._record_evaluation_stop({"finish_rate": 1.0, "finish_time_median_s": median_s})
+    assert coordinator._evaluation_stop_reason is None
+    assert coordinator._consecutive_evaluation_passes == 0
+
+
+def test_evaluation_stop_disabled_without_complete_target() -> None:
+    coordinator = _evaluation_stop_coordinator()
+    coordinator.run.spec.training.evaluation_stop_median_s = None
+
+    coordinator._record_evaluation_stop({"finish_rate": 1.0, "finish_time_median_s": 1.0})
+    assert coordinator._evaluation_stop_reason is None
+    assert coordinator._consecutive_evaluation_passes == 0
+
+
+def test_evaluation_stop_zero_finish_rate_cannot_satisfy_median_target() -> None:
+    coordinator = _evaluation_stop_coordinator()
+    coordinator.run.spec.training.evaluation_stop_min_finish_rate = 0.0
+    coordinator.run.spec.training.evaluation_stop_consecutive_batches = 1
+
+    coordinator._record_evaluation_stop({"finish_rate": 0.0, "finish_time_median_s": 1.0})
+    assert coordinator._evaluation_stop_reason is None
+
+
 def _evaluation_stop_coordinator() -> Coordinator:
     coordinator = object.__new__(Coordinator)
     training = SimpleNamespace(

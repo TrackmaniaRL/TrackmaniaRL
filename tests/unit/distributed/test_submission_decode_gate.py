@@ -39,6 +39,7 @@ def test_parallel_submissions_serialize_decode_but_release_before_response(
     monkeypatch.setattr(coordinator_submission, "_validate_submission", lambda *_: None)
     monkeypatch.setattr(coordinator_submission, "_submission", lambda *_: None)
     monkeypatch.setattr(coordinator_submission, "_hard_lagged", lambda *_: True)
+    monkeypatch.setattr(coordinator_submission, "_previously_accepted", lambda *_: False)
     monkeypatch.setattr(coordinator_submission, "_reject_hard_lag", response)
     with ThreadPoolExecutor(max_workers=6) as executor:
         results = list(

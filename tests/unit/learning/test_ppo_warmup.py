@@ -18,7 +18,11 @@ def test_ppo_warmup_preserves_rng_weights_and_first_behavior_sample() -> None:
     reference = learner.policy()
     observation = torch.zeros(33)
     rng = torch.get_rng_state()
-    weights = {key: value.clone() for key, value in policy.export_state().items()}
+    weights = {
+        key: value.clone()
+        for key, value in policy.export_state().items()
+        if isinstance(value, torch.Tensor)
+    }
     policy.warm_up(observation)
     policy.warm_up(observation)
     assert torch.equal(torch.get_rng_state(), rng)

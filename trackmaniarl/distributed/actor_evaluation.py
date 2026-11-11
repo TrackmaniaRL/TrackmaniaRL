@@ -9,8 +9,9 @@ from time import monotonic
 from typing import Any, cast
 
 import trackmaniarl.distributed.actor_watchdog as actor_watchdog
-from trackmaniarl.core.contracts import ExploratoryPolicy, PolicyMode, ReplicablePolicy
+from trackmaniarl.core.contracts import PolicyMode, ReplicablePolicy
 from trackmaniarl.core.environment_errors import EnvironmentPausedError
+from trackmaniarl.core.pytree import policy_observation_snapshot, tree_snapshot
 from trackmaniarl.distributed.actor_collection import reset_pipeline, reset_policy
 from trackmaniarl.distributed.actor_metrics import EpisodeMetrics
 from trackmaniarl.distributed.actor_protocols import CollectionRuntime
@@ -22,6 +23,10 @@ from trackmaniarl.distributed.actor_requests import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+class _EvaluationStoppedError(Exception):
+    """An operator stopped the actor before the suite could finish."""
 
 
 @dataclass(slots=True)
@@ -38,16 +43,40 @@ def evaluate(runtime: CollectionRuntime, environment: Any, pipeline: Any) -> Non
     trials = 1 if suite is None else suite.trials_per_map
     policy, version = runtime._evaluation_policy()
     plan = EvaluationPlan(runtime, environment, pipeline, policy, version)
-    summaries = _evaluation_trials(plan, trials)
-    snapshot = runtime.codec.encode(dict(policy.export_state()))
+    try:
+        summaries = _evaluation_trials(plan, trials)
+    except _EvaluationStoppedError:
+        logger.info(
+            "Actor %s stopped during evaluation; leaving assignment pending", runtime.actor_id
+        )
+        return
+    assignment_id = getattr(runtime, "_active_evaluation_assignment_id", "")
+    if assignment_id:
+        summaries = [
+            {**summary, "evaluation_assignment_id": assignment_id} for summary in summaries
+        ]
+    # Identified assignments retain the loaded state from before actor-local
+    # exploration settings, warmup and trial inference can mutate it. Unassigned
+    # and legacy evaluations preserve their original post-trial export behavior.
+    snapshot = (
+        runtime._active_evaluation_initial_snapshot
+        if assignment_id
+        else runtime.codec.encode(dict(policy.export_state()))
+    )
+    if not snapshot:
+        raise RuntimeError("identified evaluation is missing its initial policy snapshot")
     runtime._spool(SpoolRequest([], [], version, summaries, snapshot))
 
 
 def _evaluation_trials(plan: EvaluationPlan, trials: int) -> list[dict[str, Any]]:
+    if plan.runtime.stop.is_set():
+        raise _EvaluationStoppedError
     if not _prewarm_evaluation_policy(plan):
         return _evaluation_failures(plan, trials)
     summaries: list[dict[str, Any]] = []
     for trial in range(trials):
+        if plan.runtime.stop.is_set():
+            raise _EvaluationStoppedError
         request = EvaluationEpisodeRequest(
             plan.environment, plan.pipeline, plan.policy, plan.version
         )
@@ -73,12 +102,16 @@ def _prewarm_evaluation_policy(plan: EvaluationPlan) -> bool:
     )
     observation = plan.runtime._reset_environment(reset)
     if observation is None:
+        if plan.runtime.stop.is_set():
+            raise _EvaluationStoppedError
         return False
+    if plan.runtime.stop.is_set():
+        raise _EvaluationStoppedError
     reset_pipeline(plan.pipeline)
     reset_policy(plan.policy)
     try:
         prepared = plan.pipeline.transform_observation(observation)
-        plan.policy.act(prepared, PolicyMode.EVALUATION)
+        plan.policy.act(policy_observation_snapshot(prepared), PolicyMode.EVALUATION)
     finally:
         reset_pipeline(plan.pipeline)
         reset_policy(plan.policy)
@@ -90,9 +123,14 @@ def evaluation_policy(runtime: CollectionRuntime) -> tuple[ReplicablePolicy, int
         request = runtime._evaluation_request
         runtime._evaluation_request = None
     if request is None:
+        runtime._active_evaluation_assignment_id = ""
+        runtime._active_evaluation_initial_snapshot = b""
         policy, _, version = runtime._policy()
         return policy, version
-    return _policy_from_request(runtime, request)
+    snapshot, version, assignment_id = request
+    runtime._active_evaluation_assignment_id = assignment_id
+    runtime._active_evaluation_initial_snapshot = b""
+    return _policy_from_request(runtime, (snapshot, version))
 
 
 def _policy_from_request(
@@ -104,8 +142,10 @@ def _policy_from_request(
         raise ValueError("evaluation policy snapshot must decode to a mapping")
     policy = runtime._new_policy()
     policy.load_state(state)
-    if isinstance(policy, ExploratoryPolicy):
-        policy.set_exploration_epsilon(0.0)
+    if getattr(runtime, "_active_evaluation_assignment_id", ""):
+        runtime._active_evaluation_initial_snapshot = runtime.codec.encode(
+            dict(policy.export_state())
+        )
     return policy, version
 
 
@@ -129,6 +169,7 @@ class EvaluationStep:
     reward: float
     info: Mapping[str, Any]
     stopped: bool
+    interrupted: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -160,6 +201,8 @@ def _evaluate_episode(plan: EvaluationPlan) -> dict[str, Any]:
     )
     observation = runtime._reset_environment(reset)
     if observation is None:
+        if runtime.stop.is_set():
+            raise _EvaluationStoppedError
         return runtime._evaluation_telemetry_failure(TelemetryFailure(plan.version))
     context = _evaluation_context(plan, observation)
     failure = _run_evaluation_episode(context)
@@ -213,10 +256,16 @@ def _run_evaluation_episode(context: EvaluationContext) -> dict[str, Any] | None
 def _take_evaluation_step(
     context: EvaluationContext, step_index: int
 ) -> tuple[dict[str, Any] | None, bool]:
+    if context.runtime.stop.is_set():
+        raise _EvaluationStoppedError
     evaluated = _evaluation_action(context)
+    if context.runtime.stop.is_set():
+        raise _EvaluationStoppedError
     try:
         step = _evaluation_step(context, step_index, evaluated)
     except EnvironmentPausedError as exc:
+        if context.runtime.stop.is_set():
+            raise _EvaluationStoppedError from exc
         logger.warning(
             "Actor %s deterministic evaluation capture interrupted (%s); retaining DNF",
             context.runtime.actor_id,
@@ -224,31 +273,40 @@ def _take_evaluation_step(
         )
         return _evaluation_summary(context, termination="capture_interruption"), True
     except (TimeoutError, ConnectionError) as exc:
+        if context.runtime.stop.is_set():
+            raise _EvaluationStoppedError from exc
         return _evaluation_interruption(context, exc), True
     _record_evaluation_step(context, step)
+    if step.interrupted:
+        raise _EvaluationStoppedError
     return None, step.stopped
 
 
 def _evaluation_action(context: EvaluationContext) -> EvaluatedAction:
     started = monotonic()
-    action = context.policy.act(context.prepared, PolicyMode.EVALUATION)
+    action = context.policy.act(
+        policy_observation_snapshot(context.prepared), PolicyMode.EVALUATION
+    )
     return EvaluatedAction(action, monotonic() - started)
 
 
 def _evaluation_step(
     context: EvaluationContext, step_index: int, evaluated: EvaluatedAction
 ) -> EvaluationStep:
+    recorded_action = tree_snapshot(evaluated.value)
     observation, reward, terminated, truncated, info = context.environment.step(evaluated.value)
     actor_watchdog.touch(context.runtime)
-    stopped = bool(terminated or truncated or context.runtime.stop.is_set())
+    interrupted = bool(not terminated and not truncated and context.runtime.stop.is_set())
+    stopped = bool(terminated or truncated or interrupted)
     return EvaluationStep(
         step_index,
-        evaluated.value,
+        recorded_action,
         evaluated.inference_s,
         observation,
         float(reward),
         cast(Mapping[str, Any], info),
         stopped,
+        interrupted,
     )
 
 

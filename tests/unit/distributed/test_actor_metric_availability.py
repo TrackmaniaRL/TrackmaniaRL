@@ -187,7 +187,10 @@ def test_nullable_summary_survives_wire_validation_and_ingest_log(
     _validate_submit_payload(decoded, codec)
     records: list[tuple[str, dict[str, Any]]] = []
     coordinator = SimpleNamespace(
-        counters=SimpleNamespace(episodes=1, finishes=0, best_finish_time_s=0.0, updates=7),
+        _metric_segment_id="test-segment",
+        counters=SimpleNamespace(
+            episodes=1, finishes=0, best_finish_time_s=0.0, updates=7, transitions=0
+        ),
         run=SimpleNamespace(
             replay_store=[],
             logger=SimpleNamespace(log=lambda event, data, **_: records.append((event, data))),

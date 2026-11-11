@@ -36,6 +36,9 @@ STANDARD_METRICS = (
     "eval/telemetry_skipped_frames_total",
     "eval/telemetry_skipped_frames_mean",
     "eval/telemetry_skipped_frames_max",
+    "eval/telemetry_skipped_frames_measurement_count",
+    "eval/telemetry_skipped_frames_expected_measurement_count",
+    "eval/telemetry_skipped_frames_measurements_valid",
     "eval/telemetry_steps_with_skipped_frames_fraction",
     "eval/throughput_fps",
 )
@@ -83,6 +86,8 @@ class EvaluationResult:
     vision_pairing_delay_ms: float = 0.0
     vision_pairing_delay_ms_p95: float = 0.0
     vision_pairing_measurement_count: int = 0
+    telemetry_skipped_frames_measurement_count: int = 0
+    telemetry_skipped_frames_measurements_valid: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,6 +201,18 @@ def _skipped_frame_metrics(summary: _EvaluationSummary) -> dict[str, float]:
         "eval/telemetry_skipped_frames_mean": skipped / steps if steps else 0.0,
         "eval/telemetry_skipped_frames_max": float(
             max(item.telemetry_skipped_frames_max for item in values)
+        ),
+        "eval/telemetry_skipped_frames_measurement_count": float(
+            sum(item.telemetry_skipped_frames_measurement_count for item in values)
+        ),
+        "eval/telemetry_skipped_frames_expected_measurement_count": float(steps),
+        "eval/telemetry_skipped_frames_measurements_valid": float(
+            all(
+                item.steps > 0
+                and item.telemetry_skipped_frames_measurements_valid
+                and item.telemetry_skipped_frames_measurement_count == item.steps
+                for item in values
+            )
         ),
         "eval/telemetry_steps_with_skipped_frames_fraction": _step_weighted_mean(
             values, "telemetry_steps_with_skipped_frames_fraction", steps

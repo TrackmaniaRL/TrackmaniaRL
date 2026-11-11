@@ -188,7 +188,7 @@ def test_run_fingerprint_covers_first_party_source_digest(
     spec = RunSpec.model_validate(config)
     baseline = run_fingerprint(spec, tmp_path)
 
-    monkeypatch.setattr(fingerprint, "_trackmaniarl_source_digest", lambda: "changed")
+    monkeypatch.setattr(fingerprint, "_trackmaniarl_source_details", lambda: ("changed", {}))
 
     assert run_fingerprint(spec, tmp_path) != baseline
 

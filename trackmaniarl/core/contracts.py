@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -51,7 +51,18 @@ class EvaluatorRuntimeRequest:
 
 @runtime_checkable
 class Policy(Protocol):
-    """Inference-only policy deployed to a rollout worker."""
+    """Inference-only policy deployed to a rollout worker.
+
+    ``PolicyMode.EVALUATION`` must disable exploratory action selection without
+    changing the policy's configured online exploration. Both local and
+    distributed evaluation pass this mode to every inference call.
+
+    Built-in collectors and Trackmania evaluators copy observations before
+    inference. Custom observation types must support ``copy.deepcopy`` and
+    implement it without sharing mutable state. Distinct array or tensor views
+    of one buffer may become independent copies; policies must not rely on
+    aliasing between such views. Tensor snapshots are detached from autograd.
+    """
 
     def act(self, observation: Any, mode: PolicyMode = PolicyMode.ONLINE) -> Any: ...
 
@@ -157,6 +168,17 @@ class FeaturePipeline(Protocol):
     def transform_observation(self, observation: Any) -> Any: ...
 
     def collate(self, transitions: list[Transition]) -> Any: ...
+
+
+@runtime_checkable
+class ObservationCollator(Protocol):
+    """Optional batch collation for observations without transition metadata.
+
+    Output must match the observation field of ``FeaturePipeline.collate``
+    with a leading dimension equal to the number of supplied observations.
+    """
+
+    def collate_observations(self, observations: Sequence[Any]) -> Any: ...
 
 
 @runtime_checkable

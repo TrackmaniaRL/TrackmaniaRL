@@ -1,10 +1,6 @@
 # TrackmaniaRL SDK Guide
 
-This guide describes the public SDK in package version 1.3.0.
-
-Start with the runnable [Python quickstart](python-quickstart.md).
-The [public API guide](public-api.md) distinguishes supported imports and
-extension contracts from internal implementation and research tooling.
+This guide describes the public SDK in package version 1.4.0.
 
 Start with the runnable [Python quickstart](python-quickstart.md).
 The [public API guide](public-api.md) distinguishes supported imports and
@@ -203,6 +199,7 @@ For example, a custom feature pipeline implements transformation for actor-time
 observations and collation for replay samples:
 
 ```python
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
@@ -214,16 +211,17 @@ class SpeedFeaturePipeline:
     def transform_observation(self, observation: Any) -> np.ndarray:
         return np.asarray([observation["speed"]], dtype=np.float32)
 
+    def collate_observations(self, observations: Sequence[Any]) -> np.ndarray:
+        return np.stack(observations)
+
     def collate(self, transitions: list[Transition]) -> dict[str, Any]:
         return {
             "_trackmaniarl_batch_collated": True,
-            "observations": np.stack(
-                [self.transform_observation(item.observation) for item in transitions]
-            ),
+            "observations": self.collate_observations([item.observation for item in transitions]),
             "actions": np.asarray([item.action for item in transitions]),
             "rewards": np.asarray([item.reward for item in transitions], dtype=np.float32),
-            "next_observations": np.stack(
-                [self.transform_observation(item.next_observation) for item in transitions]
+            "next_observations": self.collate_observations(
+                [item.next_observation for item in transitions]
             ),
             "terminated": np.asarray([item.terminated for item in transitions], dtype=np.bool_),
             "truncated": np.asarray([item.truncated for item in transitions], dtype=np.bool_),
@@ -242,14 +240,27 @@ The exact batch structure is a contract between the pipeline/sampler and the
 learner. Keep it typed and deterministic and test one synthetic transition
 round trip before a live run.
 
+`collate_observations` is an optional `ObservationCollator` extension for
+sequence replay. It accepts a nonempty flat sequence and returns the same
+observation PyTree, dtype, and leading batch dimension as the `observations`
+field of `collate`. These are the already transformed observations stored by
+the actor; do not apply `transform_observation` a second time. Replay restores
+the batch and sequence dimensions. The
+method must depend only on the supplied observations: a final bootstrap state
+may not have an associated action, reward, or transition metadata. Pipeline
+errors propagate to the caller. Existing pipelines without this method keep
+their previous transition-collation behavior; its synthetic final transition
+cannot provide metadata for an action that has not happened. When a subclass
+overrides `collate`, an inherited `collate_observations` is not used unless the
+subclass also overrides it; this preserves existing custom collation behavior.
+
 `validate` does not start TrackMania. It resolves components, writes the
 redacted manifest and runs a deterministic synthetic RL or supervised update.
-The `trackmaniarl train` command requires `components.environment` and runs the
-asynchronous off-policy actor/learner path. It collects bounded episodes,
-writes compressed reference-only artifacts, samples replay, applies updates,
-checkpoints and runs an optional evaluator. On-policy PPO instead uses the
-public `trackmaniarl.Trainer` API with `OnPolicySequenceSampler`. Distributed
-`learner` and `actor` do not support it.
+The `trackmaniarl train` command requires `components.environment`. For
+off-policy learners it runs the asynchronous actor/learner path, collects
+episodes, samples replay, applies updates and saves checkpoints. For on-policy
+PPO it uses the local `Trainer` with `OnPolicySequenceSampler`. The distributed
+`learner` and `actor` commands do not support PPO.
 
 `validate` is game-free, not code-free: it imports every configured component
 and invokes constructors and a learner validation update. Never validate an untrusted
@@ -270,6 +281,25 @@ configuration or Python package.
 | `Evaluator` | evaluate a policy against the configured suite | best-result/selection state if it affects training |
 | `RunLogger` | receive neutral events and close resources | remote run identity if resume needs it |
 | `CheckpointCodec` | atomically save and safely load learner state | format/version metadata |
+
+Policies and custom action selectors must honor `PolicyMode.EVALUATION` by
+disabling exploratory action selection. Local and distributed evaluation pass
+that mode without changing the configured actor-local exploration epsilon.
+Custom policies that previously relied on distributed evaluation setting epsilon
+to zero should instead use the mode argument; this also makes their behavior
+consistent with local benchmarks.
+
+Built-in collectors and Trackmania evaluators copy observations before calling
+`Policy.act` or `act_with_info`, so mutating a properly copied input does not
+alter environment, pipeline, or replay state. Custom observation objects must
+support Python's `copy.deepcopy` and return independent mutable state from any
+custom `__deepcopy__` method. Non-copyable objects can raise an exception, and
+the library cannot detect a custom method that incorrectly returns shared
+mutable data. Repeated references to the same object remain shared in the copy,
+but distinct NumPy or Torch views of the same buffer may be copied separately;
+policies must not rely on mutations through one view appearing in another.
+Torch snapshots are detached from autograd. Copying observations also has a
+per-decision cost, especially for image inputs.
 
 If resume behavior would change after recreating a component, its relevant state
 belongs in the checkpoint. Do not hide configuration in module globals or read
@@ -303,9 +333,9 @@ New graph checkpoints reject changed declared settings before loading weights.
 Exact run resume still requires the original semantic run fingerprint.
 
 The local on-policy `Trainer` used by PPO persists a separate schema 2.0 state
-containing its semantic run fingerprint, learner, replay store, sampler and
-counters. Do not pass that checkpoint to distributed `resume` or
-`learner --checkpoint`. Exact resume does not reload the original warm-start
+containing its semantic run fingerprint, learner and counters. Its replay-store
+and sampler entries are empty. Do not pass that checkpoint to distributed
+`resume` or `learner --checkpoint`. Exact resume does not reload the original warm-start
 artifact. The run fingerprint includes effective component parameters, every
 Python source file in both the declared and resolved component packages and
 configured geometry and pace-reference file contents. Logging choices,

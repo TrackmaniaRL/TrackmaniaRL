@@ -33,7 +33,16 @@ factory contract can construct a real environment.
 
 ## Train from a configuration
 
-Create and install a starter project in a directory outside the library checkout:
+Install [uv](https://docs.astral.sh/uv/) if you do not have it, then create a
+starter project in a directory outside the library checkout. The generated project
+selects CUDA PyTorch wheels on Windows and Linux. For a CPU-only project generated
+from the released CLI, after `init` and before `uv sync`, change
+`index = "pytorch-cuda"` to `index = "pytorch-cpu"` in the generated
+`pyproject.toml` under `[tool.uv.sources]`. A project generated from a local
+checkout can also inherit the checkout's Torch source and constraints, so that
+change alone may not resolve the build. Consult the
+[PyTorch installation guide](https://pytorch.org/get-started/locally/) for other
+builds.
 
 ```bash
 trackmaniarl init my-agent --template starter
@@ -67,6 +76,47 @@ The [complete command-line wrapper](../examples/train.py) also accepts
 compatible configuration; a policy-only export is not a training checkpoint.
 `Trainer` is the local runtime; use the [distributed workflow](architecture.md)
 for separate actor and learner processes.
+
+For local training, Ctrl+C during collection or a learner update does not save
+the partially completed cycle. Resume from a previously completed checkpoint;
+work since that checkpoint is lost. If no checkpoint has been saved yet, restart
+the run. Periodic checkpoints limit the amount of work that can be lost.
+New local checkpoints record whether a periodic evaluation remains due. Resume
+finishes outstanding updates and then runs the evaluation before collecting
+more data. A small receipt beside the checkpoint records successful completion;
+preserve the receipt, `evaluation-checkpoints/` and evaluation artifacts when
+moving recovery files. For checkpoint-aware evaluators, the receipt checks the
+checkpoint and snapshot hashes; for the built-in evaluator it also checks the
+required `evaluation.json` artifact.
+If a stop file is already present when a periodic evaluation is due, the trainer
+defers it until resume. If the stop arrives during an active Trackmania
+evaluation, training stops cleanly and the incomplete evaluation is repeated
+after removing the stop file and resuming from the saved checkpoint.
+An absent, invalid, moved or outdated receipt or artifact causes the evaluation
+to run again. Custom evaluators without `set_checkpoint` do not receive a
+snapshot, and are responsible for preserving their own result artifacts.
+If a process stops after evaluation completes but before the receipt is saved,
+the evaluation may be repeated. This does not guarantee durability across a
+power failure.
+
+Older checkpoints do not record this evaluation phase; their pending evaluation
+cannot be reconstructed reliably. New checkpoints contain an additional field
+that older library versions do not accept. Checkpoints from a different library
+version can also be rejected when the run's source fingerprint differs.
+
+Local evaluations with checkpoint-aware evaluators use a separate full snapshot
+in `evaluation-checkpoints/`, so later recovery saves cannot change its bytes.
+These snapshots can be as large as a full training checkpoint. By default,
+`evaluation_snapshot_keep_last` retains two recent snapshots. If
+`checkpoint_keep_last` is also configured, the lower limit applies. Set both
+values to null for unlimited retention. Existing snapshots already present when
+bounded evaluation retention is first enabled are preserved and may be removed
+manually after archiving. A snapshot referenced by `evaluation.json` and an
+in-progress snapshot are protected even when that exceeds the limit. Interrupted
+evaluations can temporarily leave additional snapshots. Custom evaluators that
+retain historical results must archive the referenced snapshots before they are
+pruned. With unlimited retention, these snapshots accumulate until the user
+removes them.
 
 ## Plug in a model
 

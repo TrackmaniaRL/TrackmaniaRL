@@ -43,6 +43,9 @@ def _finished_trials(times: list[float]) -> list[dict[str, Any]]:
             "step_race_time_ms_max": 50.0,
             "step_race_time_measurement_count": 1,
             "step_race_time_measurements_valid": True,
+            "telemetry_skipped_frames_total": 0,
+            "telemetry_skipped_frames_measurement_count": 1,
+            "telemetry_skipped_frames_measurements_valid": True,
         }
         for finish_time_s in times
     ]
@@ -82,6 +85,41 @@ def test_optional_mean_gate_rejects_a_missing_metric_cleanly() -> None:
     metrics = {"eval/median_finish_time_s": 36.6}
     with pytest.raises(RuntimeError, match=r"mean completed time <37\.0s"):
         _apply_benchmark_gate(_finished_trials([36.6] * 10), metrics, _suite(37.0))
+
+
+@pytest.mark.parametrize("target", ["median", "mean"])
+def test_time_gate_rejects_no_finished_trials(target: str) -> None:
+    suite = _suite(37.0 if target == "mean" else None).model_copy(
+        update={"min_finish_rate": 0.0, "target_median_s": 40.0 if target == "median" else None}
+    )
+    trial = {**_finished_trials([36.0])[0], "finished": False, "finish_time_s": None}
+    with pytest.raises(RuntimeError, match="benchmark failed"):
+        _apply_benchmark_gate(
+            [trial], {"eval/median_finish_time_s": 0.0, "eval/finish_time_s": 0.0}, suite
+        )
+
+
+@pytest.mark.parametrize("finish_time", [None, 0.0, -1.0, float("nan"), float("inf")])
+def test_time_gate_rejects_invalid_finish_times(finish_time: float | None) -> None:
+    trial = {**_finished_trials([36.0])[0], "finish_time_s": finish_time}
+    with pytest.raises(RuntimeError, match="benchmark failed"):
+        _apply_benchmark_gate([trial], _metrics([36.0]), _suite(None))
+
+
+def test_no_finish_without_time_targets_can_pass() -> None:
+    suite = _suite(None).model_copy(update={"min_finish_rate": 0.0, "target_median_s": None})
+    trial = {**_finished_trials([36.0])[0], "finished": False, "finish_time_s": None}
+    _apply_benchmark_gate([trial], {"eval/median_finish_time_s": 0.0}, suite)
+
+
+@pytest.mark.parametrize("finish_time", [None, 0.0, -1.0, float("nan"), float("inf")])
+def test_finish_rate_rejects_invalid_finished_time_without_time_targets(
+    finish_time: float | None,
+) -> None:
+    suite = _suite(None).model_copy(update={"target_median_s": None})
+    trial = {**_finished_trials([36.0])[0], "finish_time_s": finish_time}
+    with pytest.raises(RuntimeError, match="benchmark failed"):
+        _apply_benchmark_gate([trial], {"eval/median_finish_time_s": 0.0}, suite)
 
 
 def test_optional_runtime_gate_accepts_its_inclusive_boundary() -> None:
@@ -150,3 +188,37 @@ def test_strict_telemetry_skip_benchmark_rejects_a_finished_trial_with_skips() -
             _metrics([36.6] * 10),
             evaluation,
         )
+
+
+def test_strict_telemetry_gate_accepts_complete_zero_measurements() -> None:
+    evaluation = _suite(None).model_copy(update={"reject_telemetry_skips": True})
+    _apply_benchmark_gate(_finished_trials([36.6] * 10), _metrics([36.6] * 10), evaluation)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("telemetry_skipped_frames_total", None),
+        ("telemetry_skipped_frames_total", -1),
+        ("telemetry_skipped_frames_total", float("nan")),
+        ("telemetry_skipped_frames_total", False),
+        ("telemetry_skipped_frames_measurement_count", 0),
+        ("telemetry_skipped_frames_measurements_valid", False),
+    ],
+)
+def test_strict_telemetry_gate_rejects_missing_or_invalid_measurements(
+    field: str, value: object
+) -> None:
+    trials = _finished_trials([36.6] * 10)
+    trials[3][field] = value
+    evaluation = _suite(None).model_copy(update={"reject_telemetry_skips": True})
+    with pytest.raises(RuntimeError, match="complete measurements"):
+        _apply_benchmark_gate(trials, _metrics([36.6] * 10), evaluation)
+
+
+def test_strict_telemetry_gate_rejects_legacy_trial_without_coverage() -> None:
+    trials = _finished_trials([36.6] * 10)
+    trials[0].pop("telemetry_skipped_frames_measurement_count")
+    evaluation = _suite(None).model_copy(update={"reject_telemetry_skips": True})
+    with pytest.raises(RuntimeError, match="complete measurements"):
+        _apply_benchmark_gate(trials, _metrics([36.6] * 10), evaluation)

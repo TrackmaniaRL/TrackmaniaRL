@@ -9,6 +9,7 @@ from queue import Queue
 from threading import RLock
 from time import monotonic
 from typing import Any
+from uuid import uuid4
 
 import grpc
 from google.protobuf.wrappers_pb2 import BytesValue
@@ -18,6 +19,7 @@ from trackmaniarl.core.spec import DEFAULT_EVALUATION_TIME_BUCKETS_S
 from trackmaniarl.core.training import TrainingResult
 from trackmaniarl.distributed import (
     coordinator_checkpoint,
+    coordinator_delivery,
     coordinator_evaluation,
     coordinator_ingest,
     coordinator_leaders,
@@ -39,12 +41,26 @@ from trackmaniarl.distributed.protocol import (
 class Coordinator:
     """Own the replay, learner and network-facing rollout journal."""
 
+    _evaluation_due: set[str]
+    _evaluation_assignments: dict[str, dict[str, Any]]
+    _evaluation_schedule_frontier: int
+    _fingerprint_manifest: dict[str, Any] | None
+
     def __init__(self, run: ResolvedRun, config: CoordinatorConfig) -> None:
         require_distributed_token(config.token)
         if getattr(run.learner, "on_policy", False):
             raise ValueError(
                 "Distributed training does not support on-policy learners; "
                 "use trackmaniarl train for PPO"
+            )
+        from trackmaniarl.distributed.evaluation_contract import validate_scheduled_evaluation
+
+        if (
+            run.spec.evaluation is not None
+            and run.spec.training.evaluate_every_episodes is not None
+        ):
+            validate_scheduled_evaluation(
+                run.spec, run.environment_factory, run.feature_pipeline, run.base_dir
             )
         self._configure(run, config)
         self._initialize_transport()
@@ -77,7 +93,7 @@ class Coordinator:
         self._last_progress_print = 0
         self._last_heartbeats: dict[str, float] = {}
         self._timed_out_actors: set[str] = set()
-        self._evaluation_due: set[str] = set()
+        coordinator_delivery.load(self)
         self._last_ingest_at = monotonic()
         self._rollouts: Queue[tuple[int, float]] = Queue(
             maxsize=coordinator_support.ROLLOUT_QUEUE_MAXSIZE
@@ -85,6 +101,8 @@ class Coordinator:
         self._journal_enqueued_at: dict[int, float] = {}
 
     def _initialize_metrics(self) -> None:
+        # A new coordinator gets a distinct segment even when it resumes a run.
+        self._metric_segment_id = uuid4().hex
         self._metrics = coordinator_support._MetricAccumulator()
         self._metric_window_started = monotonic()
         self._started_at = self._metric_window_started

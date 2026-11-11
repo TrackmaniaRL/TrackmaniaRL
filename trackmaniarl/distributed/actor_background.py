@@ -38,7 +38,7 @@ class BackgroundRuntime(SpoolRuntime, Protocol):
     external_stop: Any | None
     client: Client
     _policy_ref: PolicyReference | None
-    _evaluation_request: tuple[bytes, int] | None
+    _evaluation_request: tuple[bytes, int, str] | None
     _evaluation_request_lock: Any
     _background_failure: ActorBackgroundError | None
     _background_failure_lock: Any
@@ -138,7 +138,10 @@ def sender_loop(runtime: BackgroundRuntime) -> None:
 
 
 def send_spooled_rollouts(runtime: BackgroundRuntime) -> None:
-    while not runtime.stop.is_set() or not runtime.queue.empty():
+    # A stop request can arrive while collection still owns an unflushed
+    # buffer. Keep senders alive until collection has published that buffer.
+    collection_done = getattr(runtime, "collection_done", runtime.stop)
+    while not collection_done.is_set() or not runtime.queue.empty():
         try:
             path = runtime.queue.get(timeout=0.2)
         except Empty:
@@ -160,7 +163,9 @@ def _send_spooled_path(runtime: BackgroundRuntime, path: Path) -> None:
             if not is_retryable_rpc_error(exc):
                 raise
             if runtime.stop.wait(1.0):
-                break
+                # The durable file remains recoverable, but the launcher must
+                # not treat this as a successfully drained actor.
+                raise RuntimeError(f"could not drain rollout {path} during shutdown") from exc
 
 
 def _handle_submit_response(runtime: BackgroundRuntime, submitted: SubmittedRollout) -> bool:
@@ -194,10 +199,13 @@ def _handle_rejected_rollout(runtime: BackgroundRuntime, submitted: SubmittedRol
 def _accept_evaluation_request(runtime: BackgroundRuntime, response: Mapping[str, Any]) -> None:
     snapshot = response["evaluation_snapshot"]
     version = response["evaluation_policy_version"]
+    assignment_id = response.get("evaluation_assignment_id", "")
     if not isinstance(snapshot, bytes) or not snapshot or version < 0:
         raise ValueError("evaluation request requires a policy snapshot/version")
+    if not isinstance(assignment_id, str):
+        raise ValueError("invalid evaluation assignment ID")
     with runtime._evaluation_request_lock:
-        runtime._evaluation_request = (snapshot, version)
+        runtime._evaluation_request = (snapshot, version, assignment_id)
     runtime.evaluate.set()
 
 

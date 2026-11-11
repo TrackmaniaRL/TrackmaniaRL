@@ -9,13 +9,17 @@ the Torch default. Actor threads remain controlled separately by
 Local `train` and `resume` accept `--stop-file PATH`. Creating that file requests
 normal shutdown without sending a console interrupt. Local asynchronous runs
 stop the actor first, then drain accepted journal rows and earned learner
-updates before saving the final checkpoint. Actor shutdown is bounded to 10s;
-learner drain/save is bounded to 120s. An actor failure or timeout requests an
-immediate emergency save instead, and an unclean shutdown returns an error.
+updates. A final checkpoint is saved only if `training.save_final_checkpoint`
+is enabled. On the stop-file shutdown path the actor has a 60s grace period,
+followed by a 120s bound for the learner to drain and exit. If the actor exits
+naturally, the initial wait for the learner to drain has no fixed timeout; a
+stop file can request the bounded shutdown path. An actor failure or timeout
+requests an immediate emergency stop, and an unclean shutdown returns an error.
 An existing stop file is rejected before starting child processes; remove it
-before resuming. Check final checkpoint completion before closing the launcher.
+before resuming. Check checkpoint completion before relying on it. See the
+[migration and recovery guide](recovery.md) for recovery and backup details.
 
-A RunSpec YAML file is the public runtime configuration boundary in 1.3.0.
+A RunSpec YAML file is the public runtime configuration boundary in 1.4.0.
 The generated choices are `run.yaml`, `run-sac.yaml`, `run-redq.yaml`,
 `run-tqc.yaml`, `run-sd-sac.yaml`, `run-ppo.yaml` and `run-ppo-vision.yaml`.
 Each is parsed by
@@ -96,6 +100,7 @@ Relative asset paths are resolved against the directory containing
 | `updates_per_transition` | finite float `>0`, `1.0` | Off-policy update-to-data ratio. High values improve reuse but amplify stale-policy and overfitting risk. |
 | `checkpoint_interval_updates` | positive int or null, `1000` | Periodic exact-state checkpoint cadence, null disables periodic saves. |
 | `checkpoint_keep_last` | positive int or null, null | Retains only the newest count within each checkpoint family after a successful save. Regular and evaluation-leader checkpoints are pruned independently, null disables pruning. |
+| `evaluation_snapshot_keep_last` | positive int or null, 2 | Limit local evaluation snapshots separately; if `checkpoint_keep_last` is also set, the lower limit applies. Null disables this limit, but an existing checkpoint limit still applies. Existing snapshots present before bounded evaluation retention is first enabled are preserved. |
 | `checkpoint_milestones` | increasing positive-int list, empty | Request immutable checkpoint copies at transition thresholds, each no larger than `total_transitions`. Saves occur at the first safe learner update after a threshold; filenames and JSON sidecars record the actual counters. Copies survive recovery retention. Resume never fabricates thresholds at or before its restored baseline. |
 | `save_final_checkpoint` | bool, `true` | Atomically writes the latest counters/state even when no new optimizer update followed the last periodic save. |
 | `metrics_interval_updates` | positive int, `50` | Learner diagnostic cadence, it does not change optimization. |
@@ -108,13 +113,37 @@ Relative asset paths are resolved against the directory containing
 | `max_episode_artifacts` | positive int, `100` | Retention bound for compressed local episode artifacts. |
 
 Scheduled distributed evaluation maintains two leaders. `best-eval-*` requires
-the suite's `min_finish_rate` and ranks policies by finish rate first, then lower
-median finish time, then lower best finish time. `fastest-eval-*` ranks policies
-by lower best finish time first, then finish rate, then lower median finish time,
+the suite's `min_finish_rate` and any configured mean-time and step-time gates.
+Without a `target_mean_s`, it ranks policies by finish rate, then lower median
+finish time, then lower best finish time. When `target_mean_s` is configured,
+it ranks by finish rate, then lower mean, then lower median. `fastest-eval-*`
+ranks policies by lower best finish time first, then finish rate, then lower median finish time,
 so it preserves the best individual completed lap even when its batch does not
 pass the reliability threshold. When one batch improves both leaders, each
 family writes its own exact-policy checkpoint. Promotion durability and
 checkpoint retention are independent for the two families.
+
+Scheduled **distributed** evaluation currently uses the actor's training
+environment; it cannot switch maps. When an `evaluation` suite is configured,
+it must contain exactly one map, and the environment factory must attest that
+the training environment and feature pipeline use that map. The built-in
+OpenPlanet and full QR factories check the configured UID, reward/geometry
+assets and map checksum where available. OpenPlanet still requires the user to
+load the map; its session verifies the UID on reset. A multi-map suite remains
+available to the local `benchmark` evaluator, which evaluates each map separately.
+Scheduled evaluation without an `evaluation` suite is unchanged.
+
+Custom environment factories used with a scheduled suite must implement
+`validate_scheduled_evaluation_map(map_spec, pipeline)`. The map paths are
+resolved relative to the project; the method must raise if it cannot establish
+that the environment and pipeline use the declared map. Returning without an
+error is an assertion by the custom factory, not verification by the library.
+Custom full QR native observation pipelines must also implement
+`validate_scheduled_evaluation_map(map_spec)` and reject maps they cannot
+attest. The factory checks the native pipeline both before the run and when it
+creates an environment. The built-in graph and schematic vision pipelines are
+checked against the pinned geometry. Custom pipeline hooks are assertions by
+their implementations.
 
 ## `distributed`
 
@@ -166,7 +195,7 @@ Map IDs are unique and every path is bound into evaluation provenance.
 | `target_mean_s` | null | Optional positive mean-time target. When configured, reliable checkpoint promotion and the benchmark gate require the completed-lap mean to be strictly below it. |
 | `max_step_race_time_ms` | null | Optional positive runtime-health target. Reliable promotion, the benchmark and soak verification require a finite, positive race-clock measurement for every evaluated control step and the largest observed step to be at most this value. It does not gate on render-rate packets discarded by latest-frame draining. |
 | `min_finish_rate` | `.9` | Required fraction in `[0,1]`. |
-| `reject_telemetry_skips` | `false` | Fail the entire benchmark when any trial skips producer frames, keep every trial in the report. |
+| `reject_telemetry_skips` | `false` | Fail the entire benchmark if any trial skips producer frames or lacks complete valid skipped-frame measurements; keep every trial in the report. |
 
 Each `maps[]` item has an immutable local asset identity:
 
@@ -177,6 +206,16 @@ Each `maps[]` item has an immutable local asset identity:
 | `geometry_path` | null | Matching versioned boundary geometry. Configure exactly one of this and `reward_points_path`. |
 | `reward_points_path` | null | Recorded 3D reward path without road boundaries. Its UID must match the live session; a local map checksum is optional when recording official campaign maps. |
 | `expected_map_uid` | required | UID that the live session must report, a mismatch fails before driving. |
+
+When a local benchmark uses `LidarFeaturePipeline` or `LidarVisionFeaturePipeline`
+with reward points, LiDAR uses the geometry currently loaded by the pipeline.
+The reward points and geometry must have the same map UID and nonempty matching
+map checksums, and `map_path` must identify that map file. UID-only reward points
+cannot establish this binding. In a multi-map suite, a `geometry_path` entry
+switches the current geometry; a later reward-points entry can only reuse it for
+the same map. For example, after switching from map A to geometry B, reward
+points for A fail until geometry A is loaded again. Each suite entry is evaluated
+in order and must have a unique ID.
 
 ## Trackmania environment
 

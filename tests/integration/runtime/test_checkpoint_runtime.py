@@ -249,7 +249,23 @@ def test_training_checkpoint_rejects_changed_training_config(tmp_path: Path) -> 
     training = spec.training.model_copy(update={"gamma": 0.5})
     changed = spec.model_copy(update={"training": training})
 
-    with pytest.raises(ValueError, match="run fingerprint mismatch"):
+    with pytest.raises(ValueError, match=r"run fingerprint mismatch.*section:training"):
+        _restore_partial_replay(changed, checkpoint)
+
+
+def test_training_checkpoint_accepts_legacy_without_diagnostic_manifest(tmp_path: Path) -> None:
+    spec = _ppo_resume_spec(tmp_path)
+    checkpoint = dict(_checkpoint_partial_replay(spec))
+    checkpoint.pop("fingerprint_manifest")
+    assert _restore_partial_replay(spec, checkpoint).counters["transitions"] == 1
+
+
+def test_training_checkpoint_mismatch_without_manifest_fails_closed(tmp_path: Path) -> None:
+    spec = _ppo_resume_spec(tmp_path)
+    checkpoint = dict(_checkpoint_partial_replay(spec))
+    checkpoint.pop("fingerprint_manifest")
+    changed = spec.model_copy(update={"training": spec.training.model_copy(update={"gamma": 0.5})})
+    with pytest.raises(ValueError, match="diagnostic manifest unavailable"):
         _restore_partial_replay(changed, checkpoint)
 
 
@@ -369,6 +385,7 @@ def test_trainer_evaluation_artifact_is_bound_to_the_current_checkpoint(
         "updates_per_transition": 1.0,
         "checkpoint_interval_updates": 100,
         "evaluate_every_episodes": 1,
+        "evaluation_snapshot_keep_last": None,
     }
     evaluation = _evaluation_run(tmp_path, training)
     result = _train_and_close(evaluation.run)

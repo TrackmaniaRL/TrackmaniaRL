@@ -62,6 +62,8 @@ def _actor_learner_spec(
         device=override.device,
         precision=override.precision,
     )
+    if override.torch_threads is not None:
+        execution["torch_threads"] = override.torch_threads
     kwargs["execution"] = execution
     return learner.model_copy(update={"kwargs": kwargs})
 
@@ -91,25 +93,95 @@ class ActorRuntime:
         self.codec = WireCodec(self.spec.distributed.max_message_bytes)
         self.fingerprint = run_fingerprint(self.spec, self.base_dir)
         self.stop = threading.Event()
+        self.collection_done = threading.Event()
         self.stop_reason = "running"
         self.force_refresh = threading.Event()
         self.evaluate = threading.Event()
         self.collect_allowed = threading.Event()
         self.collect_allowed.set()
         self._evaluation_request_lock = threading.Lock()
-        self._evaluation_request: tuple[bytes, int] | None = None
+        self._evaluation_request: tuple[bytes, int, str] | None = None
+        self._active_evaluation_assignment_id = ""
+        self._active_evaluation_initial_snapshot = b""
         self._evaluation_index = 0
         self.queue: Queue[Path] = Queue()
 
     def _initialize_spool(self) -> None:
-        actor_directory = re.sub(r"[^A-Za-z0-9_.-]", "_", self.actor_id)
+        actor_directory = "actor-" + hashlib.sha256(self.actor_id.encode("utf-8")).hexdigest()
         self.spool_dir = self._spool_directory(actor_directory)
+        self._migrate_legacy_spool()
         self.spool_dir.mkdir(parents=True, exist_ok=True)
         self._recover_spool_temporaries()
         self._spool_lock = threading.Lock()
         self._spool_bytes_total = self._scan_spool_bytes()
         self.sequence = self._next_sequence()
         self.watchdog = ProgressWatchdog()
+
+    def _migrate_legacy_spool(self) -> None:
+        """Move an old spool only when every pending payload proves its owner.
+
+        Previously different actor IDs could map to the same directory. Never
+        guess ownership of invalid, incomplete, or mixed legacy contents.
+        """
+        legacy_name = re.sub(r"[^A-Za-z0-9_.-]", "_", self.actor_id)
+        if legacy_name in ("", ".", ".."):
+            return
+        legacy = self._spool_directory(legacy_name)
+        if not legacy.is_dir() or legacy == self.spool_dir:
+            return
+        pending = [
+            path
+            for path in legacy.iterdir()
+            if path.stem.isdigit() and path.suffix in {".rollout", ".tmp"}
+        ]
+        if not pending:
+            return
+        owners = set()
+        invalid_temporaries = []
+        try:
+            for path in pending:
+                try:
+                    if path.stat().st_size > self.codec.max_message_bytes:
+                        raise ValueError("payload exceeds message limit")
+                    value = self.codec.decode(path.read_bytes())
+                except ValueError:
+                    if path.suffix != ".tmp":
+                        raise
+                    invalid_temporaries.append(path)
+                    continue
+                if not isinstance(value, Mapping) or not isinstance(value.get("actor_id"), str):
+                    raise ValueError("payload has no actor identity")
+                owners.add(value["actor_id"])
+        except (OSError, ValueError) as error:
+            raise RuntimeError(
+                f"Cannot safely identify legacy actor spool at {legacy}; preserve and inspect it "
+                "before restarting"
+            ) from error
+        if owners and self.actor_id not in owners:
+            return
+        if len(owners) > 1 or (owners and self.spool_dir.exists()):
+            raise RuntimeError(
+                f"Cannot safely migrate legacy actor spool at {legacy}: mixed owners or "
+                "destination already exists; preserve and inspect the files"
+            )
+        # Invalid temporary data has no provable owner. Retain it outside both
+        # actors' active spools so it cannot be mistaken for another rollout.
+        if invalid_temporaries:
+            quarantine = legacy.parent / "spool-quarantine"
+            quarantine.mkdir(parents=True, exist_ok=True)
+            for temporary in invalid_temporaries:
+                destination = quarantine / f"{temporary.stem}.{uuid.uuid4().hex}.invalid"
+                temporary.rename(destination)
+                sync_checkpoint_path(destination)
+                logger.warning("Quarantined ambiguous legacy spool temporary as %s", destination)
+        if not owners:
+            return
+        self.spool_dir.parent.mkdir(parents=True, exist_ok=True)
+        legacy.rename(self.spool_dir)
+        for path in pending:
+            if path in invalid_temporaries:
+                continue
+            sync_checkpoint_path(self.spool_dir / path.name)
 
     def _initialize_transport(self) -> None:
         self.client = actor_transport.Client(self.target, self.token, self.codec)
@@ -140,12 +212,14 @@ class ActorRuntime:
             self._raise_background_failure()
         finally:
             self.stop.set()
+            self.collection_done.set()
             original_error = sys.exception()
             cleanup_error: BaseException | None = None
             cleanup_steps: tuple[Callable[[], None], ...] = (
                 lambda: self._join_senders(workers),
                 self.client.close,
                 lambda: self._join_workers(workers),
+                self._raise_background_failure,
             )
             for cleanup in cleanup_steps:
                 try:
@@ -211,6 +285,9 @@ class ActorRuntime:
         _configure_actor_threads(self.spec.distributed.actor_execution)
         pipeline = _instantiate(self.spec.components.feature_pipeline, base_dir=self.base_dir)
         environment = self._environment_factory()
+        from trackmaniarl.distributed.evaluation_contract import validate_scheduled_evaluation
+
+        validate_scheduled_evaluation(self.spec, environment, pipeline, self.base_dir)
         model_factory = self._model_factory()
         self._replica_learner = self._create_replica_learner(model_factory)
         self._replica_learner.setup(self._replica_context(model_factory))

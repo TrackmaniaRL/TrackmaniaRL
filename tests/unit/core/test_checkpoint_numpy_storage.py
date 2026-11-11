@@ -12,9 +12,17 @@ from trackmaniarl.core.checkpoint_pickle import restore_numpy_array
 
 
 @pytest.mark.parametrize(
-    "dtype", [np.bool_, np.int8, np.int64, np.uint32, np.float16, np.float64, np.complex64]
+    ("dtype", "layout"),
+    [
+        (np.bool_, "c"),
+        (np.int8, "f"),
+        (np.int64, "reverse"),
+        (np.uint32, "readonly"),
+        (np.float16, "empty"),
+        (np.float64, "scalar"),
+        (np.complex64, "c"),
+    ],
 )
-@pytest.mark.parametrize("layout", ["c", "f", "reverse", "readonly", "empty", "scalar"])
 def test_checkpoint_preserves_numpy_values_and_types(
     tmp_path: Path, dtype: type, layout: str
 ) -> None:

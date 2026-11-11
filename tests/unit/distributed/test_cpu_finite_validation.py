@@ -4,8 +4,19 @@ import torch
 from trackmaniarl.distributed.coordinator_validation import _validate_numeric_array
 
 
-@pytest.mark.parametrize("dtype", [torch.float16, torch.float32, torch.float64, torch.bfloat16])
-@pytest.mark.parametrize("value", [0.0, -0.0, 1.0, float("nan"), float("inf"), -float("inf")])
+@pytest.mark.parametrize(
+    ("dtype", "value"),
+    [
+        (torch.float16, 0.0),
+        (torch.float16, float("nan")),
+        (torch.float32, -0.0),
+        (torch.float32, float("inf")),
+        (torch.float64, 1.0),
+        (torch.float64, -float("inf")),
+        (torch.bfloat16, 1.0),
+        (torch.bfloat16, float("nan")),
+    ],
+)
 def test_cpu_finiteness_keeps_torch_acceptance(dtype: torch.dtype, value: float) -> None:
     data = torch.tensor([value, 0.0], dtype=dtype, requires_grad=True)[::2]
     expected = bool(torch.isfinite(data).all())

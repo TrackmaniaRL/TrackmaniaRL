@@ -25,11 +25,10 @@ from trackmaniarl.algorithms.sac_support import (
     alpha_value,
     continuous_batch,
     entropy_state,
-    freeze_modules,
+    frozen_modules,
     quantile_batch_output,
     restore_entropy_state,
     scalar_batch_output,
-    unfreeze_modules,
 )
 from trackmaniarl.core.contracts import ModelContract
 from trackmaniarl.core.data import PriorityUpdate, TrainingBatch
@@ -213,16 +212,15 @@ class TruncatedQuantileCritic(TorchLearnerBase):
     def _actor_step(
         self, batch: SACBatch, alpha: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        freeze_modules(self.critics)
-        policy_actions, log_probabilities = self.model.actor(batch.observations)
-        batch_size = batch.rewards.shape[0]
-        log_probabilities = scalar_batch_output(
-            log_probabilities, "actor log probabilities", batch_size
-        )
-        policy_values = self._policy_values(batch, policy_actions)
-        actor_loss = (alpha * log_probabilities - policy_values).mean()
-        self._optimize(actor_loss, self.actor_optimizer)
-        unfreeze_modules(self.critics)
+        with frozen_modules(self.critics):
+            policy_actions, log_probabilities = self.model.actor(batch.observations)
+            batch_size = batch.rewards.shape[0]
+            log_probabilities = scalar_batch_output(
+                log_probabilities, "actor log probabilities", batch_size
+            )
+            policy_values = self._policy_values(batch, policy_actions)
+            actor_loss = (alpha * log_probabilities - policy_values).mean()
+            self._optimize(actor_loss, self.actor_optimizer)
         return actor_loss, log_probabilities
 
     def _policy_values(self, batch: SACBatch, actions: torch.Tensor) -> torch.Tensor:

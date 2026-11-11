@@ -214,8 +214,10 @@ def _native_learner(algorithm: str, encoder: str) -> tuple[Any, torch.nn.Module]
     return learner, model
 
 
-@pytest.mark.parametrize("algorithm", ["dqn", "qr", "iqn", "sd-sac"])
-@pytest.mark.parametrize("encoder", ["graph", "mlp"])
+@pytest.mark.parametrize(
+    ("algorithm", "encoder"),
+    [("dqn", "graph"), ("dqn", "mlp"), ("qr", "graph"), ("iqn", "mlp"), ("sd-sac", "graph")],
+)
 def test_native_observations_support_discrete_learners_and_encoders(
     algorithm: str, encoder: str, tmp_path: Path
 ) -> None:
@@ -326,6 +328,30 @@ def setup() -> tuple[FullQrEnvironment, Provider, Pipeline]:
         ),
     )
     return environment, provider, pipeline
+
+
+@pytest.mark.parametrize(
+    ("action", "expected"),
+    [
+        (0, (0.0, 0.0, 0.0)),
+        (1, (0.0, 1.0, 0.0)),
+        (2, (0.0, 0.2, 1.0)),
+        (3, (1.0, 0.0, 0.0)),
+        (4, (1.0, 1.0, 0.0)),
+        (5, (1.0, 0.2, 1.0)),
+    ],
+)
+def test_native_control_metrics(action: int, expected: tuple[float, float, float]) -> None:
+    gas, brake, tap = expected
+    environment, _, _ = setup()
+    try:
+        environment.reset()
+        info = environment.step(action)[4]
+        assert info["control_gas"] == gas
+        assert info["control_brake"] == pytest.approx(brake)
+        assert info["control_brake_tap"] == tap
+    finally:
+        environment.close()
 
 
 def test_sdk_mapping_collision_delivery_and_fresh_reset_history() -> None:

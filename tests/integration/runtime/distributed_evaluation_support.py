@@ -20,6 +20,7 @@ from trackmaniarl.core.builtins import TorchCheckpointCodec
 from trackmaniarl.core.replay import InMemoryReplayStore, UniformSampler
 from trackmaniarl.core.runtime import ResolvedRun
 from trackmaniarl.core.spec import RunSpec
+from trackmaniarl.distributed.codec import WireCodec
 from trackmaniarl.distributed.coordinator import Coordinator
 from trackmaniarl.distributed.coordinator_checkpoint import (
     EvaluatedPolicyCheckpoint,
@@ -27,6 +28,8 @@ from trackmaniarl.distributed.coordinator_checkpoint import (
 )
 from trackmaniarl.distributed.coordinator_support import _Counters
 from trackmaniarl.distributed.coordinator_types import CoordinatorConfig
+from trackmaniarl.distributed.coordinator_validation import _validate_submit_payload
+from trackmaniarl.distributed.protocol import PROTOCOL_VERSION
 
 
 class _OrderedLearner(_SlowLearner):
@@ -135,6 +138,7 @@ def _evaluation_coordinator(
     checkpoints: list[EvaluationCheckpointKind],
 ) -> Coordinator:
     coordinator = object.__new__(Coordinator)
+    coordinator._metric_segment_id = "test-segment"
     coordinator.run = _evaluation_run(events)
     coordinator.counters = _Counters()
     coordinator._last_ingest_at = time.monotonic()
@@ -154,11 +158,11 @@ def _evaluation_run(events: list[tuple[str, dict[str, Any]]]) -> SimpleNamespace
     training = SimpleNamespace(
         warmup_transitions=1,
         updates_per_transition=1.0,
-        evaluate_every_episodes=None,
+        evaluate_every_episodes=1,
     )
     spec = SimpleNamespace(
         distributed=SimpleNamespace(max_update_credit=512, strict_update_budget=False),
-        evaluation=SimpleNamespace(min_finish_rate=1.0),
+        evaluation=SimpleNamespace(min_finish_rate=1.0, trials_per_map=2),
         training=training,
     )
     return SimpleNamespace(
@@ -170,19 +174,31 @@ class _EvaluationIngestor:
     def __init__(self, coordinator: Coordinator) -> None:
         self.coordinator = coordinator
         self.journal_row = 0
+        self.coordinator.journal = SimpleNamespace(
+            evaluation_row_accepted=lambda _row: True,
+            stage_evaluation_promotion=lambda _row, _evidence: None,
+            complete_evaluation_promotion=lambda _row: None,
+        )
+        self.coordinator.codec = WireCodec(1024 * 1024)
 
     def ingest(self, evaluations: list[dict[str, Any]]) -> None:
         self.journal_row += 1
         payload = {
+            "protocol_version": PROTOCOL_VERSION,
+            "fingerprint": "fingerprint",
             "actor_id": "actor",
             "session_id": "session",
             "sequence": 0,
             "policy_version": 0,
             "transitions": [],
             "episodes": [],
-            "evaluations": evaluations,
-            "evaluation_snapshot": b"",
+            "evaluations": [
+                {**summary, "evaluation_assignment_id": f"assignment-{self.journal_row}"}
+                for summary in evaluations
+            ],
+            "evaluation_snapshot": self.coordinator.codec.encode({"weight": 1.0}),
         }
+        _validate_submit_payload(payload, self.coordinator.codec)
         self.coordinator._ingest(payload, self.journal_row)
 
 

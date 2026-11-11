@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from math import isfinite
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -74,9 +75,11 @@ def candidate_from_stats(stats: Mapping[str, float]) -> EvaluationCandidate:
     )
 
 
-def record_evaluation_leaders(coordinator: Coordinator, candidate: EvaluationCandidate) -> None:
+def record_evaluation_leaders(
+    coordinator: Coordinator, candidate: EvaluationCandidate, *, allow_recovery: bool = False
+) -> None:
     coordinator._checkpoint_writer.wait()
-    promotions = _leader_promotions(coordinator, candidate)
+    promotions = _leader_promotions(coordinator, candidate, allow_recovery=allow_recovery)
     if not _has_promotions(promotions):
         return
     policy_state = _evaluated_policy_state(coordinator, candidate.policy_version)
@@ -118,9 +121,9 @@ def _promotion_for_kind(
 
 
 def _leader_promotions(
-    coordinator: Coordinator, candidate: EvaluationCandidate
+    coordinator: Coordinator, candidate: EvaluationCandidate, *, allow_recovery: bool = False
 ) -> _LeaderPromotions:
-    if coordinator._recovering:
+    if coordinator._recovering and not allow_recovery:
         return _LeaderPromotions(None, None)
     reliable = _reliable_rank(coordinator, candidate)
     fastest = _fastest_rank(candidate)
@@ -152,6 +155,11 @@ def _maximum_step_target(coordinator: Coordinator) -> float | None:
 
 
 def _reliable_qualified(coordinator: Coordinator, candidate: EvaluationCandidate) -> bool:
+    if candidate.finished_trials < 1 or any(
+        not isfinite(value) or value <= 0.0
+        for value in (candidate.best_time_s, candidate.median_time_s, candidate.mean_time_s)
+    ):
+        return False
     if candidate.finish_rate < _required_finish_rate(coordinator):
         return False
     target = _target_mean(coordinator)
@@ -238,7 +246,12 @@ def _save_leader(
     saved = _saved_callback(coordinator, request)
     rollback = _rollback_callback(coordinator, reservation, request.kind)
     evaluated = EvaluatedPolicyCheckpoint(
-        request.policy_state, request.candidate.policy_version, request.kind, saved, rollback
+        request.policy_state,
+        request.candidate.policy_version,
+        request.kind,
+        saved,
+        rollback,
+        suppress_events=coordinator._recovering,
     )
     try:
         coordinator._checkpoint(evaluated)
@@ -248,9 +261,12 @@ def _save_leader(
 
 
 def _saved_callback(coordinator: Coordinator, request: _LeaderCheckpoint) -> Callable[[Path], None]:
+    recovering = coordinator._recovering
+
     def saved(path: Path) -> None:
         coordinator._checkpoints.append(path)
-        _log_leader_checkpoint(coordinator, request, path)
+        if not recovering:
+            _log_leader_checkpoint(coordinator, request, path)
 
     return saved
 

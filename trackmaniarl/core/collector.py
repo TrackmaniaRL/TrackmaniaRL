@@ -14,6 +14,7 @@ from trackmaniarl.core.observation_endpoints import (
     prepare_bootstrap_observation,
     validate_endpoint_step_limit,
 )
+from trackmaniarl.core.pytree import policy_observation_snapshot, tree_snapshot
 
 
 class Environment(Protocol):
@@ -40,7 +41,11 @@ class _EpisodeTrace:
 
     def record(self, record: _EpisodeRecord) -> None:
         self.telemetry.append(
-            {"step": record.step, "action_latency_ms": record.latency_ms, **dict(self.info)}
+            {
+                "step": record.step,
+                "action_latency_ms": record.latency_ms,
+                **tree_snapshot(self.info),
+            }
         )
         self.actions.append(record.action)
         self.rewards.append(record.reward)
@@ -98,7 +103,7 @@ class _RolloutTrace:
     def record(self, step: int, result: tuple[Mapping[str, Any], float, bool, Any]) -> None:
         info, reward, ended, action = result
         self.completed_episodes += int(ended)
-        self.telemetry.append({"step": step, **dict(info)})
+        self.telemetry.append({"step": step, **tree_snapshot(info)})
         self.actions.append(action)
         self.rewards.append(reward)
         self.observation_refs.append(str(info.get("observation_ref", "")))
@@ -131,21 +136,25 @@ class EpisodeCollector:
         self, context: _EpisodeStep, prepared: Any, trace: _EpisodeTrace
     ) -> tuple[Any, bool]:
         action, policy_info, latency_ms = self._timed_act(prepared)
+        current = tree_snapshot(prepared)
+        recorded_action = tree_snapshot(action)
+        policy_info = tree_snapshot(policy_info)
         outcome = self._episode_outcome(context, action)
         next_observation, reward, terminated, truncated, info = outcome
+        info = tree_snapshot(info)
         next_prepared = prepare_bootstrap_observation(
             self.pipeline, next_observation, flags=(terminated, truncated)
         )
         transition = self._transition(
             _EpisodeTransition(
                 context,
-                (prepared, next_prepared),
-                (action, reward, terminated, truncated, info, policy_info),
+                (current, tree_snapshot(next_prepared)),
+                (tree_snapshot(recorded_action), reward, terminated, truncated, info, policy_info),
             )
         )
         self.store.append(transition)
         trace.info = info
-        trace.record(_EpisodeRecord(context.step, action, float(reward), latency_ms))
+        trace.record(_EpisodeRecord(context.step, recorded_action, float(reward), latency_ms))
         return next_prepared, terminated or truncated
 
     def _timed_act(self, observation: Any) -> tuple[Any, Mapping[str, Any], float]:
@@ -184,7 +193,7 @@ class EpisodeCollector:
             next_observation=next_prepared,
             terminated=terminated,
             truncated=truncated,
-            info={**info, **policy_info},
+            info=tree_snapshot({**info, **policy_info}),
             episode_id=build.context.episode_id,
             step=build.context.step,
         )
@@ -203,6 +212,7 @@ class EpisodeCollector:
         return CollectionResult(len(trace.rewards), sum(trace.rewards), artifact)
 
     def _act(self, observation: Any) -> tuple[Any, Mapping[str, Any]]:
+        observation = policy_observation_snapshot(observation)
         sample = getattr(self.policy, "act_with_info", None)
         if not callable(sample):
             return self.policy.act(observation), {}
@@ -291,13 +301,15 @@ class FixedStepRolloutCollector:
 
     def _collect_rollout_step(self) -> tuple[Mapping[str, Any], float, bool, Any]:
         action, policy_info, latency_ms = self._act()
-        info, reward, episode_ended = self._step(action, policy_info)
+        recorded_action = tree_snapshot(action)
+        policy_info = tree_snapshot(policy_info)
+        info, reward, episode_ended = self._step((action, recorded_action), policy_info)
         details = {
             "episode_step": self.episode_step - 1,
             "action_latency_ms": latency_ms,
             **dict(info),
         }
-        return details, reward, episode_ended, action
+        return details, reward, episode_ended, recorded_action
 
     @staticmethod
     def _rollout_result(
@@ -325,19 +337,23 @@ class FixedStepRolloutCollector:
 
     def _act(self) -> tuple[Any, Mapping[str, Any], float]:
         started = perf_counter()
+        observation = policy_observation_snapshot(self.prepared)
         sample = getattr(self.policy, "act_with_info", None)
         if callable(sample):
-            action, info = sample(self.prepared)
+            action, info = sample(observation)
         else:
-            action, info = self.policy.act(self.prepared), {}
+            action, info = self.policy.act(observation), {}
         if not isinstance(info, Mapping):
             raise TypeError("Policy act_with_info() must return action and a mapping")
         return action, info, (perf_counter() - started) * 1000.0
 
     def _step(
-        self, action: Any, policy_info: Mapping[str, Any]
+        self, actions: tuple[Any, Any], policy_info: Mapping[str, Any]
     ) -> tuple[Mapping[str, Any], float, bool]:
+        action, recorded_action = actions
+        current = tree_snapshot(self.prepared)
         next_observation, reward, terminated, truncated, info = self.environment.step(action)
+        info = tree_snapshot(info)
         self.episode_step += 1
         end_state = self._apply_episode_limit(_EpisodeEndState(terminated, truncated, info))
         if self._ending_rollout and not end_state.terminated and not end_state.truncated:
@@ -349,7 +365,9 @@ class FixedStepRolloutCollector:
             self.pipeline, next_observation, flags=(terminated, truncated)
         )
         transition = self._rollout_transition(
-            action, next_prepared, (reward, terminated, truncated, info, policy_info)
+            tree_snapshot(recorded_action),
+            (current, tree_snapshot(next_prepared)),
+            (reward, terminated, truncated, info, policy_info),
         )
         self.store.append(transition)
         self.prepared = next_prepared
@@ -365,17 +383,18 @@ class FixedStepRolloutCollector:
         )
 
     def _rollout_transition(
-        self, action: Any, next_prepared: Any, outcome: tuple[Any, ...]
+        self, action: Any, observations: tuple[Any, Any], outcome: tuple[Any, ...]
     ) -> Transition:
         reward, terminated, truncated, info, policy_info = outcome
+        current, next_prepared = observations
         return Transition(
-            observation=self.prepared,
+            observation=current,
             action=action,
             reward=float(reward),
             next_observation=next_prepared,
             terminated=terminated,
             truncated=truncated,
-            info={**info, **policy_info},
+            info=tree_snapshot({**info, **policy_info}),
             episode_id=f"episode-{self.episode_index:08d}",
             step=self.episode_step - 1,
         )

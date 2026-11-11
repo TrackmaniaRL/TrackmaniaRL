@@ -7,3 +7,7 @@ class EnvironmentResetError(RuntimeError):
 
 class EnvironmentPausedError(RuntimeError):
     """Collection must wait for external readiness and reset before continuing."""
+
+
+class EvaluationCancelledError(RuntimeError):
+    """The operator stopped an incomplete evaluation suite."""

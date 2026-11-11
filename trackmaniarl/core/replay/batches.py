@@ -204,6 +204,13 @@ def _make_batch(build: _BatchBuild) -> TrainingBatch:
 
 def _build_batch(build: _BatchBuild) -> TrainingBatch:
     materialized = _materialize_batch(build)
+    return _collate_materialized_batch(build, materialized)
+
+
+def _collate_materialized_batch(
+    build: _BatchBuild, materialized: _MaterializedBatch
+) -> TrainingBatch:
+    """Run user collation after the caller has finished reading replay."""
     collated = build.pipeline.collate(materialized.transitions)
     standard = _standard_collation(collated)
     data = _batch_data(collated, standard)
