@@ -206,6 +206,16 @@ Each `maps[]` item has an immutable local asset identity:
 | `reward_points_path` | null | Recorded 3D reward path without road boundaries. Its UID must match the live session; a local map checksum is optional when recording official campaign maps. |
 | `expected_map_uid` | required | UID that the live session must report, a mismatch fails before driving. |
 
+When a local benchmark uses `LidarFeaturePipeline` or `LidarVisionFeaturePipeline`
+with reward points, LiDAR uses the geometry currently loaded by the pipeline.
+The reward points and geometry must have the same map UID and nonempty matching
+map checksums, and `map_path` must identify that map file. UID-only reward points
+cannot establish this binding. In a multi-map suite, a `geometry_path` entry
+switches the current geometry; a later reward-points entry can only reuse it for
+the same map. For example, after switching from map A to geometry B, reward
+points for A fail until geometry A is loaded again. Each suite entry is evaluated
+in order and must have a unique ID.
+
 ## Trackmania environment
 
 The paths below are under `components.environment.kwargs.config`.

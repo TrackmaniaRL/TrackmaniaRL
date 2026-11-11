@@ -38,6 +38,7 @@ def validate_pipeline_binding(pipeline: Any, asset: Any, map_spec: Any) -> None:
     from trackmaniarl.trackmania.features import LidarFeaturePipeline, TelemetryFeaturePipeline
     from trackmaniarl.trackmania.multimodal import LidarVisionFeaturePipeline
     from trackmaniarl.trackmania.native_headless.vision import RibbonVisionFeaturePipeline
+    from trackmaniarl.trackmania.reward_points import RewardPoints
     from trackmaniarl.trackmania.vision import PreparedVisionFeaturePipeline, VisionFeaturePipeline
 
     if type(pipeline) in (
@@ -55,7 +56,18 @@ def validate_pipeline_binding(pipeline: Any, asset: Any, map_spec: Any) -> None:
         return
     if type(pipeline) is LidarFeaturePipeline:
         geometry = pipeline.geometry
-        if geometry.map_uid != map_spec.expected_map_uid or geometry.sha256 != asset.sha256:
+        if geometry.map_uid != map_spec.expected_map_uid:
+            raise ValueError("scheduled evaluation pipeline geometry differs from the pinned map")
+        if isinstance(asset, RewardPoints):
+            # A reward-points file and a boundary-geometry file have distinct
+            # asset hashes even when both were built from the same map. Bind
+            # both to the map bytes rather than comparing the asset hashes.
+            if not asset.map_sha256 or geometry.map_sha256 != asset.map_sha256:
+                raise ValueError(
+                    "scheduled evaluation pipeline geometry differs from the pinned map"
+                )
+            geometry.validate_map(map_spec.map_path)
+        elif geometry.sha256 != asset.sha256:
             raise ValueError("scheduled evaluation pipeline geometry differs from the pinned map")
         return
     validate = getattr(pipeline, "validate_scheduled_evaluation_map", None)

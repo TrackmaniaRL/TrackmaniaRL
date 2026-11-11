@@ -2,6 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import numpy as np
 import pytest
 
 from tests.unit.trackmania._lidar_fixtures import _asset
@@ -14,6 +15,7 @@ from trackmaniarl.trackmania.environment import OpenPlanetEnvironmentFactory
 from trackmaniarl.trackmania.features import LidarFeaturePipeline, TelemetryFeaturePipeline
 from trackmaniarl.trackmania.geometry import BoundaryGeometry
 from trackmaniarl.trackmania.multimodal import LidarVisionFeaturePipeline
+from trackmaniarl.trackmania.reward_points import save_reward_points
 from trackmaniarl.trackmania.vision import VisionFeaturePipeline
 from trackmaniarl.trackmania.vision_environment import VisionEnvironmentFactory
 
@@ -146,6 +148,46 @@ def test_openplanet_attests_exact_map_and_rejects_different_identity(tmp_path: P
     with pytest.raises(ValueError, match="checksum"):
         factory.validate_scheduled_evaluation_map(
             item.model_copy(update={"map_path": wrong_map}), TelemetryFeaturePipeline()
+        )
+
+
+def test_reward_points_and_lidar_geometry_must_bind_the_same_map(tmp_path: Path) -> None:
+    geometry = _asset(tmp_path)
+    map_path = tmp_path / "trackmaniarl-test.Map.Gbx"
+    points = np.asarray([[0.0, 0.0, 0.0], [10.0, 0.0, 0.0]], dtype=np.float32)
+    reward = save_reward_points(
+        tmp_path / "reward.npz", points, map_uid="trackmaniarl-test", map_path=map_path
+    )
+    item = EvaluationMapSpec(
+        id="a", reward_points_path=reward, map_path=map_path, expected_map_uid="trackmaniarl-test"
+    )
+    factory = OpenPlanetEnvironmentFactory(
+        {"reward_points_path": reward, "expected_map_uid": "trackmaniarl-test"}
+    )
+    lidar = LidarFeaturePipeline(
+        {"geometry_path": geometry, "expected_map_uid": "trackmaniarl-test"}
+    )
+    validate_scheduled_evaluation(_spec((item,)), factory, lidar, tmp_path)
+
+    lidar.geometry.map_sha256 = "f" * 64
+    with pytest.raises(ValueError, match="pipeline geometry differs"):
+        validate_scheduled_evaluation(_spec((item,)), factory, lidar, tmp_path)
+    lidar.geometry.map_sha256 = BoundaryGeometry(geometry).map_sha256
+    lidar.geometry.map_uid = "other"
+    with pytest.raises(ValueError, match="pipeline geometry differs"):
+        validate_scheduled_evaluation(_spec((item,)), factory, lidar, tmp_path)
+
+    uid_only = save_reward_points(tmp_path / "uid-only.npz", points, map_uid="trackmaniarl-test")
+    uid_only_map = item.model_copy(update={"reward_points_path": uid_only})
+    uid_only_factory = OpenPlanetEnvironmentFactory(
+        {"reward_points_path": uid_only, "expected_map_uid": "trackmaniarl-test"}
+    )
+    with pytest.raises(ValueError, match="pipeline geometry differs"):
+        validate_scheduled_evaluation(
+            _spec((uid_only_map,)),
+            uid_only_factory,
+            LidarFeaturePipeline({"geometry_path": geometry}),
+            tmp_path,
         )
 
 
