@@ -15,6 +15,7 @@ from trackmaniarl.distributed.coordinator_observability_validation import (
     _validate_finite_number,
     _validate_observability_summary,
 )
+from trackmaniarl.distributed.evaluation_assets import is_sha256
 from trackmaniarl.distributed.protocol import transition_from_wire
 
 
@@ -50,7 +51,14 @@ def _multimap_trial_admission_error(
         (item.id, item.expected_map_uid, index) for item in maps for index in range(trials_per_map)
     }
     observed: set[tuple[str, str, int]] = set()
+    assets: str | None = None
     for item in evaluations:
+        digest = item.get("evaluation_assets_sha256")
+        if not is_sha256(digest):
+            return "multi-map evaluation requires an asset digest"
+        if assets is not None and digest != assets:
+            return "multi-map evaluation contains mixed asset digests"
+        assets = cast(str, digest)
         map_id, uid, index = item.get("map_id"), item.get("map_uid"), item.get("trial_index")
         if not isinstance(map_id, str) or not isinstance(uid, str) or type(index) is not int:
             return "multi-map evaluation requires map_id, map_uid and integer trial_index"

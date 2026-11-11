@@ -133,6 +133,7 @@ def _multimap_results() -> list[dict]:
             "map_id": name,
             "map_uid": uid,
             "trial_index": index,
+            "evaluation_assets_sha256": "a" * 64,
         }
         for name, uid in (("first", "uid-a"), ("second", "uid-b"))
         for index in range(2)

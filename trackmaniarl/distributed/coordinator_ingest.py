@@ -114,6 +114,8 @@ def ingest(coordinator: Coordinator, value: Mapping[str, Any], row_id: int) -> N
             )
         if not accepted:
             evaluations = []
+        else:
+            _verify_evaluation_row_assets(coordinator, evaluations, row_id)
     batch = _ingest_batch(coordinator, value, row_id)
     before = coordinator.counters.transitions
     _append_transitions(batch)
@@ -456,12 +458,24 @@ def _recover_pending_promotions(coordinator: Coordinator) -> None:
             and coordinator.journal.evaluation_row_accepted(row_id) is not True
         ):
             raise ValueError("pending promotion lacks a persisted accepted admission verdict")
+        _verify_evaluation_row_assets(coordinator, summaries, row_id)
         _ingest_evaluation_snapshot(coordinator, {"evaluation_snapshot": snapshot}, summaries)
         stats = _evaluation_batch_stats(summaries, coordinator._time_buckets)
         candidate = coordinator_leaders.candidate_from_stats(stats)
         coordinator_leaders.record_evaluation_leaders(coordinator, candidate, allow_recovery=True)
         coordinator._checkpoint_writer.wait()
         coordinator.journal.complete_evaluation_promotion(row_id)
+
+
+def _verify_evaluation_row_assets(
+    coordinator: Coordinator, summaries: list[Any], row_id: int
+) -> None:
+    suite = coordinator.run.spec.evaluation
+    if suite is None or len(getattr(suite, "maps", ())) <= 1:
+        return
+    assigned = coordinator.journal.evaluation_row_assets(row_id)
+    if not assigned or any(item.get("evaluation_assets_sha256") != assigned for item in summaries):
+        raise ValueError("journal evaluation asset binding differs from admission")
 
 
 def _recover_rows(coordinator: Coordinator, watermark: int) -> tuple[int, int]:

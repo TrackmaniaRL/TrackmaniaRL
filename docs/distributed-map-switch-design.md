@@ -75,12 +75,21 @@ it becomes one only when every command path and recovery path use it.
 ## Evaluation and restoration
 
 At admission, resolve each local map and geometry/reward asset and bind their
-UIDs and content hashes to the run fingerprint. Require an explicit training
+UIDs and content hashes to the durable assignment. Require an explicit training
 map path, UID and matching assets for restoration. Reject missing checksums,
 untrusted map locations and unsupported map-dependent feature pipelines.
 Map-file hashing and a matching reported UID bind configured inputs, but are
 not by themselves cryptographic proof of the bytes loaded by the game; document
 that limitation and validate the actual load mechanism in a controlled game.
+
+The current multi-map assignment path records a digest of the suite identity,
+map UIDs and declared map/reward/geometry file contents in the durable
+assignment. The actor compares its local files before and after the suite;
+accepted WAL rows retain the coordinator's assigned digest for recovery. This
+is only file-content binding. In particular, it neither proves which bytes the
+game loaded nor detects a file replaced and restored between the two actor
+checks. It does not permit the current single-map-only admission guard to be
+removed. Older single-map assignments and journals retain their existing format.
 
 The coordinator assigns one immutable policy snapshot and suite identity. For
 every map the actor verifies the assets, switches and confirms readiness, then

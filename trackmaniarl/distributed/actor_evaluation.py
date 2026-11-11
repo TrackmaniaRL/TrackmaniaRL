@@ -21,6 +21,7 @@ from trackmaniarl.distributed.actor_requests import (
     SpoolRequest,
     TelemetryFailure,
 )
+from trackmaniarl.distributed.evaluation_assets import evaluation_assets_digest
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ def evaluate(runtime: CollectionRuntime, environment: Any, pipeline: Any) -> Non
     suite = runtime.spec.evaluation
     trials = 1 if suite is None else suite.trials_per_map
     policy, version = runtime._evaluation_policy()
+    _verify_assigned_assets(runtime)
     plan = EvaluationPlan(runtime, environment, pipeline, policy, version)
     try:
         summaries = _evaluation_trials(plan, trials)
@@ -50,11 +52,15 @@ def evaluate(runtime: CollectionRuntime, environment: Any, pipeline: Any) -> Non
             "Actor %s stopped during evaluation; leaving assignment pending", runtime.actor_id
         )
         return
+    _verify_assigned_assets(runtime)
     assignment_id = getattr(runtime, "_active_evaluation_assignment_id", "")
     if assignment_id:
         summaries = [
             {**summary, "evaluation_assignment_id": assignment_id} for summary in summaries
         ]
+    assets = getattr(runtime, "_active_evaluation_assets_sha256", "")
+    if assets:
+        summaries = [{**summary, "evaluation_assets_sha256": assets} for summary in summaries]
     # Identified assignments retain the loaded state from before actor-local
     # exploration settings, warmup and trial inference can mutate it. Unassigned
     # and legacy evaluations preserve their original post-trial export behavior.
@@ -66,6 +72,17 @@ def evaluate(runtime: CollectionRuntime, environment: Any, pipeline: Any) -> Non
     if not snapshot:
         raise RuntimeError("identified evaluation is missing its initial policy snapshot")
     runtime._spool(SpoolRequest([], [], version, summaries, snapshot))
+
+
+def _verify_assigned_assets(runtime: CollectionRuntime) -> None:
+    expected = getattr(runtime, "_active_evaluation_assets_sha256", "")
+    suite = runtime.spec.evaluation
+    if suite is not None and len(getattr(suite, "maps", ())) > 1 and not expected:
+        raise RuntimeError("multi-map evaluation requires an assigned asset digest")
+    if expected:
+        actual = evaluation_assets_digest(suite, runtime.base_dir)
+        if actual != expected:
+            raise RuntimeError("evaluation assets differ from the assigned suite")
 
 
 def _evaluation_trials(plan: EvaluationPlan, trials: int) -> list[dict[str, Any]]:
@@ -124,10 +141,12 @@ def evaluation_policy(runtime: CollectionRuntime) -> tuple[ReplicablePolicy, int
         runtime._evaluation_request = None
     if request is None:
         runtime._active_evaluation_assignment_id = ""
+        runtime._active_evaluation_assets_sha256 = ""
         runtime._active_evaluation_initial_snapshot = b""
         policy, _, version = runtime._policy()
         return policy, version
-    snapshot, version, assignment_id = request
+    snapshot, version, assignment_id = request[:3]
+    runtime._active_evaluation_assets_sha256 = request[3] if len(request) == 4 else ""
     runtime._active_evaluation_assignment_id = assignment_id
     runtime._active_evaluation_initial_snapshot = b""
     return _policy_from_request(runtime, (snapshot, version))
