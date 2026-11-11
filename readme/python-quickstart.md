@@ -90,8 +90,8 @@ checkpoint and snapshot hashes; for the built-in evaluator it also checks the
 required `evaluation.json` artifact.
 If a stop file is already present when a periodic evaluation is due, the trainer
 defers it until resume. If the stop arrives during an active Trackmania
-evaluation, the evaluator raises `EvaluationCancelledError`; the pending
-checkpoint remains available for resume after removing the stop file.
+evaluation, training stops cleanly and the incomplete evaluation is repeated
+after removing the stop file and resuming from the saved checkpoint.
 An absent, invalid, moved or outdated receipt or artifact causes the evaluation
 to run again. Custom evaluators without `set_checkpoint` do not receive a
 snapshot, and are responsible for preserving their own result artifacts.
@@ -106,14 +106,17 @@ version can also be rejected when the run's source fingerprint differs.
 
 Local evaluations with checkpoint-aware evaluators use a separate full snapshot
 in `evaluation-checkpoints/`, so later recovery saves cannot change its bytes.
-These snapshots can be as large as a full training checkpoint. When
-`checkpoint_keep_last` is set, the same limit applies separately to completed
-evaluation snapshots; a snapshot referenced by `evaluation.json` and an
+These snapshots can be as large as a full training checkpoint. By default,
+`evaluation_snapshot_keep_last` retains two recent snapshots. If
+`checkpoint_keep_last` is also configured, the lower limit applies. Set both
+values to null for unlimited retention. Existing snapshots already present when
+bounded evaluation retention is first enabled are preserved and may be removed
+manually after archiving. A snapshot referenced by `evaluation.json` and an
 in-progress snapshot are protected even when that exceeds the limit. Interrupted
 evaluations can temporarily leave additional snapshots. Custom evaluators that
 retain historical results must archive the referenced snapshots before they are
-pruned. With the default unlimited retention, these snapshots accumulate until
-the user removes them.
+pruned. With unlimited retention, these snapshots accumulate until the user
+removes them.
 
 ## Plug in a model
 

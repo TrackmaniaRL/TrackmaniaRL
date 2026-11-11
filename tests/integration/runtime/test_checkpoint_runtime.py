@@ -385,6 +385,7 @@ def test_trainer_evaluation_artifact_is_bound_to_the_current_checkpoint(
         "updates_per_transition": 1.0,
         "checkpoint_interval_updates": 100,
         "evaluate_every_episodes": 1,
+        "evaluation_snapshot_keep_last": None,
     }
     evaluation = _evaluation_run(tmp_path, training)
     result = _train_and_close(evaluation.run)

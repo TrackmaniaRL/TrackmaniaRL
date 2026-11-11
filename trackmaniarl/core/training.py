@@ -109,7 +109,7 @@ class Trainer:
         if not callable(getattr(self.run.evaluator, "set_checkpoint", None)):
             return checkpoint, None, digest
         snapshot = create_evaluation_snapshot(
-            checkpoint, self.run.run_dir, self.run.spec.training.checkpoint_keep_last
+            checkpoint, self.run.run_dir, self.run.spec.training.evaluation_snapshot_retention
         )
         self._set_evaluation_checkpoint([snapshot])
         return checkpoint, snapshot, digest
@@ -138,7 +138,9 @@ class Trainer:
             )
         )
         if snapshot is not None:
-            prune_evaluation_snapshots(snapshot, self.run.spec.training.checkpoint_keep_last)
+            prune_evaluation_snapshots(
+                snapshot, self.run.spec.training.evaluation_snapshot_retention
+            )
 
     def _snapshot_for_final_evaluation(self, counters: TrainingCounters) -> Path | None:
         setter = getattr(self.run.evaluator, "set_checkpoint", None)
@@ -147,7 +149,7 @@ class Trainer:
         snapshot = create_evaluation_snapshot_with(
             self.run.run_dir,
             lambda path: self.run.checkpoint_codec.save(self._checkpoint_state(counters), path),
-            self.run.spec.training.checkpoint_keep_last,
+            self.run.spec.training.evaluation_snapshot_retention,
         )
         setter(snapshot)
         return snapshot

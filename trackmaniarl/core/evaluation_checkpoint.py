@@ -100,7 +100,7 @@ def record_evaluation(receipt: EvaluationReceipt) -> None:
     _atomic_json(receipt_path(checkpoint), payload)
 
 
-def _atomic_json(destination: Path, payload: Mapping[str, str | None]) -> None:
+def _atomic_json(destination: Path, payload: Mapping[str, object]) -> None:
     fd, name = tempfile.mkstemp(prefix=destination.name + ".", dir=destination.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as stream:
@@ -134,10 +134,11 @@ def create_evaluation_snapshot_with(
         raise ValueError("evaluation checkpoint directory must not be a symlink")
     manifest = _read_manifest(directory)
     protected = {value for value in manifest.values() if value is not None}
+    exempt = _retention_exempt(directory, keep)
     artifact_snapshot = _artifact_snapshot(run_dir, directory)
     if artifact_snapshot is not None:
         protected.add(artifact_snapshot)
-    _prune_snapshots(directory, protected, keep)
+    _prune_snapshots(directory, (protected, exempt), keep)
     destination = directory / f"snapshot-{uuid.uuid4().hex}.pt"
     try:
         save(destination)
@@ -161,10 +162,11 @@ def prune_evaluation_snapshots(current: Path, keep: int | None) -> None:
         raise ValueError("evaluation checkpoint path is unsafe")
     _atomic_json(directory / "manifest.json", {"completed": current.name, "pending": None})
     protected = {current.name}
+    exempt = _retention_exempt(directory, keep)
     artifact_snapshot = _artifact_snapshot(directory.parent, directory)
     if artifact_snapshot is not None:
         protected.add(artifact_snapshot)
-    _prune_snapshots(directory, protected, keep)
+    _prune_snapshots(directory, (protected, exempt), keep)
 
 
 def _read_manifest(directory: Path) -> dict[str, str | None]:
@@ -186,6 +188,32 @@ def _valid_snapshot_name(name: object) -> bool:
         return False
     suffix = name[len("snapshot-") : -len(".pt")]
     return len(suffix) == 32 and all(char in "0123456789abcdef" for char in suffix)
+
+
+def _retention_exempt(directory: Path, keep: int | None) -> set[str]:
+    """Preserve snapshots that predate the introduction of bounded retention."""
+    if keep is None:
+        return set()
+    path = directory / "retention-exempt.json"
+    if path.is_symlink():
+        raise ValueError("evaluation retention exemption file must not be a symlink")
+    if not path.exists():
+        names = sorted(
+            item.name
+            for item in directory.iterdir()
+            if _valid_snapshot_name(item.name) and item.is_file() and not item.is_symlink()
+        )
+        _atomic_json(path, {"snapshots": names})
+        return set(names)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if (
+        not isinstance(data, dict)
+        or set(data) != {"snapshots"}
+        or not isinstance(data["snapshots"], list)
+        or not all(_valid_snapshot_name(name) for name in data["snapshots"])
+    ):
+        raise ValueError("evaluation retention exemption file is invalid")
+    return set(data["snapshots"])
 
 
 def _artifact_snapshot(run_dir: Path, directory: Path) -> str | None:
@@ -215,21 +243,24 @@ def _artifact_digest(run_dir: Path, snapshot: Path) -> str | None:
         return None
 
 
-def _prune_snapshots(directory: Path, protected: set[str], keep: int | None) -> None:
+def _prune_snapshots(
+    directory: Path, protections: tuple[set[str], set[str]], keep: int | None
+) -> None:
     if keep is None:
         return
+    protected, exempt = protections
     candidates = [
         path
         for path in directory.glob("snapshot-*.pt")
         if _valid_snapshot_name(path.name) and not path.is_symlink() and path.is_file()
     ]
-    retained = {path.name for path in candidates if path.name in protected}
+    retained = {path.name for path in candidates if path.name in protected or path.name in exempt}
     unprotected = sorted(
         (path for path in candidates if path.name not in retained),
         key=lambda path: (path.stat().st_mtime_ns, path.name),
         reverse=True,
     )
-    retained.update(path.name for path in unprotected[: max(0, keep - len(retained))])
+    retained.update(path.name for path in unprotected[: max(0, keep - len(retained - exempt))])
     for path in candidates:
         if path.name not in retained:
             path.unlink()

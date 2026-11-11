@@ -15,6 +15,7 @@ from trackmaniarl.core.collector import (
     RolloutCollectionConfig,
 )
 from trackmaniarl.core.data import BatchRequest
+from trackmaniarl.core.environment_errors import EvaluationCancelledError
 from trackmaniarl.core.evaluation_checkpoint import prune_evaluation_snapshots
 from trackmaniarl.core.runtime import prepare_run, record_run_attempt
 from trackmaniarl.core.training_support import TrainingCounters, TrainingResult, rollout_metrics
@@ -181,10 +182,10 @@ def _run_to_completion(trainer: Trainer, session: _TrainingSession) -> TrainingR
     while session.counters.transitions < total and not trainer.stop_requested():
         _training_cycle(trainer, session)
     _save_final_checkpoint(trainer, session)
+    if not trainer.stop_requested():
+        _run_final_evaluation(trainer, session)
     if trainer.stop_requested():
         trainer._log("train/stopped", {"reason": "stop_file"}, session.counters)
-    else:
-        _run_final_evaluation(trainer, session)
     counters = session.counters
     print(
         f"Training finished: transitions={counters.transitions}, "
@@ -419,7 +420,12 @@ def _run_pending_periodic_evaluation(trainer: Trainer, session: _TrainingSession
     if trainer.stop_requested():
         return
     _close_rollout_environment(session)
-    session.evaluation = evaluator.evaluate(trainer.run.learner.policy())
+    try:
+        session.evaluation = evaluator.evaluate(trainer.run.learner.policy())
+    except EvaluationCancelledError:
+        if not trainer.stop_requested():
+            raise
+        return
     trainer._log("eval/suite", session.evaluation, session.counters)
     trainer._record_evaluation(checkpoint, snapshot, digest)
     trainer._pending_periodic_evaluation = False
@@ -439,10 +445,17 @@ def _run_final_evaluation(trainer: Trainer, session: _TrainingSession) -> None:
         return
     snapshot = trainer._snapshot_for_final_evaluation(session.counters)
     _close_rollout_environment(session)
-    session.evaluation = evaluator.evaluate(trainer.run.learner.policy())
+    try:
+        session.evaluation = evaluator.evaluate(trainer.run.learner.policy())
+    except EvaluationCancelledError:
+        if not trainer.stop_requested():
+            raise
+        return
     trainer._log("eval/suite", session.evaluation, session.counters)
     if snapshot is not None:
-        prune_evaluation_snapshots(snapshot, trainer.run.spec.training.checkpoint_keep_last)
+        prune_evaluation_snapshots(
+            snapshot, trainer.run.spec.training.evaluation_snapshot_retention
+        )
         if trainer.run.spec.training.save_final_checkpoint:
             session.checkpoints.append(snapshot)
 

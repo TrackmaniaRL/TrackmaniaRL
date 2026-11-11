@@ -22,6 +22,9 @@ from trackmaniarl.core.contracts import (
     PolicyMode,
 )
 from trackmaniarl.core.environment_errors import EnvironmentPausedError
+from trackmaniarl.core.environment_errors import (
+    EvaluationCancelledError as EvaluationCancelledError,
+)
 from trackmaniarl.core.pytree import policy_observation_snapshot, tree_snapshot
 from trackmaniarl.core.spec import EvaluationMapSpec, EvaluationSuiteSpec
 from trackmaniarl.experiments.evaluation import EvaluationResult, aggregate_results
@@ -72,10 +75,6 @@ _TRIAL_FIELDS = (
     "controller_error",
     "progress_bins",
 )
-
-
-class EvaluationCancelledError(RuntimeError):
-    """The operator stopped an incomplete suite; retained trials are not a full benchmark."""
 
 
 @dataclass(frozen=True, slots=True)

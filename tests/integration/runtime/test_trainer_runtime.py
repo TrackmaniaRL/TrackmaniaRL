@@ -198,8 +198,8 @@ def test_ppo_stop_during_evaluation_preserves_checkpoint(
     evaluator = _StopDuringEvaluation(stop)
     run = replace(resolve_run(spec.model_copy(update={"training": training})), evaluator=evaluator)
     try:
-        with pytest.raises(EvaluationCancelledError, match="suite is incomplete"):
-            Trainer(run, stop_file=stop).train()
+        result = Trainer(run, stop_file=stop).train()
+        assert result.evaluation is None
         assert evaluator.checkpoint is not None
         assert evaluator.checkpoint.read_bytes() == evaluator.checkpoint_bytes
         state = run.checkpoint_codec.load(evaluator.checkpoint)
@@ -207,6 +207,8 @@ def test_ppo_stop_during_evaluation_preserves_checkpoint(
         assert state["counters"]["updates"] == expected_updates
         assert state["counters"]["transitions"] == expected_updates * 2
         assert "eval/suite" not in _event_names(run.run_dir)
+        assert "train/stopped" in _event_names(run.run_dir)
+        assert "run/failure" not in _event_names(run.run_dir)
     finally:
         run.logger.close()
 

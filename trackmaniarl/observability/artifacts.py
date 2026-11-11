@@ -58,6 +58,10 @@ def _resume_equivalent_manifest(value: str) -> str:
     config = manifest.get("config")
     if not isinstance(config, dict):
         return value
+    training = config.get("training")
+    if isinstance(training, dict):
+        # This storage policy can change without changing the training run.
+        training.pop("evaluation_snapshot_keep_last", None)
     components = config.get("components")
     if not isinstance(components, dict):
         return value

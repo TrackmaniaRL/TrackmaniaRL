@@ -84,6 +84,9 @@ def _fingerprint_config(spec: RunSpec) -> tuple[dict[str, Any], list[dict[str, A
     config = spec.model_dump(mode="json")
     config.pop("run_id")
     config.pop("artifacts_dir")
+    # Snapshot retention is an operational storage policy, not training state.
+    # Excluding it also preserves the configuration identity of older RunSpecs.
+    config["training"].pop("evaluation_snapshot_keep_last", None)
     components = config["components"]
     components.pop("logger")
     components.pop("additional_loggers")

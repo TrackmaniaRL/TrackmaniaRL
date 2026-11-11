@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 1.4.0
+
+- Recover pending local evaluations and earned learner updates after resume;
+  bind evaluation results to verified checkpoint snapshots and map assets.
+- Limit new evaluation snapshots by default while preserving pre-existing
+  snapshots; make cancellation by stop file a controlled training shutdown.
+- Preserve actor rollouts and evaluation assignments across distributed
+  interruptions, and migrate the journal transactionally with integrity checks.
+- Improve replay sampling, observation ownership, PPO state replication, and
+  training shutdown behavior; document migration and recovery limitations.
+- Expand setup, configuration, SDK, and recovery documentation.
+
 ## 1.3.0
 
 - Bind qualified V8 deployments, backend sources and assets to preparation and

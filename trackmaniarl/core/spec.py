@@ -83,6 +83,7 @@ class TrainingSpec(BaseModel):
     updates_per_transition: float = Field(default=1.0, gt=0.0)
     checkpoint_interval_updates: PositiveInt | None = 1_000
     checkpoint_keep_last: PositiveInt | None = None
+    evaluation_snapshot_keep_last: PositiveInt | None = 2
     checkpoint_milestones: tuple[PositiveInt, ...] = ()
     save_final_checkpoint: bool = True
     metrics_interval_updates: PositiveInt = 50
@@ -93,6 +94,13 @@ class TrainingSpec(BaseModel):
     evaluation_stop_median_s: float | None = Field(default=None, gt=0.0)
     evaluation_stop_consecutive_batches: PositiveInt | None = None
     max_episode_artifacts: PositiveInt = 100
+
+    @property
+    def evaluation_snapshot_retention(self) -> int | None:
+        """Apply both the evaluation limit and the existing checkpoint limit."""
+        limits = (self.checkpoint_keep_last, self.evaluation_snapshot_keep_last)
+        bounded = [limit for limit in limits if limit is not None]
+        return min(bounded) if bounded else None
 
     @field_validator("checkpoint_milestones")
     @classmethod

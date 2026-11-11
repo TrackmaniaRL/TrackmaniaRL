@@ -15,7 +15,7 @@ samplers and learners, then use the same configuration from Python or the CLI.
 The Python package and game integration support Windows and desktop Linux. On Linux,
 Trackmania runs through Proton and is not officially supported by Ubisoft Nadeo, so
 the game setup is experimental. WSL is not a supported game host.
-TrackmaniaRL 1.3.0 requires Python 3.12 and uses RunSpec 2.0 and checkpoint schema 2.0.
+TrackmaniaRL 1.4.0 requires Python 3.12 and uses RunSpec 2.0 and checkpoint schema 2.0.
 
 ## Installation
 
