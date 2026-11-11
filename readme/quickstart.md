@@ -148,6 +148,8 @@ source paths; an error identifies changed sections or files without printing
 configuration values. Older checkpoints lack this detail and remain subject to
 the same strict compatibility check. Restore the original code and configuration
 to resume; the diagnostic manifest does not bypass fingerprint validation.
+For journal migration, safe shutdown and actor spool recovery, see
+[migration and recovery](recovery.md).
 
 To start a new run with compatible weights, use
 `train --model-initialization-checkpoint CHECKPOINT.pt`. A policy-only checkpoint

@@ -6,7 +6,7 @@ import random
 from collections.abc import Callable, Mapping
 from contextlib import nullcontext
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, cast
 
 from trackmaniarl.core.contracts import ReplayStore
 from trackmaniarl.core.data import BatchRequest, PriorityUpdate, TrainingBatch, Transition
@@ -96,6 +96,7 @@ class SequenceSampler:
     """Samples only contiguous transitions from one identified episode."""
 
     supports_sequence_sampling = True
+    _incremental_index: SequenceIndex | None
     _cached_store: ReplayStore | None
     _cached_request: tuple[int, int] | None
     _cached_revision: int | None
@@ -116,7 +117,11 @@ class SequenceSampler:
         # transaction. External implementations retain the prior behavior.
         owned_store = type(store) is InMemoryReplayStore
         hook = _observation_collator(self.pipeline) if owned_store else None
-        transaction = store.sampling_transaction() if owned_store else nullcontext()
+        transaction = (
+            cast(InMemoryReplayStore, store).sampling_transaction()
+            if owned_store
+            else nullcontext()
+        )
         with transaction:
             windows = self._sample_windows(store, request, length)
             selection = _SelectedSequences(store, windows, request)
@@ -213,7 +218,7 @@ class SequenceSampler:
         self._cached_starts = update.starts
 
     def _reset_cache(self) -> None:
-        self._incremental_index: SequenceIndex | None = None
+        self._incremental_index = None
         self._cached_store = None
         self._cached_request = None
         self._cached_revision = None
@@ -374,15 +379,15 @@ def _observation_collator(pipeline: Any) -> Callable[..., Any] | None:
     # Instance hooks and dynamically supplied methods are explicit opt-ins.
     instance_methods = getattr(pipeline, "__dict__", {})
     if "collate_observations" in instance_methods:
-        return hook
+        return cast(Callable[..., Any], hook)
     if "collate" in instance_methods:
         return None
     for cls in type(pipeline).__mro__:
         if "collate_observations" in cls.__dict__:
-            return hook
+            return cast(Callable[..., Any], hook)
         if "collate" in cls.__dict__:
             return None
-    return hook
+    return cast(Callable[..., Any], hook)
 
 
 def _collate_target_histories(  # noqa: PLR0913

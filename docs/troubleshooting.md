@@ -20,6 +20,9 @@ long training job. Keep the error message, resolved configuration and local logs
 | Recorder fails / black recording | Install FFmpeg, check window title, keep Trackmania visible and unminimized. Inspect the `.ffmpeg.log`, recording failure makes the command fail. Run a short recording check before a 30-trial capture. |
 | Resume rejects the checkpoint | Check schema 2.0, model architecture, immutable configuration and journal identity. Use a full training checkpoint for exact resume. Warm-start a new run if intentionally changing architecture, with an explicit compatible transfer. |
 
+For stopped runs, incomplete checkpoints and retained actor rollouts, see the
+[migration and recovery guide](../readme/recovery.md).
+
 ## Camera and PPO
 
 | Symptom | Check |

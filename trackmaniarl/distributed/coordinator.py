@@ -41,6 +41,11 @@ from trackmaniarl.distributed.protocol import (
 class Coordinator:
     """Own the replay, learner and network-facing rollout journal."""
 
+    _evaluation_due: set[str]
+    _evaluation_assignments: dict[str, dict[str, Any]]
+    _evaluation_schedule_frontier: int
+    _fingerprint_manifest: dict[str, Any] | None
+
     def __init__(self, run: ResolvedRun, config: CoordinatorConfig) -> None:
         require_distributed_token(config.token)
         if getattr(run.learner, "on_policy", False):

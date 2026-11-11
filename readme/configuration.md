@@ -9,7 +9,7 @@ the Torch default. Actor threads remain controlled separately by
 Local `train` and `resume` accept `--stop-file PATH`. Creating that file requests
 normal shutdown without sending a console interrupt. Local asynchronous runs
 stop the actor first, then drain accepted journal rows and earned learner
-updates before saving the final checkpoint. Actor shutdown is bounded to 10s;
+updates before saving the final checkpoint. Actor shutdown is bounded to 60s;
 learner drain/save is bounded to 120s. An actor failure or timeout requests an
 immediate emergency save instead, and an unclean shutdown returns an error.
 An existing stop file is rejected before starting child processes; remove it
@@ -168,7 +168,7 @@ Map IDs are unique and every path is bound into evaluation provenance.
 | `target_mean_s` | null | Optional positive mean-time target. When configured, reliable checkpoint promotion and the benchmark gate require the completed-lap mean to be strictly below it. |
 | `max_step_race_time_ms` | null | Optional positive runtime-health target. Reliable promotion, the benchmark and soak verification require a finite, positive race-clock measurement for every evaluated control step and the largest observed step to be at most this value. It does not gate on render-rate packets discarded by latest-frame draining. |
 | `min_finish_rate` | `.9` | Required fraction in `[0,1]`. |
-| `reject_telemetry_skips` | `false` | Fail the entire benchmark when any trial skips producer frames, keep every trial in the report. |
+| `reject_telemetry_skips` | `false` | Fail the entire benchmark if any trial skips producer frames or lacks complete valid skipped-frame measurements; keep every trial in the report. |
 
 Each `maps[]` item has an immutable local asset identity:
 

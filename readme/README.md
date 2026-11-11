@@ -25,6 +25,8 @@ reference material and explanations; they may appear in more than one section.
 - [Trackmania integration](trackmania.md): connect Openplanet, set up controls and
   prepare map geometry.
 - [Distributed setup](distributed-setup.md): train with actors on multiple computers.
+- [Migration and recovery](recovery.md): preserve checkpoints, journals and actor
+  spools, diagnose resume failures and interpret telemetry coverage.
 - [Native headless and the full QR profile](headless-full-qr.md): prepare a native
   deployment and choose a model. This mixed guide also describes the runtime contract
   and historical profile; it requires caller-supplied assets and references.
