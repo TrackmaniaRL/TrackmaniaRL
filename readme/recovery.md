@@ -27,11 +27,15 @@ not equivalent to recovery.
 
 Local `train` and `resume` accept `--stop-file PATH`; the path must not exist
 when the process starts. Creating it requests a controlled stop. The launcher
-stops the actor, drains accepted journal work and earned learner updates, and
-then saves. Actor shutdown has a 60-second grace period; learner drain and save
-have a 120-second bound. Check the process exit status and checkpoint-completed
-log before relying on the final checkpoint. A timeout or actor failure may
-leave it incomplete. Remove the stop file before resuming.
+stops the actor and drains accepted journal work and earned learner updates.
+It saves a final checkpoint only when `training.save_final_checkpoint` is
+enabled. On this stop-file shutdown path, actor shutdown has a 60-second grace
+period, followed by a 120-second bound for the learner to drain and exit.
+When the actor instead exits naturally, the initial wait for learner drain has
+no fixed timeout; a stop file can request the bounded shutdown path. Check the
+process exit status and checkpoint-completed log before relying on a final
+checkpoint. A timeout or actor failure may leave it incomplete. Remove the stop
+file before resuming.
 
 ```powershell
 uv run trackmaniarl resume run.yaml artifacts/RUN/checkpoints/CHECKPOINT.pt

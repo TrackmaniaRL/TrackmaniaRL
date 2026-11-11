@@ -173,11 +173,25 @@ def _assign_evaluation(
         assignments = dict(coordinator._evaluation_assignments)
         previous = assignments.get(actor_id)
         evaluations = value["evaluations"]
+        # A restarted actor can receive an assignment while retrying a spool
+        # written by its former session. Its completed result is then sent
+        # under the new session, without an intervening new-session Submit.
+        # The nonempty assignment ID binds that result to this assignment;
+        # never accept results from a session explicitly retired since then.
+        session = str(value["session_id"])
+        same_session = previous is not None and session == previous["session"]
+        eligible_session = previous is not None and (
+            (same_session and int(value["sequence"]) > previous["sequence"])
+            or (
+                not same_session
+                and bool(previous.get("assignment_id"))
+                and session not in previous.get("retired_sessions", [])
+            )
+        )
         if (
             previous is not None
             and row_id > previous["assigned_row_id"]
-            and value["session_id"] == previous["session"]
-            and int(value["sequence"]) > previous["sequence"]
+            and eligible_session
             and evaluations
             and all(int(item["policy_version"]) == previous["version"] for item in evaluations)
             and all(

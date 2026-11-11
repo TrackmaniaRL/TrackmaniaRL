@@ -300,6 +300,41 @@ def test_evaluation_result_acknowledges_assignment(tmp_path: Path) -> None:
         _close(coordinator)
 
 
+def test_restarted_actor_acknowledges_assignment_from_recovered_spool(tmp_path: Path) -> None:
+    coordinator = _coordinator(tmp_path, "evaluation-recovered-spool")
+    coordinator._evaluation_due.add("actor")
+    coordinator.counters.policy_version = 1
+    coordinator._policy_payload = coordinator.codec.encode({"model": {}})
+    try:
+        old_request = _empty_request(coordinator, 5)
+        original = coordinator.codec.decode(_submit(coordinator, old_request).value)
+        # The actor restarts and retries its durable old-session request, then
+        # executes the assignment in the new session.
+        retried = coordinator.codec.decode(_submit(coordinator, old_request).value)
+        assert retried["evaluation_assignment_id"] == original["evaluation_assignment_id"]
+        payload = _base_payload(0)
+        payload["session_id"] = "new-session"
+        summary = summarize_episode(
+            0.0,
+            {"policy_version": 1, "termination_reason": "finished", "race_time_ms": 36_000.0},
+            1,
+        )
+        summary["evaluation_assignment_id"] = original["evaluation_assignment_id"]
+        payload["evaluations"] = [summary]
+        payload["evaluation_snapshot"] = coordinator._policy_payload
+        response = coordinator.codec.decode(
+            _submit(coordinator, _request(coordinator, payload)).value
+        )
+        assert response["evaluate"] is False
+        assert "actor" not in coordinator._evaluation_assignments
+        # A retry after the response is lost must not recreate the assignment.
+        retry = coordinator.codec.decode(_submit(coordinator, _request(coordinator, payload)).value)
+        assert retry["evaluate"] is False
+        assert "actor" not in coordinator._evaluation_assignments
+    finally:
+        _close(coordinator)
+
+
 def test_retry_of_old_result_does_not_acknowledge_new_assignment(tmp_path: Path) -> None:
     coordinator = _coordinator(tmp_path, "evaluation-result-retry")
     coordinator._evaluation_due.add("actor")

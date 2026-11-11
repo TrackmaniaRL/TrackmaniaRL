@@ -11,6 +11,7 @@ from typing import Any, cast
 import trackmaniarl.distributed.actor_watchdog as actor_watchdog
 from trackmaniarl.core.contracts import ExploratoryPolicy, PolicyMode, ReplicablePolicy
 from trackmaniarl.core.environment_errors import EnvironmentPausedError
+from trackmaniarl.core.pytree import tree_snapshot
 from trackmaniarl.distributed.actor_collection import reset_pipeline, reset_policy
 from trackmaniarl.distributed.actor_metrics import EpisodeMetrics
 from trackmaniarl.distributed.actor_protocols import CollectionRuntime
@@ -246,12 +247,13 @@ def _evaluation_action(context: EvaluationContext) -> EvaluatedAction:
 def _evaluation_step(
     context: EvaluationContext, step_index: int, evaluated: EvaluatedAction
 ) -> EvaluationStep:
+    recorded_action = tree_snapshot(evaluated.value)
     observation, reward, terminated, truncated, info = context.environment.step(evaluated.value)
     actor_watchdog.touch(context.runtime)
     stopped = bool(terminated or truncated or context.runtime.stop.is_set())
     return EvaluationStep(
         step_index,
-        evaluated.value,
+        recorded_action,
         evaluated.inference_s,
         observation,
         float(reward),
