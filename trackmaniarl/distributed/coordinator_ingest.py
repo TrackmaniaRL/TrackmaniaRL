@@ -7,10 +7,12 @@ from queue import Empty
 from time import monotonic
 from typing import TYPE_CHECKING, Any
 
-from trackmaniarl.distributed import coordinator_episode_ingest
+from trackmaniarl.distributed import coordinator_episode_ingest, coordinator_leaders
 from trackmaniarl.distributed.coordinator_evaluation import (
     _bucket_key,
+    _evaluation_batch_stats,
     _progress_bin_metrics,
+    recover_evaluation_stop,
 )
 from trackmaniarl.distributed.coordinator_learning import ready_to_update
 from trackmaniarl.distributed.coordinator_support import snapshot_value
@@ -99,6 +101,22 @@ def ingest(coordinator: Coordinator, value: Mapping[str, Any], row_id: int) -> N
     _record_actor_sequence(coordinator, value)
     coordinator_episode_ingest.ingest_episode_summaries(coordinator, value, row_id)
     evaluations = [dict(summary) for summary in value["evaluations"]]
+    if evaluations and evaluations[0].get("evaluation_assignment_id"):
+        assignment_id = str(evaluations[0]["evaluation_assignment_id"])
+        accepted = coordinator.journal.evaluation_row_accepted(row_id)
+        if accepted is None:
+            # Journal rows from versions predating admission verdicts have no
+            # persisted decision. Preserve them once, including on replay.
+            accepted = coordinator.journal.is_canonical_evaluation(
+                str(value["actor_id"]), assignment_id, row_id
+            )
+        if not accepted:
+            evaluations = []
+    if evaluations and value["evaluation_snapshot"]:
+        evidence = coordinator.codec.encode(
+            {"summaries": evaluations, "snapshot": value["evaluation_snapshot"]}
+        )
+        coordinator.journal.stage_evaluation_promotion(row_id, evidence)
     _ingest_evaluation_snapshot(coordinator, value, evaluations)
     _ingest_evaluation_summaries(coordinator, value, evaluations)
     coordinator.counters.journal_applied_frontier = row_id
@@ -149,8 +167,16 @@ def _record_actor_sequence(coordinator: Coordinator, value: Mapping[str, Any]) -
 
 def _finish_ingest(batch: _IngestBatch, evaluations: list[dict[str, Any]]) -> None:
     coordinator = batch.coordinator
-    if evaluations and not coordinator._recovering:
-        coordinator._finish_evaluation_batch(evaluations)
+    if evaluations:
+        if coordinator._recovering:
+            recover_evaluation_stop(coordinator, evaluations)
+        else:
+            coordinator._finish_evaluation_batch(evaluations)
+            # A subsequent full checkpoint may retire this row only after all
+            # eligible leader checkpoints are durable.
+            if batch.value["evaluation_snapshot"]:
+                coordinator._checkpoint_writer.wait()
+                coordinator.journal.complete_evaluation_promotion(batch.row_id)
     if not coordinator._recovering:
         _log_ingest(batch)
 
@@ -397,10 +423,29 @@ def recover_journal(coordinator: Coordinator, watermark: int) -> None:
     coordinator._recovering = True
     try:
         recovered_rows, recovered_transitions = _recover_rows(coordinator, watermark)
+        _recover_pending_promotions(coordinator)
     finally:
         coordinator._recovering = False
     if recovered_rows:
         _log_recovery(coordinator, watermark, (recovered_rows, recovered_transitions))
+
+
+def _recover_pending_promotions(coordinator: Coordinator) -> None:
+    """Finish interrupted promotions, including when a leader checkpoint advanced frontier."""
+    for row_id, encoded in coordinator.journal.pending_evaluation_promotions():
+        evidence = coordinator.codec.decode(encoded)
+        if not isinstance(evidence, Mapping):
+            raise ValueError("invalid pending evaluation promotion")
+        summaries = evidence.get("summaries")
+        snapshot = evidence.get("snapshot")
+        if not isinstance(summaries, list) or not summaries or not isinstance(snapshot, bytes):
+            raise ValueError("invalid pending evaluation promotion evidence")
+        _ingest_evaluation_snapshot(coordinator, {"evaluation_snapshot": snapshot}, summaries)
+        stats = _evaluation_batch_stats(summaries, coordinator._time_buckets)
+        candidate = coordinator_leaders.candidate_from_stats(stats)
+        coordinator_leaders.record_evaluation_leaders(coordinator, candidate, allow_recovery=True)
+        coordinator._checkpoint_writer.wait()
+        coordinator.journal.complete_evaluation_promotion(row_id)
 
 
 def _recover_rows(coordinator: Coordinator, watermark: int) -> tuple[int, int]:

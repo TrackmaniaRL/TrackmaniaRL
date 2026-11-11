@@ -51,6 +51,14 @@ compatible model-initialization checkpoint as described in the
 [quickstart](quickstart.md#train-and-resume); it does not restore optimizer or
 replay state.
 
+Full resume rejects older checkpoints without recorded consecutive evaluation
+progress when evaluation-based early stopping is enabled; those checkpoints
+cannot reconstruct the missing progress exactly. Older evaluated-policy leader
+checkpoints also cannot provide the distinct online learner and pending
+promotion state needed for exact resume. Use a matching full training checkpoint
+instead. A compatible evaluated-policy checkpoint can still initialize a new
+run's model, subject to the model-initialization rules.
+
 ## Actor spool recovery
 
 An actor stores pending rollouts under

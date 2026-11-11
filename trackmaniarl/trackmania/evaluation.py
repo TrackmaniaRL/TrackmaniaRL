@@ -22,7 +22,7 @@ from trackmaniarl.core.contracts import (
     PolicyMode,
 )
 from trackmaniarl.core.environment_errors import EnvironmentPausedError
-from trackmaniarl.core.pytree import tree_snapshot
+from trackmaniarl.core.pytree import policy_observation_snapshot, tree_snapshot
 from trackmaniarl.core.spec import EvaluationMapSpec, EvaluationSuiteSpec
 from trackmaniarl.experiments.evaluation import EvaluationResult, aggregate_results
 from trackmaniarl.trackmania.diagnostics import (
@@ -330,7 +330,9 @@ class TrackmaniaEvaluator:
             observation if getattr(request.policy, "requires_raw_observation", False) else prepared
         )
         try:
-            request.policy.act(policy_observation, PolicyMode.EVALUATION)
+            request.policy.act(
+                policy_observation_snapshot(policy_observation), PolicyMode.EVALUATION
+            )
         finally:
             self._reset_component(self.feature_pipeline)
             self._reset_component(request.policy)
@@ -356,7 +358,7 @@ class TrackmaniaEvaluator:
             else loop.prepared
         )
         started = perf_counter()
-        action = loop.policy.act(observation, PolicyMode.EVALUATION)
+        action = loop.policy.act(policy_observation_snapshot(observation), PolicyMode.EVALUATION)
         action_duration_ms = (perf_counter() - started) * 1_000.0
         recorded_action = tree_snapshot(action)
         next_observation, reward, terminated, truncated, info = loop.environment.step(action)

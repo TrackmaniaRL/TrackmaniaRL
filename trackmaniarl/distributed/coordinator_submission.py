@@ -61,10 +61,13 @@ def submit(
     submission = _submission(coordinator, value)
     if _hard_lagged(submission) and not _previously_accepted(submission, message, context):
         return _reject_hard_lag(submission, context)
-    row_id, inserted = _append_journal(submission, message, context)
+    # Bind an identified result to the current assignment before publishing its
+    # journal row; otherwise a stale session can win an ingest-time race.
+    with coordinator._lock:
+        row_id, inserted = _append_journal(submission, message, context)
+        evaluation = _assign_evaluation(coordinator, value, row_id)
     if inserted:
         _wake_learner(coordinator, row_id)
-    evaluation = _assign_evaluation(coordinator, value, row_id)
     return _accepted_response(_AcceptedSubmission(submission, inserted, evaluation, context))
 
 
@@ -150,6 +153,18 @@ def _append_journal(
     coordinator = submission.coordinator
     value = submission.value
     try:
+        evaluations = value["evaluations"]
+        assignment_id = evaluations[0].get("evaluation_assignment_id") if evaluations else None
+        if assignment_id:
+            previous = coordinator._evaluation_assignments.get(str(value["actor_id"]))
+            eligible = _matches_assignment(previous, value)
+            assignment_row = int(previous["assigned_row_id"]) if previous is not None else 0
+            return coordinator.journal.append(
+                value["session_id"],
+                value["sequence"],
+                message.value,
+                evaluation=(str(value["actor_id"]), assignment_id, eligible, assignment_row),
+            )
         return coordinator.journal.append(value["session_id"], value["sequence"], message.value)
     except JournalPayloadConflictError as exc:
         coordinator._log_rollout_rejected(value, _RolloutRejection("payload_conflict"))
@@ -165,6 +180,23 @@ def _wake_learner(coordinator: Coordinator, row_id: int) -> None:
         coordinator._rollouts.put_nowait((row_id, monotonic()))
 
 
+def _matches_assignment(previous: Mapping[str, Any] | None, value: Mapping[str, Any]) -> bool:
+    if previous is None or not value["evaluations"]:
+        return False
+    session = str(value["session_id"])
+    same_session = session == previous["session"]
+    eligible = (same_session and int(value["sequence"]) > previous["sequence"]) or (
+        not same_session
+        and bool(previous.get("assignment_id"))
+        and session not in previous.get("retired_sessions", [])
+    )
+    return bool(eligible) and all(
+        int(item["policy_version"]) == previous["version"]
+        and item.get("evaluation_assignment_id") == previous.get("assignment_id")
+        for item in value["evaluations"]
+    )
+
+
 def _assign_evaluation(
     coordinator: Coordinator, value: Mapping[str, Any], row_id: int
 ) -> _EvaluationAssignment:
@@ -173,31 +205,10 @@ def _assign_evaluation(
         assignments = dict(coordinator._evaluation_assignments)
         previous = assignments.get(actor_id)
         evaluations = value["evaluations"]
-        # A restarted actor can receive an assignment while retrying a spool
-        # written by its former session. Its completed result is then sent
-        # under the new session, without an intervening new-session Submit.
-        # The nonempty assignment ID binds that result to this assignment;
-        # never accept results from a session explicitly retired since then.
-        session = str(value["session_id"])
-        same_session = previous is not None and session == previous["session"]
-        eligible_session = previous is not None and (
-            (same_session and int(value["sequence"]) > previous["sequence"])
-            or (
-                not same_session
-                and bool(previous.get("assignment_id"))
-                and session not in previous.get("retired_sessions", [])
-            )
-        )
         if (
             previous is not None
             and row_id > previous["assigned_row_id"]
-            and eligible_session
-            and evaluations
-            and all(int(item["policy_version"]) == previous["version"] for item in evaluations)
-            and all(
-                item.get("evaluation_assignment_id") == previous.get("assignment_id")
-                for item in evaluations
-            )
+            and _matches_assignment(previous, value)
         ):
             del assignments[actor_id]
             coordinator_delivery.save(coordinator, set(coordinator._evaluation_due), assignments)
@@ -207,9 +218,11 @@ def _assign_evaluation(
                 previous["session"] == value["session_id"]
                 and previous["sequence"] == value["sequence"]
             )
-            if previous["session"] != value["session_id"] and value[
-                "session_id"
-            ] not in previous.get("retired_sessions", []):
+            if (
+                not evaluations
+                and previous["session"] != value["session_id"]
+                and value["session_id"] not in previous.get("retired_sessions", [])
+            ):
                 previous = {
                     **previous,
                     "session": str(value["session_id"]),

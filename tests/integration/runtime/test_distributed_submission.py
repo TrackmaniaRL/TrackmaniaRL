@@ -435,6 +435,215 @@ def test_retired_session_cannot_ack_reassigned_evaluation(tmp_path: Path) -> Non
         _close(coordinator)
 
 
+def test_reassigned_evaluation_is_counted_once_even_after_recovery(tmp_path: Path) -> None:
+    coordinator = _coordinator(tmp_path, "evaluation-deduplicate")
+    coordinator._evaluation_due.add("actor")
+    coordinator.counters.policy_version = 1
+    coordinator._policy_payload = coordinator.codec.encode({"model": {}})
+    try:
+        first = coordinator.codec.decode(_submit(coordinator, _empty_request(coordinator, 0)).value)
+        new_request = _base_payload(0)
+        new_request["session_id"] = "new-session"
+        _submit(coordinator, _request(coordinator, new_request))
+        for session in ("session", "new-session"):
+            payload = _base_payload(1)
+            payload["session_id"] = session
+            summary = summarize_episode(
+                0.0,
+                {
+                    "policy_version": 1,
+                    "termination_reason": "finished",
+                    "race_time_ms": 10_000.0 if session == "session" else 36_000.0,
+                },
+                1,
+            )
+            summary["evaluation_assignment_id"] = first["evaluation_assignment_id"]
+            payload["evaluations"] = [summary]
+            payload["evaluation_snapshot"] = coordinator._policy_payload
+            _submit(coordinator, _request(coordinator, payload))
+        coordinator._recovering = True
+        for row_id, raw in coordinator.journal.rows_after(0):
+            coordinator._ingest(coordinator.codec.decode(raw), row_id)
+        assert coordinator.counters.evaluations == 1
+        assert coordinator.counters.evaluation_finishes == 1
+        assert coordinator.counters.evaluation_bucket_finishes["sub_36"] == 0
+    finally:
+        _close(coordinator)
+
+    # The durable marker must not suppress replay of the canonical row when a
+    # crash occurs before its effects reach a checkpoint.
+    coordinator = _coordinator(tmp_path, "evaluation-deduplicate")
+    try:
+        coordinator._recovering = True
+        for row_id, raw in coordinator.journal.rows_after(0):
+            coordinator._ingest(coordinator.codec.decode(raw), row_id)
+        assert coordinator.counters.evaluations == 1
+        assert coordinator.counters.evaluation_finishes == 1
+        assert coordinator.counters.evaluation_bucket_finishes["sub_36"] == 0
+        coordinator.journal.prune(coordinator.counters.journal_applied_frontier)
+    finally:
+        _close(coordinator)
+
+    coordinator = _coordinator(tmp_path, "evaluation-deduplicate")
+    try:
+        assert coordinator.journal.evaluation_row_accepted(3) is False
+        assert coordinator.journal.evaluation_row_accepted(4) is True
+    finally:
+        _close(coordinator)
+
+
+def test_identified_evaluation_batch_cannot_mix_assignments(tmp_path: Path) -> None:
+    coordinator = _coordinator(tmp_path, "evaluation-mixed-assignment")
+    try:
+        payload = _base_payload(0)
+        summary = summarize_episode(
+            0.0,
+            {"policy_version": 1, "termination_reason": "finished", "race_time_ms": 36_000.0},
+            1,
+        )
+        payload["evaluations"] = [
+            {**summary, "evaluation_assignment_id": "one"},
+            {**summary, "evaluation_assignment_id": "two"},
+        ]
+        payload["evaluation_snapshot"] = coordinator.codec.encode({"model": {}})
+        with pytest.raises(RuntimeError, match="INVALID_ARGUMENT: invalid rollout payload"):
+            _submit(coordinator, _request(coordinator, payload))
+    finally:
+        _close(coordinator)
+
+
+def test_evaluation_admission_is_atomic_with_journal_append(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    coordinator = _coordinator(tmp_path, "evaluation-admission-atomic")
+    coordinator._evaluation_due.add("actor")
+    coordinator.counters.policy_version = 1
+    coordinator._policy_payload = coordinator.codec.encode({"model": {}})
+    try:
+        first = coordinator.codec.decode(_submit(coordinator, _empty_request(coordinator, 0)).value)
+        payload = _base_payload(1)
+        summary = summarize_episode(
+            0.0,
+            {"policy_version": 1, "termination_reason": "finished", "race_time_ms": 36_000.0},
+            1,
+        )
+        summary["evaluation_assignment_id"] = first["evaluation_assignment_id"]
+        payload["evaluations"] = [summary]
+        payload["evaluation_snapshot"] = coordinator._policy_payload
+        request = _request(coordinator, payload)
+
+        def fail(*_: object) -> bool:
+            raise RuntimeError("simulated admission failure")
+
+        with monkeypatch.context() as context:
+            context.setattr(coordinator.journal, "_claim_canonical_evaluation", fail)
+            with pytest.raises(RuntimeError, match="simulated admission failure"):
+                _submit(coordinator, request)
+        assert not coordinator.journal.has_receipt("session", 1, request.value)
+        assert len(list(coordinator.journal.rows_after(0))) == 1
+        response = coordinator.codec.decode(_submit(coordinator, request).value)
+        assert response["accepted"] is True
+        coordinator._recovering = True
+        for row_id, raw in coordinator.journal.rows_after(0):
+            coordinator._ingest(coordinator.codec.decode(raw), row_id)
+        assert coordinator.counters.evaluations == 1
+    finally:
+        _close(coordinator)
+
+
+def test_evaluation_admission_survives_crash_before_ack(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from trackmaniarl.distributed import coordinator_submission
+
+    coordinator = _coordinator(tmp_path, "evaluation-admission-crash")
+    coordinator._evaluation_due.add("actor")
+    coordinator.counters.policy_version = 1
+    coordinator._policy_payload = coordinator.codec.encode({"model": {}})
+    try:
+        first = coordinator.codec.decode(_submit(coordinator, _empty_request(coordinator, 0)).value)
+        payload = _base_payload(1)
+        summary = summarize_episode(
+            0.0,
+            {"policy_version": 1, "termination_reason": "finished", "race_time_ms": 36_000.0},
+            1,
+        )
+        summary["evaluation_assignment_id"] = first["evaluation_assignment_id"]
+        payload["evaluations"] = [summary]
+        payload["evaluation_snapshot"] = coordinator._policy_payload
+        request = _request(coordinator, payload)
+
+        def fail(*_: object) -> None:
+            raise RuntimeError("simulated crash after append")
+
+        with monkeypatch.context() as context:
+            context.setattr(coordinator_submission, "_assign_evaluation", fail)
+            with pytest.raises(RuntimeError, match="simulated crash after append"):
+                _submit(coordinator, request)
+        assert coordinator.journal.has_receipt("session", 1, request.value)
+    finally:
+        _close(coordinator)
+
+    restarted = _coordinator(tmp_path, "evaluation-admission-crash")
+    try:
+        restarted._recovering = True
+        for row_id, raw in restarted.journal.rows_after(0):
+            restarted._ingest(restarted.codec.decode(raw), row_id)
+        assert restarted.counters.evaluations == 1
+        response = restarted.codec.decode(_submit(restarted, request).value)
+        assert response["accepted"] is True
+        assert response["duplicate"] is True
+        assert "actor" not in restarted._evaluation_assignments
+    finally:
+        _close(restarted)
+
+
+def test_late_result_from_other_session_does_not_reassign_new_evaluation(tmp_path: Path) -> None:
+    coordinator = _coordinator(tmp_path, "evaluation-stale-session")
+    coordinator._evaluation_due.add("actor")
+    coordinator.counters.policy_version = 1
+    coordinator._policy_payload = coordinator.codec.encode({"model": {}})
+    try:
+        first = coordinator.codec.decode(_submit(coordinator, _empty_request(coordinator, 0)).value)
+        coordinator._evaluation_due.add("actor")
+
+        def result(session: str, sequence: int, assignment: str) -> dict[str, Any]:
+            payload = _base_payload(sequence)
+            payload["session_id"] = session
+            summary = summarize_episode(
+                0.0,
+                {"policy_version": 1, "termination_reason": "finished", "race_time_ms": 36_000.0},
+                1,
+            )
+            summary["evaluation_assignment_id"] = assignment
+            payload["evaluations"] = [summary]
+            payload["evaluation_snapshot"] = coordinator._policy_payload
+            return payload
+
+        second = coordinator.codec.decode(
+            _submit(
+                coordinator,
+                _request(coordinator, result("session", 1, first["evaluation_assignment_id"])),
+            ).value
+        )
+        _submit(
+            coordinator,
+            _request(coordinator, result("obsolete-session", 0, first["evaluation_assignment_id"])),
+        )
+        assert coordinator._evaluation_assignments["actor"]["session"] == "session"
+        assert (
+            coordinator._evaluation_assignments["actor"]["assignment_id"]
+            == second["evaluation_assignment_id"]
+        )
+        _submit(
+            coordinator,
+            _request(coordinator, result("session", 2, second["evaluation_assignment_id"])),
+        )
+        assert "actor" not in coordinator._evaluation_assignments
+    finally:
+        _close(coordinator)
+
+
 def test_legacy_assignment_without_identity_accepts_legacy_result(tmp_path: Path) -> None:
     from trackmaniarl.distributed import coordinator_delivery
 

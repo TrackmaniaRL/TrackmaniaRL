@@ -19,7 +19,7 @@ from trackmaniarl.core.observation_endpoints import (
     prepare_bootstrap_observation,
     validate_endpoint_step_limit,
 )
-from trackmaniarl.core.pytree import tree_map
+from trackmaniarl.core.pytree import policy_observation_snapshot, tree_map
 from trackmaniarl.distributed.actor_errors import ActorEnvironmentError
 from trackmaniarl.distributed.actor_metrics import EpisodeMetrics, summarize_episode
 from trackmaniarl.distributed.actor_protocols import CollectionRuntime
@@ -133,7 +133,7 @@ def _prewarm_initial_policy(context: CollectionContext) -> bool:
     reset_policy(policy)
     try:
         prepared = context.pipeline.transform_observation(observation)
-        policy.act(prepared, PolicyMode.EVALUATION)
+        policy.act(policy_observation_snapshot(prepared), PolicyMode.EVALUATION)
     finally:
         reset_pipeline(context.pipeline)
         reset_policy(policy)
@@ -229,6 +229,7 @@ def _step_environment(context: CollectionContext, action: Any) -> Any:
 
 
 def _sample_policy(policy: ReplicablePolicy, observation: Any) -> tuple[Any, Mapping[str, Any]]:
+    observation = policy_observation_snapshot(observation)
     sample = getattr(policy, "act_with_info", None)
     if not callable(sample):
         return policy.act(observation), {}

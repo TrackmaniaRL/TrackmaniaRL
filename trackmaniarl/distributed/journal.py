@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import sqlite3
 from collections.abc import Iterator
@@ -324,14 +325,94 @@ class RolloutJournal:
             self._receipt_row_id(chunk, receipt)
             return True
 
-    def append(self, session_id: str, sequence: int, payload: bytes) -> tuple[int, bool]:
-        chunk = _JournalChunk(session_id, sequence, payload, sha256(payload).digest())
+    def is_canonical_evaluation(self, actor_id: str, assignment_id: str, row_id: int) -> bool:
+        """Persist the first row while allowing replay of that row after a crash.
+
+        Later rows for the same assignment are duplicates. Metadata survives
+        journal pruning along with rollout receipts.
+        """
+        if not actor_id or not assignment_id or row_id <= 0:
+            raise ValueError("actor, assignment and positive journal row are required")
+        with self._lock, self._connection:
+            return self._claim_canonical_evaluation(actor_id, assignment_id, row_id)
+
+    def _claim_canonical_evaluation(self, actor_id: str, assignment_id: str, row_id: int) -> bool:
+        identity = json.dumps([actor_id, assignment_id], ensure_ascii=True, separators=(",", ":"))
+        key = "evaluation_result:" + sha256(identity.encode("utf-8")).hexdigest()
+        self._connection.execute(
+            "INSERT OR IGNORE INTO metadata(key, value) VALUES (?, ?)", (key, str(row_id))
+        )
+        return int(self._metadata_value(key)) == row_id
+
+    def evaluation_row_accepted(self, row_id: int) -> bool | None:
         with self._lock:
+            row = self._connection.execute(
+                "SELECT value FROM metadata WHERE key = ?", (f"evaluation_row:{row_id}",)
+            ).fetchone()
+            return None if row is None else str(row[0]) == "1"
+
+    def stage_evaluation_promotion(self, row_id: int, payload: bytes) -> None:
+        """Keep exact policy evidence until both leader promotions are durable."""
+        if row_id <= 0:
+            raise ValueError("positive evaluation journal row required")
+        key = f"evaluation_promotion:{row_id:020d}"
+        encoded = sha256(payload).hexdigest() + ":" + base64.b64encode(payload).decode("ascii")
+        with self._lock, self._connection:
+            self._connection.execute(
+                "INSERT OR IGNORE INTO metadata(key, value) VALUES (?, ?)", (key, encoded)
+            )
+            if self._metadata_value(key) != encoded:
+                raise JournalPayloadConflictError("evaluation promotion evidence changed")
+
+    def pending_evaluation_promotions(self) -> list[tuple[int, bytes]]:
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT key, value FROM metadata "
+                "WHERE key LIKE 'evaluation_promotion:%' ORDER BY key"
+            ).fetchall()
+        pending = []
+        for key, value in rows:
+            try:
+                expected, encoded = str(value).split(":", 1)
+                payload = base64.b64decode(encoded, validate=True)
+                if sha256(payload).hexdigest() != expected:
+                    raise ValueError("checksum mismatch")
+                pending.append((int(str(key).split(":", 1)[1]), payload))
+            except (TypeError, ValueError) as exc:
+                raise JournalSchemaError("invalid evaluation promotion evidence") from exc
+        return pending
+
+    def complete_evaluation_promotion(self, row_id: int) -> None:
+        with self._lock, self._connection:
+            self._connection.execute(
+                "DELETE FROM metadata WHERE key = ?", (f"evaluation_promotion:{row_id:020d}",)
+            )
+
+    def append(  # noqa: PLR0913
+        self,
+        session_id: str,
+        sequence: int,
+        payload: bytes,
+        *,
+        evaluation: tuple[str, str, bool, int] | None = None,
+    ) -> tuple[int, bool]:
+        chunk = _JournalChunk(session_id, sequence, payload, sha256(payload).digest())
+        with self._lock, self._connection:
             receipt = self._find_receipt(chunk)
             if receipt is not None:
                 return self._receipt_row_id(chunk, receipt), False
             row_id = self._insert_chunk(chunk)
-            self._connection.commit()
+            if evaluation is not None:
+                actor_id, assignment_id, eligible, assignment_row = evaluation
+                accepted = (
+                    eligible
+                    and row_id > assignment_row
+                    and self._claim_canonical_evaluation(actor_id, assignment_id, row_id)
+                )
+                self._connection.execute(
+                    "INSERT INTO metadata(key, value) VALUES (?, ?)",
+                    (f"evaluation_row:{row_id}", "1" if accepted else "0"),
+                )
         return row_id, True
 
     def _find_receipt(self, chunk: _JournalChunk) -> _Receipt | None:

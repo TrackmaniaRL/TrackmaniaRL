@@ -11,7 +11,7 @@ from typing import Any, cast
 import trackmaniarl.distributed.actor_watchdog as actor_watchdog
 from trackmaniarl.core.contracts import ExploratoryPolicy, PolicyMode, ReplicablePolicy
 from trackmaniarl.core.environment_errors import EnvironmentPausedError
-from trackmaniarl.core.pytree import tree_snapshot
+from trackmaniarl.core.pytree import policy_observation_snapshot, tree_snapshot
 from trackmaniarl.distributed.actor_collection import reset_pipeline, reset_policy
 from trackmaniarl.distributed.actor_metrics import EpisodeMetrics
 from trackmaniarl.distributed.actor_protocols import CollectionRuntime
@@ -84,7 +84,7 @@ def _prewarm_evaluation_policy(plan: EvaluationPlan) -> bool:
     reset_policy(plan.policy)
     try:
         prepared = plan.pipeline.transform_observation(observation)
-        plan.policy.act(prepared, PolicyMode.EVALUATION)
+        plan.policy.act(policy_observation_snapshot(prepared), PolicyMode.EVALUATION)
     finally:
         reset_pipeline(plan.pipeline)
         reset_policy(plan.policy)
@@ -240,7 +240,9 @@ def _take_evaluation_step(
 
 def _evaluation_action(context: EvaluationContext) -> EvaluatedAction:
     started = monotonic()
-    action = context.policy.act(context.prepared, PolicyMode.EVALUATION)
+    action = context.policy.act(
+        policy_observation_snapshot(context.prepared), PolicyMode.EVALUATION
+    )
     return EvaluatedAction(action, monotonic() - started)
 
 

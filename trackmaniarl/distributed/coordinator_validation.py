@@ -95,6 +95,9 @@ def _validate_evaluation_snapshot(
     versions = {_required_integer(item, "policy_version", minimum=0) for item in evaluations}
     if len(versions) != 1:
         raise ValueError("evaluation_snapshot cannot cover mixed policy versions")
+    assignments = {item.get("evaluation_assignment_id") for item in evaluations}
+    if len(assignments) != 1:
+        raise ValueError("evaluation batch cannot cover mixed assignments")
     _validate_finite_tree(policy_state, "evaluation_snapshot")
 
 

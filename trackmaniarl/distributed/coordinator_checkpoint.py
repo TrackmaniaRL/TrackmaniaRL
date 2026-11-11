@@ -62,6 +62,8 @@ _DISTRIBUTED_OPTIONAL_KEYS = frozenset(
     {
         "best_evaluation_rank",
         "fastest_evaluation_rank",
+        "consecutive_evaluation_passes",
+        "evaluation_stop_reason",
     }
 )
 
@@ -78,6 +80,7 @@ class EvaluatedPolicyCheckpoint:
     kind: EvaluationCheckpointKind
     on_saved: Callable[[Path], None] | None = None
     on_failed: Callable[[BaseException], None] | None = None
+    suppress_events: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,14 +111,19 @@ class _CheckpointCallbacks:
                 coordinator.run.logger.log(
                     "train/checkpoint_milestone", {"path": str(path)}, step=self.update
                 )
-        try:
-            coordinator.journal.prune(self.frontier)
-        except Exception as exc:
-            coordinator._log_wal_error("prune", exc)
-            raise
+        # A leader checkpoint may be only one of two promotions for the same
+        # evaluation and contains evaluated policy weights rather than the
+        # current learner state. Only a full training checkpoint can retire WAL.
+        if self.plan.evaluated_policy is None:
+            try:
+                coordinator.journal.prune(self.frontier)
+            except Exception as exc:
+                coordinator._log_wal_error("prune", exc)
+                raise
         _apply_checkpoint_retention(self.plan, self.update)
-        _log_checkpoint_completed(self)
         evaluated = self.plan.evaluated_policy
+        if evaluated is None or not evaluated.suppress_events:
+            _log_checkpoint_completed(self)
         if evaluated is not None and evaluated.on_saved is not None:
             evaluated.on_saved(self.plan.path)
 
@@ -188,7 +196,8 @@ def checkpoint(
     )
     if evaluated_policy is None:
         coordinator._last_checkpoint_transitions = plan.transitions
-    _log_checkpoint_queued(plan)
+    if evaluated_policy is None or not evaluated_policy.suppress_events:
+        _log_checkpoint_queued(plan)
     return plan.path
 
 
@@ -211,7 +220,7 @@ def _checkpoint_plan(
 
 def _checkpoint_state(plan: _CheckpointPlan) -> dict[str, Any]:
     coordinator = plan.coordinator
-    return {
+    state = {
         "schema_version": _CHECKPOINT_SCHEMA_VERSION,
         "journal_contract_version": _JOURNAL_CONTRACT_VERSION,
         "journal_id": coordinator.journal.identity,
@@ -225,6 +234,14 @@ def _checkpoint_state(plan: _CheckpointPlan) -> dict[str, Any]:
             plan.evaluated_policy.version if plan.evaluated_policy is not None else None
         ),
     }
+    if plan.evaluated_policy is not None:
+        # Evaluated weights are historical; exact resume needs the separate
+        # online learner, optimizer and target state from this snapshot.
+        state["training_learner"] = snapshot_value(coordinator.run.learner.state_dict())
+        # Either leader can be resumed. Preserve in-flight evidence in the
+        # checkpoint itself, even after journal pending records are cleared.
+        state["pending_evaluation_promotions"] = coordinator.journal.pending_evaluation_promotions()
+    return state
 
 
 def _coordinator_fingerprint_manifest(coordinator: Coordinator) -> dict[str, Any] | None:
@@ -279,6 +296,8 @@ def _distributed_state(coordinator: Coordinator) -> dict[str, Any]:
         "actor_sequences": dict(counters.actor_sequences),
         "best_evaluation_rank": coordinator._best_evaluation,
         "fastest_evaluation_rank": coordinator._fastest_evaluation,
+        "consecutive_evaluation_passes": coordinator._consecutive_evaluation_passes,
+        "evaluation_stop_reason": coordinator._evaluation_stop_reason,
     }
 
 
@@ -322,11 +341,39 @@ def _validate_checkpoint_state(request: _RestoreRequest, state: Mapping[str, Any
         details = fingerprint_mismatch_details(state.get("fingerprint_manifest"), current)
         raise ValueError(f"distributed checkpoint run fingerprint mismatch: {details}")
     _validate_checkpoint_components(state)
+    training = getattr(request.coordinator.run.spec, "training", None)
+    if (
+        request.mode is ReplayRestoreMode.FULL
+        and getattr(training, "evaluation_stop_min_finish_rate", None) is not None
+        and not {"consecutive_evaluation_passes", "evaluation_stop_reason"}.issubset(
+            state["distributed"]
+        )
+    ):
+        raise ValueError(
+            "legacy checkpoint lacks evaluation-stop progress; exact resume requires "
+            "a checkpoint that records consecutive evaluation passes"
+        )
+    if request.mode is ReplayRestoreMode.FULL:
+        _validate_evaluation_stop_state(state["distributed"], training)
+    if (
+        request.mode is ReplayRestoreMode.FULL
+        and state["evaluated_policy_version"] is not None
+        and ("pending_evaluation_promotions" not in state or "training_learner" not in state)
+    ):
+        raise ValueError(
+            "legacy evaluated-policy checkpoint lacks full training state or "
+            "promotion recovery evidence; "
+            "use a full training checkpoint for exact resume"
+        )
 
 
 def _validate_checkpoint_keys(state: Mapping[str, Any]) -> None:
     missing = _CHECKPOINT_KEYS - state.keys()
-    unexpected = state.keys() - _CHECKPOINT_KEYS - {"fingerprint_manifest"}
+    unexpected = (
+        state.keys()
+        - _CHECKPOINT_KEYS
+        - {"fingerprint_manifest", "pending_evaluation_promotions", "training_learner"}
+    )
     if missing or unexpected:
         raise ValueError(
             f"distributed checkpoint keys differ: missing={sorted(missing)}, "
@@ -338,11 +385,25 @@ def _validate_checkpoint_components(state: Mapping[str, Any]) -> None:
     for name in ("learner", "replay_store", "sampler", "distributed"):
         if not isinstance(state[name], Mapping):
             raise TypeError(f"distributed checkpoint {name} state must be a mapping")
+    if "training_learner" in state and not isinstance(state["training_learner"], Mapping):
+        raise TypeError("distributed checkpoint training_learner state must be a mapping")
     if not isinstance(state["journal_id"], str) or not state["journal_id"]:
         raise TypeError("distributed checkpoint journal_id must be a non-empty string")
     version = state["evaluated_policy_version"]
     if version is not None and (isinstance(version, bool) or not isinstance(version, int)):
         raise TypeError("evaluated policy version must be an integer or null")
+
+
+def _validate_evaluation_stop_state(distributed: Mapping[str, Any], training: Any) -> None:
+    passes = distributed.get("consecutive_evaluation_passes", 0)
+    reason = distributed.get("evaluation_stop_reason")
+    if isinstance(passes, bool) or not isinstance(passes, int) or passes < 0:
+        raise ValueError("consecutive evaluation passes must be a nonnegative integer")
+    if reason is not None and (not isinstance(reason, str) or not reason):
+        raise ValueError("evaluation stop reason must be a nonempty string or null")
+    required = getattr(training, "evaluation_stop_consecutive_batches", None)
+    if required is not None and passes >= required and reason is None:
+        raise ValueError("evaluation stop progress reached target without a stop reason")
 
 
 def _restore_learner_only(request: _RestoreRequest, state: Mapping[str, Any]) -> None:
@@ -390,11 +451,24 @@ def _restore_distributed(
     request: _RestoreRequest, state: Mapping[str, Any], distributed: dict[str, Any]
 ) -> None:
     coordinator = request.coordinator
-    coordinator.run.learner.load_state_dict(state["learner"])
+    learner_state = (
+        state["training_learner"]
+        if state["evaluated_policy_version"] is not None
+        else state["learner"]
+    )
+    coordinator.run.learner.load_state_dict(learner_state)
     coordinator._best_evaluation = _evaluation_rank(distributed.pop("best_evaluation_rank", None))
     coordinator._fastest_evaluation = _evaluation_rank(
         distributed.pop("fastest_evaluation_rank", None)
     )
+    passes = distributed.pop("consecutive_evaluation_passes", 0)
+    if isinstance(passes, bool) or not isinstance(passes, int) or passes < 0:
+        raise ValueError("consecutive evaluation passes must be a nonnegative integer")
+    reason = distributed.pop("evaluation_stop_reason", None)
+    if reason is not None and (not isinstance(reason, str) or not reason):
+        raise ValueError("evaluation stop reason must be a nonempty string or null")
+    coordinator._consecutive_evaluation_passes = passes
+    coordinator._evaluation_stop_reason = reason
     coordinator.counters = _Counters(**distributed)
     if not coordinator.run.spec.distributed.strict_update_budget:
         coordinator.counters.update_credit = min(
@@ -403,7 +477,29 @@ def _restore_distributed(
         )
     load_state_dict(coordinator.run.replay_store, state["replay_store"])
     load_state_dict(coordinator.run.sampler, state["sampler"])
+    _restore_pending_promotions(coordinator, state, coordinator.counters.journal_applied_frontier)
     coordinator._recover_journal(coordinator.counters.journal_applied_frontier)
+
+
+def _restore_pending_promotions(
+    coordinator: Coordinator, state: Mapping[str, Any], frontier: int
+) -> None:
+    entries = state.get("pending_evaluation_promotions", [])
+    if not isinstance(entries, list):
+        raise TypeError("pending evaluation promotions must be a list")
+    for entry in entries:
+        if not isinstance(entry, (tuple, list)) or len(entry) != 2:
+            raise TypeError("invalid pending evaluation promotion entry")
+        row_id, payload = entry
+        if (
+            isinstance(row_id, bool)
+            or not isinstance(row_id, int)
+            or not 0 < row_id <= frontier
+            or not isinstance(payload, bytes)
+            or len(payload) > coordinator.codec.max_message_bytes
+        ):
+            raise ValueError("invalid pending evaluation promotion evidence")
+        coordinator.journal.stage_evaluation_promotion(row_id, payload)
 
 
 def _evaluation_rank(value: object) -> tuple[float, float, float] | None:

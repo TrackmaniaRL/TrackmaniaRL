@@ -14,7 +14,7 @@ from trackmaniarl.core.observation_endpoints import (
     prepare_bootstrap_observation,
     validate_endpoint_step_limit,
 )
-from trackmaniarl.core.pytree import tree_snapshot
+from trackmaniarl.core.pytree import policy_observation_snapshot, tree_snapshot
 
 
 class Environment(Protocol):
@@ -212,6 +212,7 @@ class EpisodeCollector:
         return CollectionResult(len(trace.rewards), sum(trace.rewards), artifact)
 
     def _act(self, observation: Any) -> tuple[Any, Mapping[str, Any]]:
+        observation = policy_observation_snapshot(observation)
         sample = getattr(self.policy, "act_with_info", None)
         if not callable(sample):
             return self.policy.act(observation), {}
@@ -336,11 +337,12 @@ class FixedStepRolloutCollector:
 
     def _act(self) -> tuple[Any, Mapping[str, Any], float]:
         started = perf_counter()
+        observation = policy_observation_snapshot(self.prepared)
         sample = getattr(self.policy, "act_with_info", None)
         if callable(sample):
-            action, info = sample(self.prepared)
+            action, info = sample(observation)
         else:
-            action, info = self.policy.act(self.prepared), {}
+            action, info = self.policy.act(observation), {}
         if not isinstance(info, Mapping):
             raise TypeError("Policy act_with_info() must return action and a mapping")
         return action, info, (perf_counter() - started) * 1000.0

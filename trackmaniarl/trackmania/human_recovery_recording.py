@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 
 from trackmaniarl.core.contracts import PolicyMode
+from trackmaniarl.core.pytree import policy_observation_snapshot
 from trackmaniarl.trackmania import human_recovery_recording_types as _types
 from trackmaniarl.trackmania.actions import (
     build_brake_tap_action_table,
@@ -122,7 +123,7 @@ def _drive_policy_to_target(
 
 
 def _policy_step(request: HumanRecoveryRecordingRequest, prepared: Any) -> _types.PolicyStep:
-    action = request.policy.act(prepared, PolicyMode.EVALUATION)
+    action = request.policy.act(policy_observation_snapshot(prepared), PolicyMode.EVALUATION)
     observation, _, terminated, truncated, info = request.environment.step(action)
     following = _raw_frame(observation)
     return _types.PolicyStep(

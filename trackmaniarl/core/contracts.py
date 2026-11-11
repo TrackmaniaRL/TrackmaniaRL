@@ -51,7 +51,12 @@ class EvaluatorRuntimeRequest:
 
 @runtime_checkable
 class Policy(Protocol):
-    """Inference-only policy deployed to a rollout worker."""
+    """Inference-only policy deployed to a rollout worker.
+
+    Built-in collectors and evaluators provide an owned snapshot of the
+    observation. Policies may transform it in place without changing replay,
+    environment or feature-pipeline state.
+    """
 
     def act(self, observation: Any, mode: PolicyMode = PolicyMode.ONLINE) -> Any: ...
 
