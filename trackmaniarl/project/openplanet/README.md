@@ -38,6 +38,13 @@ does not authenticate local processes; the epoch is an identity, not a security
 boundary. Its ports are fixed by the reference source, so a separate instance
 must first use nonconflicting ports and a separate plugin installation.
 
+The reference was inspected using `openplanet-lsp` 0.8.2 with the local
+Openplanet 1.29.14 type database and the school signature profile. The check
+exited with an unresolved `VehicleState` dependency. A negative control using
+an intentionally nonexistent symbol also produced no diagnostic, so this run
+does not establish that the script or its API calls compile. In-game compilation
+and controlled runtime testing remain necessary.
+
 The client first calls protocol-3 `get_instance` to read the plugin-generated
 `instance_epoch`, then durably records that value alongside its own random
 lowercase 32-hex `epoch` before sending `claim`. `claim` carries both epochs;
