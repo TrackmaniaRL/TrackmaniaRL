@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 _TELEMETRY_RESET_ATTEMPTS = 5
 _TELEMETRY_RETRY_INITIAL_S = 5.0
 _TELEMETRY_RETRY_MAX_S = 60.0
+_UNSET_OBSERVATION = object()
 
 
 @dataclass(slots=True)
@@ -81,6 +82,7 @@ class PolicyStep:
     info: Mapping[str, Any]
     inference_s: float
     environment_s: float = 0.0
+    current_observation: Any = _UNSET_OBSERVATION
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,6 +192,7 @@ def _take_training_step(
     started = monotonic()
     action, policy_info = _sample_policy(state.policy, state.prepared)
     inference_s = monotonic() - started
+    current_observation = snapshot_observation(state.prepared)
     started = monotonic()
     next_observation, reward, terminated, truncated, info = _step_environment(context, action)
     environment_s = monotonic() - started
@@ -212,6 +215,7 @@ def _take_training_step(
         cast(Mapping[str, Any], info),
         inference_s,
         environment_s,
+        current_observation,
     )
 
 
@@ -260,7 +264,11 @@ def _transition(
     next_prepared: Any,
 ) -> Transition:
     return Transition(
-        observation=snapshot_observation(state.prepared),
+        observation=(
+            snapshot_observation(state.prepared)
+            if step.current_observation is _UNSET_OBSERVATION
+            else step.current_observation
+        ),
         action=step.action,
         reward=step.reward,
         next_observation=snapshot_observation(next_prepared),

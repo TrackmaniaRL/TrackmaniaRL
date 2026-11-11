@@ -14,6 +14,7 @@ from trackmaniarl.core.observation_endpoints import (
     prepare_bootstrap_observation,
     validate_endpoint_step_limit,
 )
+from trackmaniarl.core.pytree import tree_snapshot
 
 
 class Environment(Protocol):
@@ -131,6 +132,7 @@ class EpisodeCollector:
         self, context: _EpisodeStep, prepared: Any, trace: _EpisodeTrace
     ) -> tuple[Any, bool]:
         action, policy_info, latency_ms = self._timed_act(prepared)
+        current = tree_snapshot(prepared)
         outcome = self._episode_outcome(context, action)
         next_observation, reward, terminated, truncated, info = outcome
         next_prepared = prepare_bootstrap_observation(
@@ -139,7 +141,7 @@ class EpisodeCollector:
         transition = self._transition(
             _EpisodeTransition(
                 context,
-                (prepared, next_prepared),
+                (current, tree_snapshot(next_prepared)),
                 (action, reward, terminated, truncated, info, policy_info),
             )
         )
@@ -337,6 +339,7 @@ class FixedStepRolloutCollector:
     def _step(
         self, action: Any, policy_info: Mapping[str, Any]
     ) -> tuple[Mapping[str, Any], float, bool]:
+        current = tree_snapshot(self.prepared)
         next_observation, reward, terminated, truncated, info = self.environment.step(action)
         self.episode_step += 1
         end_state = self._apply_episode_limit(_EpisodeEndState(terminated, truncated, info))
@@ -349,7 +352,9 @@ class FixedStepRolloutCollector:
             self.pipeline, next_observation, flags=(terminated, truncated)
         )
         transition = self._rollout_transition(
-            action, next_prepared, (reward, terminated, truncated, info, policy_info)
+            action,
+            (current, tree_snapshot(next_prepared)),
+            (reward, terminated, truncated, info, policy_info),
         )
         self.store.append(transition)
         self.prepared = next_prepared
@@ -365,11 +370,12 @@ class FixedStepRolloutCollector:
         )
 
     def _rollout_transition(
-        self, action: Any, next_prepared: Any, outcome: tuple[Any, ...]
+        self, action: Any, observations: tuple[Any, Any], outcome: tuple[Any, ...]
     ) -> Transition:
         reward, terminated, truncated, info, policy_info = outcome
+        current, next_prepared = observations
         return Transition(
-            observation=self.prepared,
+            observation=current,
             action=action,
             reward=float(reward),
             next_observation=next_prepared,

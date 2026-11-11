@@ -87,6 +87,41 @@ def test_optional_mean_gate_rejects_a_missing_metric_cleanly() -> None:
         _apply_benchmark_gate(_finished_trials([36.6] * 10), metrics, _suite(37.0))
 
 
+@pytest.mark.parametrize("target", ["median", "mean"])
+def test_time_gate_rejects_no_finished_trials(target: str) -> None:
+    suite = _suite(37.0 if target == "mean" else None).model_copy(
+        update={"min_finish_rate": 0.0, "target_median_s": 40.0 if target == "median" else None}
+    )
+    trial = {**_finished_trials([36.0])[0], "finished": False, "finish_time_s": None}
+    with pytest.raises(RuntimeError, match="benchmark failed"):
+        _apply_benchmark_gate(
+            [trial], {"eval/median_finish_time_s": 0.0, "eval/finish_time_s": 0.0}, suite
+        )
+
+
+@pytest.mark.parametrize("finish_time", [None, 0.0, -1.0, float("nan"), float("inf")])
+def test_time_gate_rejects_invalid_finish_times(finish_time: float | None) -> None:
+    trial = {**_finished_trials([36.0])[0], "finish_time_s": finish_time}
+    with pytest.raises(RuntimeError, match="benchmark failed"):
+        _apply_benchmark_gate([trial], _metrics([36.0]), _suite(None))
+
+
+def test_no_finish_without_time_targets_can_pass() -> None:
+    suite = _suite(None).model_copy(update={"min_finish_rate": 0.0, "target_median_s": None})
+    trial = {**_finished_trials([36.0])[0], "finished": False, "finish_time_s": None}
+    _apply_benchmark_gate([trial], {"eval/median_finish_time_s": 0.0}, suite)
+
+
+@pytest.mark.parametrize("finish_time", [None, 0.0, -1.0, float("nan"), float("inf")])
+def test_finish_rate_rejects_invalid_finished_time_without_time_targets(
+    finish_time: float | None,
+) -> None:
+    suite = _suite(None).model_copy(update={"target_median_s": None})
+    trial = {**_finished_trials([36.0])[0], "finish_time_s": finish_time}
+    with pytest.raises(RuntimeError, match="benchmark failed"):
+        _apply_benchmark_gate([trial], {"eval/median_finish_time_s": 0.0}, suite)
+
+
 def test_optional_runtime_gate_accepts_its_inclusive_boundary() -> None:
     trials = _finished_trials([36.6] * 10)
     trials[-1]["step_race_time_ms_max"] = 100.0
