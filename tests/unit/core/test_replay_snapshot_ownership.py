@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
+from typing import Any
 
 import numpy as np
 import pytest
@@ -9,6 +11,7 @@ import torch
 
 from trackmaniarl.core.builtins import IdentityFeaturePipeline
 from trackmaniarl.core.data import BatchRequest, Transition
+from trackmaniarl.core.pytree import policy_observation_snapshot, tree_snapshot
 from trackmaniarl.core.replay import InMemoryReplayStore
 from trackmaniarl.core.replay.sequence_sampler import SequenceSampler
 
@@ -116,6 +119,47 @@ def test_object_array_with_non_leaf_tensor_survives_replay_roundtrip(*, structur
         fresh = replay.get([0])[0].info["array"]
         cell = fresh["value"][0] if structured else fresh[0]
         assert cell["nested"][0].item() == 2.0
+
+
+@pytest.mark.parametrize("snapshot", [tree_snapshot, policy_observation_snapshot])
+def test_self_referential_object_array_is_owned(snapshot: Callable[[Any], Any]) -> None:
+    array = np.empty(1, dtype=object)
+    array[0] = array
+    copied = snapshot(array)
+    assert copied is not array
+    assert copied[0] is copied
+
+
+@pytest.mark.parametrize("snapshot", [tree_snapshot, policy_observation_snapshot])
+def test_ndarray_subclass_tensor_metadata_is_owned(snapshot: Callable[[Any], Any]) -> None:
+    class MetadataArray(np.ndarray):
+        __slots__ = ("__dict__", "slot_tensor")
+
+    tensor = torch.tensor([1.0], requires_grad=True) * 2
+    array = np.empty(1, dtype=object).view(MetadataArray)
+    array[0] = {"tensor": tensor}
+    array.attribute = {"tensor": tensor}
+    array.slot_tensor = tensor
+    copied = snapshot(array)
+    assert isinstance(copied, MetadataArray)
+    assert copied.attribute["tensor"] is copied.slot_tensor
+    assert copied[0]["tensor"] is copied.slot_tensor
+    assert not copied.slot_tensor.requires_grad
+    tensor.detach().fill_(4)
+    assert copied.slot_tensor.item() == 2.0
+
+
+def test_policy_snapshot_traverses_numeric_ndarray_subclass_attributes() -> None:
+    class MetadataArray(np.ndarray):
+        pass
+
+    array = np.array([1.0]).view(MetadataArray)
+    array.tensor = torch.tensor([1.0], requires_grad=True) * 2
+    copied = policy_observation_snapshot(array)
+    assert copied.tensor.item() == 2.0
+    assert not copied.tensor.requires_grad
+    array.tensor.detach().fill_(3)
+    assert copied.tensor.item() == 2.0
 
 
 def test_append_sample_snapshot_and_restore_interleave() -> None:

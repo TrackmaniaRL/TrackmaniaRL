@@ -139,6 +139,23 @@ def policy_observation_snapshot(value: PyTree) -> PyTree:
     """
     memo: dict[int, Any] = {}
     visited: set[int] = set()
+    owned_arrays: list[tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]] = []
+
+    def visit_array_elements(array: np.ndarray[Any, Any]) -> None:
+        if array.dtype.names:
+            for name in array.dtype.names:
+                visit_array_elements(array[name])
+        elif array.dtype.hasobject:
+            for nested in array.flat:
+                visit(nested)
+
+    def copy_array_elements(source: np.ndarray[Any, Any], target: np.ndarray[Any, Any]) -> None:
+        if source.dtype.names:
+            for name in source.dtype.names:
+                copy_array_elements(source[name], target[name])
+        elif source.dtype.hasobject:
+            for index in np.ndindex(source.shape):
+                target[index] = deepcopy(source[index], memo)
 
     def visit(item: Any) -> None:
         identity = id(item)
@@ -148,17 +165,13 @@ def policy_observation_snapshot(value: PyTree) -> PyTree:
         if isinstance(item, torch.Tensor):
             memo[identity] = item.detach().clone()
         elif isinstance(item, np.ndarray):
-            # Deepcopy of an object array traverses its elements. Seed tensor
-            # copies there as well, including tensors inside structured fields,
-            # because non-leaf tensors reject Python's default deepcopy.
-            if item.dtype.names:
-                field_views = [item[name] for name in item.dtype.names]
-                for field in field_views:
-                    visit(field)
-            elif item.dtype.hasobject:
-                for nested in item.flat:
-                    visit(nested)
-            return
+            if item.dtype.hasobject or type(item) is not np.ndarray:
+                # NumPy's ndarray deepcopy cannot resolve a self-referential
+                # object array. Register its copy before traversing elements.
+                copied = np.ndarray.copy(item, order="K")
+                memo[identity] = copied
+                owned_arrays.append((item, copied))
+                visit_array_elements(item)
         elif isinstance(item, memoryview):
             # memoryview does not support deepcopy. Keep element format and
             # dimensions while giving the policy its own writable backing
@@ -200,6 +213,19 @@ def policy_observation_snapshot(value: PyTree) -> PyTree:
                         visit(nested)
 
     visit(value)
+    for source, target in owned_arrays:
+        copy_array_elements(source, target)
+        if hasattr(source, "__dict__"):
+            target.__dict__.clear()
+            target.__dict__.update(deepcopy(source.__dict__, memo))
+        for cls in type(source).__mro__:
+            for name, descriptor in vars(cls).items():
+                if isinstance(descriptor, MemberDescriptorType):
+                    try:
+                        nested = getattr(source, name)
+                    except AttributeError:
+                        continue
+                    setattr(target, name, deepcopy(nested, memo))
     return deepcopy(value, memo)
 
 
