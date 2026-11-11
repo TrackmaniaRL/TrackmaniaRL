@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING, Any
 
 from trackmaniarl.core.data import BatchRequest, Transition, TransitionId
@@ -49,7 +49,28 @@ def get(store: InMemoryReplayStore, transition_ids: list[TransitionId]) -> list[
         ]
         if missing:
             raise KeyError(f"Replay transitions no longer available: {missing[:3]}")
-        return [store._transition(transition_id) for transition_id in transition_ids]
+        # Preserve overrides on custom subclasses; only the concrete built-in
+        # store can use its direct owned-column fast path safely.
+        from trackmaniarl.core.replay.store import InMemoryReplayStore
+
+        if type(store) is InMemoryReplayStore:
+            return [
+                _transition(store, transition_id, owned=True) for transition_id in transition_ids
+            ]
+        return [
+            _snapshot_transition(store._transition(transition_id))
+            for transition_id in transition_ids
+        ]
+
+
+def _snapshot_transition(transition: Transition) -> Transition:
+    return replace(
+        transition,
+        observation=tree_snapshot(transition.observation),
+        action=tree_snapshot(transition.action),
+        next_observation=tree_snapshot(transition.next_observation),
+        info=tree_snapshot(transition.info),
+    )
 
 
 def materialize_n_step(
@@ -140,26 +161,32 @@ def _materialized_transition(context: _StoredHorizon, result: _StoredReturn) -> 
         next_observation=_next_observation(store, result.final_id, final_slot, owned=True),
         terminated=result.terminated,
         truncated=result.truncated,
-        info=store._info.get(context.transition_id, {}),
+        info=tree_snapshot(store._info.get(context.transition_id, {})),
         episode_id=store._episode_names.get(context.episode_code),
         step=context.first_step if context.first_step >= 0 else None,
     )
 
 
-def _transition(store: InMemoryReplayStore, transition_id: TransitionId) -> Transition:
+def _transition(
+    store: InMemoryReplayStore, transition_id: TransitionId, *, owned: bool = False
+) -> Transition:
     assert store._observations is not None
     assert store._actions is not None
     slot = transition_id % store.capacity
     episode_code = int(store._episode_codes[slot])
     step = int(store._steps[slot])
     return Transition(
-        observation=store._observations.read(slot),
-        action=store._actions.read(slot),
+        observation=(
+            store._observations.read_owned(slot) if owned else store._observations.read(slot)
+        ),
+        action=store._actions.read_owned(slot) if owned else store._actions.read(slot),
         reward=float(store._rewards[slot]),
-        next_observation=store._next_observation(transition_id, slot),
+        next_observation=_next_observation(store, transition_id, slot, owned=owned),
         terminated=bool(store._terminated[slot]),
         truncated=bool(store._truncated[slot]),
-        info=store._info.get(transition_id, {}),
+        info=tree_snapshot(store._info.get(transition_id, {}))
+        if owned
+        else store._info.get(transition_id, {}),
         episode_id=store._episode_names.get(episode_code),
         step=step if step >= 0 else None,
     )

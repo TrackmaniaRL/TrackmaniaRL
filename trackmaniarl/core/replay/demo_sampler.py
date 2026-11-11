@@ -4,14 +4,20 @@ from __future__ import annotations
 
 import random
 from collections.abc import Mapping
+from contextlib import nullcontext
 from dataclasses import dataclass
 from math import ceil, floor
 from typing import Any, NotRequired, TypedDict, Unpack
 
 from trackmaniarl.core.contracts import ReplayStore
 from trackmaniarl.core.data import BatchRequest, PriorityUpdate, TrainingBatch
-from trackmaniarl.core.replay.batches import _BatchBuild, _eligible_n_step_ids, _make_batch
-from trackmaniarl.core.replay.store import _is_demo
+from trackmaniarl.core.replay.batches import (
+    _BatchBuild,
+    _collate_materialized_batch,
+    _eligible_n_step_ids,
+    _materialize_batch,
+)
+from trackmaniarl.core.replay.store import InMemoryReplayStore, _is_demo
 
 
 class DemoMixSampler:
@@ -31,17 +37,22 @@ class DemoMixSampler:
     def sample(self, store: ReplayStore, request: BatchRequest) -> TrainingBatch:
         if request.sequence_length != 1:
             raise ValueError("DemoMixSampler supports sequence_length=1")
-        transition_ids = _eligible_n_step_ids(store, request)
-        if len(transition_ids) < request.batch_size:
-            raise RuntimeError(
-                f"Need {request.batch_size} transitions, replay has {len(transition_ids)}"
-            )
-        partition = self._partition(store, transition_ids)
-        chosen, demo_count = self._choose(partition, request.batch_size)
-        self._rng.shuffle(chosen)
-        metadata = {"sampling": "demo_mix", "demo_fraction": demo_count / request.batch_size}
-        build = _BatchBuild(store, self.pipeline, chosen, request, metadata=metadata)
-        return _make_batch(build)
+        transaction = (
+            store.sampling_transaction() if type(store) is InMemoryReplayStore else nullcontext()
+        )
+        with transaction:
+            transition_ids = _eligible_n_step_ids(store, request)
+            if len(transition_ids) < request.batch_size:
+                raise RuntimeError(
+                    f"Need {request.batch_size} transitions, replay has {len(transition_ids)}"
+                )
+            partition = self._partition(store, transition_ids)
+            chosen, demo_count = self._choose(partition, request.batch_size)
+            self._rng.shuffle(chosen)
+            metadata = {"sampling": "demo_mix", "demo_fraction": demo_count / request.batch_size}
+            build = _BatchBuild(store, self.pipeline, chosen, request, metadata=metadata)
+            materialized = _materialize_batch(build)
+        return _collate_materialized_batch(build, materialized)
 
     def _partition(self, store: ReplayStore, transition_ids: list[int]) -> _DemoPartition:
         demos = self._demo_ids(store, transition_ids)
