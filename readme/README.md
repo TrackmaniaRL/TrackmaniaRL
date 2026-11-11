@@ -39,6 +39,7 @@ reference material and explanations; they may appear in more than one section.
   telemetry, controller and device problems.
 - [Recording](../docs/recording.md): capture optional video evidence of a benchmark.
 - [Development](development.md): add components, run checks and prepare releases.
+- [Roadmap](../docs/roadmap.md): proposed multi-map evaluation and maintenance work.
 
 ## Extending and maintaining the library
 
