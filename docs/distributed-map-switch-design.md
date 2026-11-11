@@ -1,0 +1,96 @@
+# Design: attested distributed map switching
+
+Status: proposed; protocol 2 and scheduled evaluation remain single-map. This
+document does not claim that a game backend can already switch maps.
+
+## Evidence and constraints
+
+The checked-in Connect source is a reference snapshot of the separately
+distributed signed plugin. Its protocol 2 exposes the active UID and player
+readiness, but has no map-load command. It uses substring matching for its two
+commands; a new protocol must parse JSON instead. No local Openplanet compiler or
+isolated game instance has been verified for this work.
+
+The [tm-control-mcp implementation at commit 04e713b](https://github.com/clankercode/tm-control-mcp/blob/04e713bb4c18cca8bd792d2f3185c6ac9688e767/src/McpTools.as)
+provides evidence that `ManiaTitleControlScriptAPI.PlayMap` is callable in a
+plugin when `Permissions::PlayLocalMap()` is granted. Its `PlayMapCoroutine`
+leaves the current playground, waits for menu readiness and then invokes the
+API. Its acknowledgement means queued, not completed. This is evidence of a
+possible mechanism, not proof of availability in School Mode, of compilation
+against our plugin dependencies, or of successful loading on a user's game.
+
+## Required protocol
+
+Implement a new explicitly negotiated plugin protocol alongside protocol 2;
+do not change 2's meaning or silently enable switching. Introduce an exclusive
+session lease, a random plugin-instance epoch and client-generated operation
+IDs. A switch command must bind its ID to the lease, the game-local canonical
+map path and expected UID. A duplicate ID with identical arguments returns the
+same operation; reuse with different arguments is an error. Exactly one switch
+may be active. Concurrent requests, missing permission, unsupported game mode,
+or a lost lease fail closed. All requests and responses use parsed JSON and
+strict length and field limits.
+
+The plugin owns one state machine, rather than spawning untracked launch
+coroutines. It records the operation before initiating any game side effect,
+then exposes `accepted`, `leaving`, `loading`, `ready`, or `indeterminate`.
+`ready` requires that the worker can no longer issue a load, the active map UID
+matches the request, and the local player is ready. Before `ready`, disconnect,
+timeout, cancellation, and an unexpected UID never authorize a second load or
+collection. The implementation must establish whether the game API permits a
+positive terminal failure; if a request may still execute, report
+`indeterminate` and quarantine the session. A status query must remain available
+while the worker progresses. Acknowledging queueing is not completion.
+
+The actor persists the operation ID, lease and plugin epoch before sending the
+command. After a lost response it queries that same operation, never submits a
+new ID. If the epoch changes, the status cannot be established, or a previous
+load might still be pending, the actor stops and requires explicit recovery of
+the isolated game instance. An epoch change alone cannot prove an old engine
+load has stopped. Durable actor records must survive an actor restart and must
+not share files or ports with another training session. This protocol assumes
+exclusive control of the game instance; manual map changes and other plugins
+that launch maps invalidate the lease and must not be treated as verified.
+
+## Evaluation and restoration
+
+At admission, resolve each local map and geometry/reward asset and bind their
+UIDs and content hashes to the run fingerprint. Require an explicit training
+map path, UID and matching assets for restoration. Reject missing checksums,
+untrusted map locations and unsupported map-dependent feature pipelines.
+Map-file hashing and a matching reported UID bind configured inputs, but are
+not by themselves cryptographic proof of the bytes loaded by the game; document
+that limitation and validate the actual load mechanism in a controlled game.
+
+The coordinator assigns one immutable policy snapshot and suite identity. For
+every map the actor verifies the assets, switches and confirms readiness, then
+constructs a fresh environment and a separately attested feature pipeline.
+Each result carries assignment, policy version, map ID, UID, asset digests and
+trial index. Coordinator admission checks the exact map-by-trial Cartesian set,
+rejecting duplicates, missing or extra trials, mismatched assets and snapshots.
+Only a full suite can influence promotions or stop criteria. Preserve the
+existing single-map result contract and replay compatibility during migration.
+
+On normal completion or an interruption after a **terminal** switch, release
+controls, close evaluation environments, switch back to the training map, and
+confirm UID and readiness before the training environment can reset. A failed
+or indeterminate switch is not safe to undo with another queued command: stop
+the actor without resuming collection and retain the assignment for recovery.
+If restoration itself fails, likewise stop without publishing a successful
+suite or resuming collection. A retry must use the same assigned policy and
+must not count partial trials twice.
+
+## Verification gates
+
+- Protocol tests: parsed requests, invalid fields, permission refusal, duplicate
+  and conflicting IDs, simultaneous clients, lost acknowledgement and status
+  polling, cancellation at each state, late loads, restart and epoch change.
+- Actor/coordinator integration: interruption and replay, exact trial accounting,
+  snapshot and asset mismatch, pipeline isolation, failure during restore,
+  and durable quarantine across actor restart.
+- Compile and test the actual plugin; publish a compatible signed release or
+  explicitly document supported development installation and version negotiation.
+- On a separately owned game instance with trusted real maps and isolated ports,
+  verify both map transitions, UID/readiness, reward and pipeline binding,
+  restoration, and interrupted/failed switching. Preserve evidence; simulated
+  tests alone cannot establish real-map support.
