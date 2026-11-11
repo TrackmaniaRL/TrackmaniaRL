@@ -162,6 +162,11 @@ class TrackmaniaEvaluator:
 
         self._stop_requested = stop_requested
 
+    @property
+    def requires_evaluation_artifact(self) -> bool:
+        """Whether a completed evaluation must have its durable result artifact."""
+        return self.run_dir is not None
+
     def _check_stop_requested(self) -> None:
         if self._stop_requested():
             raise EvaluationCancelledError("Evaluation stopped; the suite is incomplete")

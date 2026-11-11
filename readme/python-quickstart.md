@@ -81,11 +81,35 @@ For local training, Ctrl+C during collection or a learner update does not save
 the partially completed cycle. Resume from a previously completed checkpoint;
 work since that checkpoint is lost. If no checkpoint has been saved yet, restart
 the run. Periodic checkpoints limit the amount of work that can be lost.
-Local checkpoints do not record whether the last periodic evaluation completed.
-When resuming a checkpoint saved just before a scheduled evaluation, that
-evaluation can be skipped; run it separately if it is required. Checkpoints
-from a different library version can be rejected when the run's source
-fingerprint differs.
+New local checkpoints record whether a periodic evaluation remains due. Resume
+finishes outstanding updates and then runs the evaluation before collecting
+more data. A small receipt beside the checkpoint records successful completion;
+preserve the receipt, `evaluation-checkpoints/` and evaluation artifacts when
+moving recovery files. For checkpoint-aware evaluators, the receipt checks the
+checkpoint and snapshot hashes; for the built-in evaluator it also checks the
+required `evaluation.json` artifact.
+An absent, invalid, moved or outdated receipt or artifact causes the evaluation
+to run again. Custom evaluators without `set_checkpoint` do not receive a
+snapshot, and are responsible for preserving their own result artifacts.
+If a process stops after evaluation completes but before the receipt is saved,
+the evaluation may be repeated. This does not guarantee durability across a
+power failure.
+
+Older checkpoints do not record this evaluation phase; their pending evaluation
+cannot be reconstructed reliably. New checkpoints contain an additional field
+that older library versions do not accept. Checkpoints from a different library
+version can also be rejected when the run's source fingerprint differs.
+
+Local evaluations with checkpoint-aware evaluators use a separate full snapshot
+in `evaluation-checkpoints/`, so later recovery saves cannot change its bytes.
+These snapshots can be as large as a full training checkpoint. When
+`checkpoint_keep_last` is set, the same limit applies separately to completed
+evaluation snapshots; a snapshot referenced by `evaluation.json` and an
+in-progress snapshot are protected even when that exceeds the limit. Interrupted
+evaluations can temporarily leave additional snapshots. Custom evaluators that
+retain historical results must archive the referenced snapshots before they are
+pruned. With the default unlimited retention, these snapshots accumulate until
+the user removes them.
 
 ## Plug in a model
 

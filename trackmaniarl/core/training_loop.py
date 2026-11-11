@@ -15,6 +15,7 @@ from trackmaniarl.core.collector import (
     RolloutCollectionConfig,
 )
 from trackmaniarl.core.data import BatchRequest
+from trackmaniarl.core.evaluation_checkpoint import prune_evaluation_snapshots
 from trackmaniarl.core.runtime import prepare_run, record_run_attempt
 from trackmaniarl.core.training_support import TrainingCounters, TrainingResult, rollout_metrics
 from trackmaniarl.observability.artifacts import AsyncEpisodeWriter
@@ -97,6 +98,15 @@ def _resume_session(trainer: Trainer, session: _TrainingSession) -> None:
     state = trainer.run.checkpoint_codec.load(trainer.resume_checkpoint)
     restored = trainer._restore_checkpoint(state)
     session.counters = _restored_counters(restored)
+    trainer._pending_periodic_evaluation = state.get("pending_periodic_evaluation", False)
+    if trainer._pending_periodic_evaluation:
+        if (
+            trainer.run.evaluator is None
+            or trainer.run.spec.training.evaluate_every_episodes is None
+        ):
+            raise ValueError("checkpoint has pending evaluation but evaluator is not configured")
+        if trainer._evaluation_completed(trainer.resume_checkpoint):
+            trainer._pending_periodic_evaluation = False
     if trainer.on_policy and session.counters.fractional_updates >= 1:
         raise ValueError(
             "on-policy checkpoint has pending updates but does not contain the rollout"
@@ -164,6 +174,10 @@ def _run_to_completion(trainer: Trainer, session: _TrainingSession) -> TrainingR
         session.checkpoint_safe = False
         _perform_updates(trainer, session, None)
         session.checkpoint_safe = True
+    if trainer._pending_periodic_evaluation and not trainer.stop_requested():
+        session.checkpoint_safe = False
+        _run_pending_periodic_evaluation(trainer, session)
+        session.checkpoint_safe = True
     while session.counters.transitions < total and not trainer.stop_requested():
         _training_cycle(trainer, session)
     _save_final_checkpoint(trainer, session)
@@ -192,9 +206,11 @@ def _training_cycle(trainer: Trainer, session: _TrainingSession) -> None:
     previous_episodes = counters.episodes
     result = _collect(trainer, session)
     _record_collection(trainer, session, result)
+    _mark_periodic_evaluation(trainer, session, previous_episodes)
     _schedule_updates(trainer, session, previous_transitions)
     _perform_updates(trainer, session, result)
-    _run_periodic_evaluation(trainer, session, previous_episodes)
+    if trainer._pending_periodic_evaluation:
+        _run_pending_periodic_evaluation(trainer, session)
     session.checkpoint_safe = True
 
 
@@ -378,21 +394,31 @@ def _primary_loss(metrics: Mapping[str, float]) -> float | str:
     return next((value for name, value in metrics.items() if name.startswith("loss/")), "n/a")
 
 
-def _run_periodic_evaluation(
+def _mark_periodic_evaluation(
     trainer: Trainer, session: _TrainingSession, previous_episodes: int
 ) -> None:
-    evaluator = trainer.run.evaluator
     interval = trainer.run.spec.training.evaluate_every_episodes
-    if evaluator is None or interval is None:
+    if trainer.run.evaluator is None or interval is None:
         return
     counters = session.counters
     crossed_interval = counters.episodes // interval > previous_episodes // interval
-    if not crossed_interval or counters.transitions >= trainer.run.spec.training.total_transitions:
-        return
-    trainer._checkpoint_for_evaluation(session.checkpoints, counters)
+    trainer._pending_periodic_evaluation = (
+        crossed_interval and counters.transitions < trainer.run.spec.training.total_transitions
+    )
+
+
+def _run_pending_periodic_evaluation(trainer: Trainer, session: _TrainingSession) -> None:
+    evaluator = trainer.run.evaluator
+    if evaluator is None:
+        raise RuntimeError("pending periodic evaluation requires an evaluator")
+    checkpoint, snapshot, digest = trainer._checkpoint_for_evaluation(
+        session.checkpoints, session.counters
+    )
     _close_rollout_environment(session)
     session.evaluation = evaluator.evaluate(trainer.run.learner.policy())
-    trainer._log("eval/suite", session.evaluation, counters)
+    trainer._log("eval/suite", session.evaluation, session.counters)
+    trainer._record_evaluation(checkpoint, snapshot, digest)
+    trainer._pending_periodic_evaluation = False
 
 
 def _save_final_checkpoint(trainer: Trainer, session: _TrainingSession) -> None:
@@ -407,10 +433,14 @@ def _run_final_evaluation(trainer: Trainer, session: _TrainingSession) -> None:
     evaluator = trainer.run.evaluator
     if evaluator is None:
         return
-    trainer._set_evaluation_checkpoint(session.checkpoints)
+    snapshot = trainer._snapshot_for_final_evaluation(session.counters)
     _close_rollout_environment(session)
     session.evaluation = evaluator.evaluate(trainer.run.learner.policy())
     trainer._log("eval/suite", session.evaluation, session.counters)
+    if snapshot is not None:
+        prune_evaluation_snapshots(snapshot, trainer.run.spec.training.checkpoint_keep_last)
+        if trainer.run.spec.training.save_final_checkpoint:
+            session.checkpoints.append(snapshot)
 
 
 def _record_interruption(
