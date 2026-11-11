@@ -42,13 +42,17 @@ class ToyFactory:
         return ToyEnvironment()
 
 
+def create_output_directory(path: Path) -> None:
+    """Claim a new output directory; callers choose an isolated parent."""
+    path.mkdir(parents=True, exist_ok=False)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("output", type=Path)
     parser.add_argument("--transitions", type=int, default=64)
     args = parser.parse_args()
-    if args.output.exists():
-        raise FileExistsError(f"benchmark output already exists: {args.output}")
+    create_output_directory(args.output)
     if sys.platform == "win32":
         kernel = ctypes.windll.kernel32
         kernel.GetCurrentProcess.restype = ctypes.c_void_p

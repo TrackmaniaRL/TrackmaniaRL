@@ -29,6 +29,9 @@ path to the JSON output did not change the measured code or timer.
 To repeat in PowerShell, use the same Python environment for both checkouts,
 set the three thread environment variables to `1`, and run sequentially with
 distinct output paths. Replace the placeholders with local absolute paths:
+The script atomically creates the final output directory and rejects an
+existing one. The caller must choose a separate parent outside the active
+training's directories; the script cannot identify or validate that boundary.
 
 ```powershell
 $env:OMP_NUM_THREADS = '1'
@@ -57,8 +60,9 @@ small sample. This is an observed regression on this particular test, not an
 attribution to a specific change. One changed run took 9.654 s and the machine
 was shared, so scheduling and competing load are uncontrolled. A pilot before
 the measured sequence took 16.345 s on the baseline and is not included in the
-table. Raw logs and independent output directories are under the local
-`roadmap-replay-benchmark-data-20261112` directory, outside either checkout.
+table. Raw logs and independent output directories are under the local path
+`C:/Users/szulc/.codex/worktrees/roadmap-replay-benchmark-data-20261112`,
+outside either checkout. This path is specific to the measurement host.
 
 This local run does not exercise the distributed journal or real Trackmania,
 larger observations, GPU execution, long-running replay, or representative
