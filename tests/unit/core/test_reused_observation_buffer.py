@@ -53,6 +53,49 @@ class ZeroPolicy:
         return 0
 
 
+class ReusingActionPolicy:
+    def __init__(self, *, tensor: bool) -> None:
+        self.action = torch.zeros(1) if tensor else np.zeros(1, dtype=np.float32)
+        self.calls = 0
+
+    def act(self, observation: Any) -> Any:
+        self.calls += 1
+        self.action[...] = self.calls
+        return self.action
+
+
+class MutatingActionEnvironment(ReusingEnvironment):
+    def step(self, action: Any) -> tuple[Any, float, bool, bool, dict[str, Any]]:
+        action[...] = -10
+        return super().step(action)
+
+
+class ReusingInfoPolicy:
+    def __init__(self, *, tensor: bool) -> None:
+        self.info_buffer = torch.zeros(1) if tensor else np.zeros(1, dtype=np.float32)
+        self.calls = 0
+
+    def act_with_info(self, observation: Any) -> tuple[int, dict[str, Any]]:
+        self.calls += 1
+        self.info_buffer[...] = self.calls
+        return 0, {"policy_buffer": self.info_buffer}
+
+
+class ReusingInfoEnvironment(ReusingEnvironment):
+    def __init__(
+        self, *, tensor: bool, policy: ReusingInfoPolicy, stop: Event | None = None
+    ) -> None:
+        super().__init__(tensor=tensor, stop=stop)
+        self.info_buffer = torch.zeros(1) if tensor else np.zeros(1, dtype=np.float32)
+        self.policy = policy
+
+    def step(self, action: Any) -> tuple[Any, float, bool, bool, dict[str, Any]]:
+        self.policy.info_buffer[...] = -1
+        observation, reward, terminated, truncated, _ = super().step(action)
+        self.info_buffer[...] = self.steps
+        return observation, reward, terminated, truncated, {"environment_buffer": self.info_buffer}
+
+
 class ReferenceStore:
     """A valid minimal store that keeps transitions without copying their leaves."""
 
@@ -105,6 +148,102 @@ def test_custom_reference_store_keeps_next_observations(kind: str, collector_kin
         ).collect(2, "rollout")
     environment.buffer[...] = 99
     _assert_transition_values(store.transitions)
+
+
+@pytest.mark.parametrize("kind", ["numpy", "torch"])
+@pytest.mark.parametrize("collector_kind", ["episode", "rollout"])
+def test_local_collectors_keep_issued_actions_in_store_and_artifact(
+    kind: str, collector_kind: str
+) -> None:
+    store = ReferenceStore()
+    environment = MutatingActionEnvironment(tensor=kind == "torch")
+    policy = ReusingActionPolicy(tensor=kind == "torch")
+    if collector_kind == "episode":
+        result = EpisodeCollector(store, IdentityPipeline(), policy).collect(
+            environment, "episode", 2
+        )
+    else:
+        result = FixedStepRolloutCollector(
+            store, IdentityPipeline(), RolloutCollectionConfig(policy, environment, 5)
+        ).collect(2, "rollout")
+    assert [float(t.action[0]) for t in store.transitions] == [1.0, 2.0]
+    assert [float(action[0]) for action in result.artifact.actions] == [1.0, 2.0]
+    result.artifact.actions[0][...] = 77
+    assert float(store.transitions[0].action[0]) == 1.0
+
+
+@pytest.mark.parametrize("kind", ["numpy", "torch"])
+def test_distributed_collection_keeps_issued_action_through_stop(kind: str) -> None:
+    stop = Event()
+    sent = []
+    policy = ReusingActionPolicy(tensor=kind == "torch")
+    runtime = SimpleNamespace(
+        stop=stop,
+        spec=SimpleNamespace(training=SimpleNamespace(max_episode_steps=5)),
+        _should_flush=lambda *_: False,
+        _policy=lambda: (policy, 0.0, 0),
+        _spool=sent.append,
+        _summary=lambda reward, info, steps: {},
+    )
+    environment = MutatingActionEnvironment(tensor=kind == "torch", stop=stop)
+    observation, _ = environment.reset()
+    state = TrainingEpisode(
+        observation, policy, 0.0, 0, "episode", EpisodeMetrics.from_policy(policy)
+    )
+    context = CollectionContext(runtime, environment, IdentityPipeline())
+    _run_training_episode(context, state)
+    _finish_training_episode(context, state)
+    assert [float(t.action[0]) for t in sent[0].transitions] == [1.0, 2.0]
+
+
+@pytest.mark.parametrize("kind", ["numpy", "torch"])
+@pytest.mark.parametrize("collector_kind", ["episode", "rollout"])
+def test_local_collectors_snapshot_reused_policy_and_environment_info(
+    kind: str, collector_kind: str
+) -> None:
+    tensor = kind == "torch"
+    store = ReferenceStore()
+    policy = ReusingInfoPolicy(tensor=tensor)
+    environment = ReusingInfoEnvironment(tensor=tensor, policy=policy)
+    if collector_kind == "episode":
+        result = EpisodeCollector(store, IdentityPipeline(), policy).collect(
+            environment, "episode", 2
+        )
+    else:
+        result = FixedStepRolloutCollector(
+            store, IdentityPipeline(), RolloutCollectionConfig(policy, environment, 5)
+        ).collect(2, "rollout")
+    assert [float(t.info["policy_buffer"][0]) for t in store.transitions] == [1.0, 2.0]
+    assert [float(t.info["environment_buffer"][0]) for t in store.transitions] == [1.0, 2.0]
+    assert [float(t["environment_buffer"][0]) for t in result.artifact.telemetry] == [1.0, 2.0]
+    result.artifact.telemetry[0]["environment_buffer"][...] = 99
+    assert float(store.transitions[0].info["environment_buffer"][0]) == 1.0
+
+
+@pytest.mark.parametrize("kind", ["numpy", "torch"])
+def test_distributed_collection_snapshots_reused_policy_and_environment_info(kind: str) -> None:
+    tensor = kind == "torch"
+    stop = Event()
+    sent = []
+    policy = ReusingInfoPolicy(tensor=tensor)
+    runtime = SimpleNamespace(
+        stop=stop,
+        spec=SimpleNamespace(training=SimpleNamespace(max_episode_steps=5)),
+        _should_flush=lambda *_: False,
+        _policy=lambda: (policy, 0.0, 0),
+        _spool=sent.append,
+        _summary=lambda reward, info, steps: {},
+    )
+    environment = ReusingInfoEnvironment(tensor=tensor, policy=policy, stop=stop)
+    observation, _ = environment.reset()
+    state = TrainingEpisode(
+        observation, policy, 0.0, 0, "episode", EpisodeMetrics.from_policy(policy)
+    )
+    context = CollectionContext(runtime, environment, IdentityPipeline())
+    _run_training_episode(context, state)
+    _finish_training_episode(context, state)
+    assert [float(t.info["policy_buffer"][0]) for t in sent[0].transitions] == [1.0, 2.0]
+    assert [float(t.info["environment_buffer"][0]) for t in sent[0].transitions] == [1.0, 2.0]
 
 
 @pytest.mark.parametrize("kind", ["numpy", "torch"])

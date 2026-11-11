@@ -193,9 +193,12 @@ def _take_training_step(
     action, policy_info = _sample_policy(state.policy, state.prepared)
     inference_s = monotonic() - started
     current_observation = snapshot_observation(state.prepared)
+    recorded_action = snapshot_observation(action)
+    policy_info = snapshot_observation(policy_info)
     started = monotonic()
     next_observation, reward, terminated, truncated, info = _step_environment(context, action)
     environment_s = monotonic() - started
+    info = snapshot_observation(info)
     final_step = step_index == context.runtime.spec.training.max_episode_steps - 1
     if (
         final_step
@@ -206,7 +209,7 @@ def _take_training_step(
         raise ActorEnvironmentError("environment endpoint required before actor step limit")
     return PolicyStep(
         step_index,
-        action,
+        recorded_action,
         policy_info,
         next_observation,
         float(reward),
