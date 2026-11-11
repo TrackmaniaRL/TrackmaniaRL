@@ -117,6 +117,14 @@ uv sync --locked --group dev
 Dependencies used only by generated projects belong in the generated
 `pyproject.toml`, not automatically in the library runtime.
 
+The distributed rollout journal owns one SQLite connection and lock per
+instance. Evaluation delivery and promotion operations live in
+`distributed/journal_evaluation.py` and share that connection and lock; in
+particular, claiming an evaluation result remains part of the rollout append
+transaction. Append acquires a SQLite write transaction before checking its
+receipt, so separate journal connections serialize the idempotency decision.
+Journal schema and supported checkpoint formats are unchanged by this split.
+
 ## Adding a public component
 
 A public component should have:

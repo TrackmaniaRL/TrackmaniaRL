@@ -120,6 +120,10 @@ def tree_snapshot(value: PyTree) -> PyTree:
         if isinstance(leaf, torch.Tensor):
             return leaf.detach().clone()
         if isinstance(leaf, np.ndarray):
+            # An object array's buffer contains references; copying only the
+            # buffer would leave its mutable elements owned by the caller.
+            if leaf.dtype.hasobject:
+                return deepcopy(leaf)
             return np.array(leaf, copy=True, order="C")
         return deepcopy(leaf)
 
