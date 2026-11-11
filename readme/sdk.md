@@ -282,6 +282,18 @@ configuration or Python package.
 | `RunLogger` | receive neutral events and close resources | remote run identity if resume needs it |
 | `CheckpointCodec` | atomically save and safely load learner state | format/version metadata |
 
+Built-in collectors and Trackmania evaluators copy observations before calling
+`Policy.act` or `act_with_info`, so mutating a properly copied input does not
+alter environment, pipeline, or replay state. Custom observation objects must
+support Python's `copy.deepcopy` and return independent mutable state from any
+custom `__deepcopy__` method. Non-copyable objects can raise an exception, and
+the library cannot detect a custom method that incorrectly returns shared
+mutable data. Repeated references to the same object remain shared in the copy,
+but distinct NumPy or Torch views of the same buffer may be copied separately;
+policies must not rely on mutations through one view appearing in another.
+Torch snapshots are detached from autograd. Copying observations also has a
+per-decision cost, especially for image inputs.
+
 If resume behavior would change after recreating a component, its relevant state
 belongs in the checkpoint. Do not hide configuration in module globals or read
 environment variables inside hot-path objects.

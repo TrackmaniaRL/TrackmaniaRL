@@ -53,9 +53,11 @@ class EvaluatorRuntimeRequest:
 class Policy(Protocol):
     """Inference-only policy deployed to a rollout worker.
 
-    Built-in collectors and evaluators provide an owned snapshot of the
-    observation. Policies may transform it in place without changing replay,
-    environment or feature-pipeline state.
+    Built-in collectors and Trackmania evaluators copy observations before
+    inference. Custom observation types must support ``copy.deepcopy`` and
+    implement it without sharing mutable state. Distinct array or tensor views
+    of one buffer may become independent copies; policies must not rely on
+    aliasing between such views. Tensor snapshots are detached from autograd.
     """
 
     def act(self, observation: Any, mode: PolicyMode = PolicyMode.ONLINE) -> Any: ...

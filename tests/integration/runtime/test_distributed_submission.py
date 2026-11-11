@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from threading import Event, Thread
 from typing import Any, cast
 
 import pytest
@@ -549,6 +550,162 @@ def test_evaluation_admission_is_atomic_with_journal_append(
         assert coordinator.counters.evaluations == 1
     finally:
         _close(coordinator)
+
+
+def test_evaluation_admission_serializes_reassignment_after_durable_append(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    coordinator = _coordinator(tmp_path, "evaluation-admission-concurrency")
+    coordinator._evaluation_due.add("actor")
+    coordinator.counters.policy_version = 1
+    coordinator._policy_payload = coordinator.codec.encode({"model": {}})
+    committed, release, reassignment_started, reassignment_done = (Event() for _ in range(4))
+    failures: list[BaseException] = []
+    workers: list[Thread] = []
+    try:
+        first = coordinator.codec.decode(_submit(coordinator, _empty_request(coordinator, 0)).value)
+        payload = _base_payload(1)
+        summary = summarize_episode(
+            0.0,
+            {"policy_version": 1, "termination_reason": "finished", "race_time_ms": 36_000.0},
+            1,
+        )
+        summary["evaluation_assignment_id"] = first["evaluation_assignment_id"]
+        payload["evaluations"] = [summary]
+        payload["evaluation_snapshot"] = coordinator._policy_payload
+        original_append = coordinator.journal.append
+
+        def delayed_append(*args: Any, **kwargs: Any) -> tuple[int, bool]:
+            result = original_append(*args, **kwargs)
+            if kwargs.get("evaluation") is not None:
+                committed.set()
+                if not release.wait(5):
+                    raise TimeoutError("test failed to release admission")
+            return result
+
+        monkeypatch.setattr(coordinator.journal, "append", delayed_append)
+
+        def submit_result() -> None:
+            try:
+                _submit(coordinator, _request(coordinator, payload))
+            except BaseException as exc:
+                failures.append(exc)
+
+        def reassign() -> None:
+            try:
+                request = _base_payload(0)
+                request["session_id"] = "new-session"
+                reassignment_started.set()
+                _submit(coordinator, _request(coordinator, request))
+            except BaseException as exc:
+                failures.append(exc)
+            finally:
+                reassignment_done.set()
+
+        workers.append(Thread(target=submit_result))
+        workers[-1].start()
+        assert committed.wait(5)
+        workers.append(Thread(target=reassign))
+        workers[-1].start()
+        assert reassignment_started.wait(5)
+        assert not reassignment_done.wait(0.2)
+        release.set()
+        for worker in workers:
+            worker.join(5)
+            assert not worker.is_alive()
+        assert not failures
+        assert "actor" not in coordinator._evaluation_assignments
+    finally:
+        release.set()
+        for worker in workers:
+            worker.join(5)
+        _close(coordinator)
+
+
+def test_earlier_delayed_submit_cannot_reassign_newer_assignment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    coordinator = _coordinator(tmp_path, "evaluation-delayed-older-submit")
+    coordinator._evaluation_due.add("actor")
+    coordinator.counters.policy_version = 1
+    coordinator._policy_payload = coordinator.codec.encode({"model": {}})
+    committed, release = Event(), Event()
+    failures: list[BaseException] = []
+    worker: Thread | None = None
+    try:
+        original_append = coordinator.journal.append
+
+        def delayed_append(*args: Any, **kwargs: Any) -> tuple[int, bool]:
+            result = original_append(*args, **kwargs)
+            if args[0] == "session":
+                committed.set()
+                if not release.wait(5):
+                    raise TimeoutError("test failed to release older submit")
+            return result
+
+        monkeypatch.setattr(coordinator.journal, "append", delayed_append)
+
+        def submit_older() -> None:
+            try:
+                _submit(coordinator, _empty_request(coordinator, 0))
+            except BaseException as exc:
+                failures.append(exc)
+
+        worker = Thread(target=submit_older)
+        worker.start()
+        assert committed.wait(5)
+        later = _base_payload(0)
+        later["session_id"] = "new-session"
+        response = coordinator.codec.decode(
+            _submit(coordinator, _request(coordinator, later)).value
+        )
+        assert response["evaluate"] is True
+        release.set()
+        worker.join(5)
+        assert not worker.is_alive()
+        assert not failures
+        assert coordinator._evaluation_assignments["actor"]["session"] == "new-session"
+    finally:
+        release.set()
+        if worker is not None:
+            worker.join(5)
+        _close(coordinator)
+
+
+def test_delayed_intermediate_session_cannot_reverse_newer_handoff(tmp_path: Path) -> None:
+    from trackmaniarl.distributed.coordinator_submission import _assign_evaluation
+
+    coordinator = _coordinator(tmp_path, "evaluation-session-order")
+    coordinator._evaluation_due.add("actor")
+    coordinator.counters.policy_version = 1
+    coordinator._policy_payload = coordinator.codec.encode({"model": {}})
+    try:
+        _submit(coordinator, _empty_request(coordinator, 0))
+        delayed = _base_payload(0)
+        delayed["session_id"] = "session-b"
+        delayed_request = _request(coordinator, delayed)
+        row_id, _ = coordinator.journal.append("session-b", 0, delayed_request.value)
+        current = _base_payload(0)
+        current["session_id"] = "session-c"
+        response = coordinator.codec.decode(
+            _submit(coordinator, _request(coordinator, current)).value
+        )
+        assert response["evaluate"] is True
+        assert coordinator._evaluation_assignments["actor"]["session"] == "session-c"
+        delayed_response = _assign_evaluation(coordinator, delayed, row_id)
+        assert not delayed_response.evaluate
+        assert coordinator._evaluation_assignments["actor"]["session"] == "session-c"
+    finally:
+        _close(coordinator)
+
+    restarted = _coordinator(tmp_path, "evaluation-session-order")
+    try:
+        assert restarted._evaluation_assignments["actor"]["session"] == "session-c"
+        delayed_response = _assign_evaluation(restarted, delayed, row_id)
+        assert not delayed_response.evaluate
+        assert restarted._evaluation_assignments["actor"]["session"] == "session-c"
+    finally:
+        _close(restarted)
 
 
 def test_evaluation_admission_survives_crash_before_ack(

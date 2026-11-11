@@ -77,10 +77,41 @@ def test_strict_resume_preserves_credit_above_pause_threshold() -> None:
     with patch("trackmaniarl.distributed.coordinator_checkpoint.load_state_dict"):
         _restore_distributed(
             SimpleNamespace(coordinator=coordinator),
-            {"learner": {}, "replay_store": {}, "sampler": {}},
+            {
+                "learner": {},
+                "replay_store": {},
+                "sampler": {},
+                "evaluated_policy_version": None,
+            },
             {"update_credit": 900.0},
         )
     assert coordinator.counters.update_credit == 900.0
+
+
+@pytest.mark.parametrize(("policy_version", "expected_value"), [(None, "online"), (3, "current")])
+def test_restore_uses_current_training_state_for_evaluated_checkpoint(
+    policy_version: int | None, expected_value: str
+) -> None:
+    learner = Mock()
+    coordinator = SimpleNamespace(
+        run=SimpleNamespace(
+            spec=SimpleNamespace(distributed=DistributedSpec(strict_update_budget=True)),
+            learner=learner,
+            replay_store=Mock(),
+            sampler=Mock(),
+        ),
+        _recover_journal=Mock(),
+    )
+    state = {
+        "learner": {"value": "online"},
+        "training_learner": {"value": "current"},
+        "replay_store": {},
+        "sampler": {},
+        "evaluated_policy_version": policy_version,
+    }
+    with patch("trackmaniarl.distributed.coordinator_checkpoint.load_state_dict"):
+        _restore_distributed(SimpleNamespace(coordinator=coordinator), state, {})
+    learner.load_state_dict.assert_called_once_with({"value": expected_value})
 
 
 def test_policy_response_releases_actor_after_learner_catches_up() -> None:

@@ -61,9 +61,18 @@ def submit(
     submission = _submission(coordinator, value)
     if _hard_lagged(submission) and not _previously_accepted(submission, message, context):
         return _reject_hard_lag(submission, context)
-    # Bind an identified result to the current assignment before publishing its
-    # journal row; otherwise a stale session can win an ingest-time race.
+    evaluations = value["evaluations"]
+    identified_result = bool(evaluations and evaluations[0].get("evaluation_assignment_id"))
     with coordinator._lock:
+        assignment_active = str(value["actor_id"]) in coordinator._evaluation_assignments
+        if identified_result or assignment_active:
+            # Identified results and potential session reassignments must be
+            # ordered with durable admission while an assignment is active.
+            row_id, inserted = _append_journal(submission, message, context)
+            evaluation = _assign_evaluation(coordinator, value, row_id)
+    if not (identified_result or assignment_active):
+        # Unrelated rollout writes must not block the coordinator lock while
+        # waiting for storage, nor delay concurrent journal submissions.
         row_id, inserted = _append_journal(submission, message, context)
         evaluation = _assign_evaluation(coordinator, value, row_id)
     if inserted:
@@ -205,6 +214,12 @@ def _assign_evaluation(
         assignments = dict(coordinator._evaluation_assignments)
         previous = assignments.get(actor_id)
         evaluations = value["evaluations"]
+        if previous is not None and row_id < previous.get(
+            "session_row_id", previous["assigned_row_id"]
+        ):
+            # An earlier WAL append can finish later than the request that
+            # created this assignment; it cannot take over its session.
+            return _EvaluationAssignment(False, coordinator.counters.policy_version, b"")
         if (
             previous is not None
             and row_id > previous["assigned_row_id"]
@@ -227,6 +242,7 @@ def _assign_evaluation(
                     **previous,
                     "session": str(value["session_id"]),
                     "sequence": int(value["sequence"]),
+                    "session_row_id": row_id,
                     "retired_sessions": [
                         *previous.get("retired_sessions", []),
                         previous["session"],
@@ -257,6 +273,7 @@ def _assign_evaluation(
                 "session": str(value["session_id"]),
                 "sequence": int(value["sequence"]),
                 "assigned_row_id": row_id,
+                "session_row_id": row_id,
                 "version": version,
                 "snapshot": snapshot,
                 "assignment_id": assignment_id,

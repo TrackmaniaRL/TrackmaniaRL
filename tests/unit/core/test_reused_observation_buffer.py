@@ -180,6 +180,17 @@ def test_policy_input_snapshot_copies_readonly_mapping() -> None:
     assert float(original["speed"][0]) == 1.0
 
 
+@pytest.mark.parametrize("backend", ["numpy", "torch"])
+def test_policy_snapshot_preserves_references_but_not_distinct_view_aliases(backend: str) -> None:
+    base = np.arange(3, dtype=np.float32) if backend == "numpy" else torch.arange(3.0)
+    copied = policy_observation_snapshot({"base": base, "same": base, "view": base[1:]})
+    assert copied["base"] is copied["same"]
+    copied["base"][1] = 99
+    assert float(copied["same"][1]) == 99.0
+    assert float(copied["view"][0]) == 1.0
+    assert float(base[1]) == 1.0
+
+
 def _assert_transition_values(transitions: list[Transition]) -> None:
     assert len(transitions) == 2
     for index, item in enumerate(transitions):
