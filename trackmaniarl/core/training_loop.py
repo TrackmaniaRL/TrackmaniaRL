@@ -31,6 +31,7 @@ class _TrainingSession:
     evaluation: Mapping[str, float] | None = None
     rollout_environment: Any | None = None
     rollout_collector: FixedStepRolloutCollector | None = None
+    checkpoint_safe: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -96,6 +97,10 @@ def _resume_session(trainer: Trainer, session: _TrainingSession) -> None:
     state = trainer.run.checkpoint_codec.load(trainer.resume_checkpoint)
     restored = trainer._restore_checkpoint(state)
     session.counters = _restored_counters(restored)
+    if trainer.on_policy and session.counters.fractional_updates >= 1:
+        raise ValueError(
+            "on-policy checkpoint has pending updates but does not contain the rollout"
+        )
     trainer._checkpoint_baseline_transitions = session.counters.transitions
     trainer._last_checkpoint_transitions = session.counters.transitions
     trainer._log("train/resumed", {"checkpoint": str(trainer.resume_checkpoint)}, session.counters)
@@ -148,6 +153,17 @@ def _execute_session(trainer: Trainer, session: _TrainingSession) -> TrainingRes
 
 def _run_to_completion(trainer: Trainer, session: _TrainingSession) -> TrainingResult:
     total = trainer.run.spec.training.total_transitions
+    if (
+        trainer.resume_checkpoint is not None
+        and not trainer.on_policy
+        and not trainer.stop_requested()
+    ):
+        # Periodic checkpoints can be written before all updates earned by the
+        # last collection are complete. Spend that credit before collecting
+        # again, including when the transition target has already been met.
+        session.checkpoint_safe = False
+        _perform_updates(trainer, session, None)
+        session.checkpoint_safe = True
     while session.counters.transitions < total and not trainer.stop_requested():
         _training_cycle(trainer, session)
     _save_final_checkpoint(trainer, session)
@@ -179,6 +195,7 @@ def _training_cycle(trainer: Trainer, session: _TrainingSession) -> None:
     _schedule_updates(trainer, session, previous_transitions)
     _perform_updates(trainer, session, result)
     _run_periodic_evaluation(trainer, session, previous_episodes)
+    session.checkpoint_safe = True
 
 
 def _collect(trainer: Trainer, session: _TrainingSession) -> CollectionResult:
@@ -187,20 +204,25 @@ def _collect(trainer: Trainer, session: _TrainingSession) -> CollectionResult:
         _start_on_policy_collection(trainer, session)
     collector = session.rollout_collector
     if collector is None:
-        return _collect_episode(trainer, session.counters, remaining)
+        return _collect_episode(trainer, session, remaining)
     collector.set_policy(trainer.run.learner.policy())
     length = min(trainer.run.spec.training.sequence_length, remaining)
+    session.checkpoint_safe = False
     return collector.collect(length, rollout_id=f"rollout-{session.counters.updates:08d}")
 
 
 def _collect_episode(
-    trainer: Trainer, counters: TrainingCounters, remaining: int
+    trainer: Trainer, session: _TrainingSession, remaining: int
 ) -> CollectionResult:
+    counters = session.counters
     environment = trainer.environment_factory.create(seed=trainer.run.spec.seed + counters.episodes)
     collector = EpisodeCollector(
         trainer.run.replay_store, trainer.run.feature_pipeline, trainer.run.learner.policy()
     )
     try:
+        # A partial collection may already have changed replay even though the
+        # counters have not yet been updated. Never checkpoint that state.
+        session.checkpoint_safe = False
         return collector.collect(
             environment,
             episode_id=f"episode-{counters.episodes:08d}",
@@ -283,7 +305,9 @@ def _schedule_updates(
     session.counters.fractional_updates += earned
 
 
-def _perform_updates(trainer: Trainer, session: _TrainingSession, result: CollectionResult) -> None:
+def _perform_updates(
+    trainer: Trainer, session: _TrainingSession, result: CollectionResult | None
+) -> None:
     training = trainer.run.spec.training
     footprint = training.batch_size * training.sequence_length + training.n_step - 1
     ready = 1 if trainer.on_policy else max(training.warmup_transitions, footprint)
@@ -294,7 +318,7 @@ def _perform_updates(trainer: Trainer, session: _TrainingSession, result: Collec
 
 
 def _update_once(
-    trainer: Trainer, session: _TrainingSession, result: CollectionResult
+    trainer: Trainer, session: _TrainingSession, result: CollectionResult | None
 ) -> Mapping[str, float]:
     request = _batch_request(trainer, session.counters, result)
     batch = trainer.run.sampler.sample(trainer.run.replay_store, request)
@@ -310,10 +334,12 @@ def _update_once(
 
 
 def _batch_request(
-    trainer: Trainer, counters: TrainingCounters, result: CollectionResult
+    trainer: Trainer, counters: TrainingCounters, result: CollectionResult | None
 ) -> BatchRequest:
     training = trainer.run.spec.training
     if trainer.on_policy:
+        if result is None:
+            raise RuntimeError("on-policy updates require a collected rollout")
         return BatchRequest(batch_size=1, sequence_length=result.transitions, gamma=training.gamma)
     return training.batch_request(
         beta=training.replay_beta(counters.transitions),
@@ -390,10 +416,20 @@ def _run_final_evaluation(trainer: Trainer, session: _TrainingSession) -> None:
 def _record_interruption(
     trainer: Trainer, session: _TrainingSession, exc: KeyboardInterrupt
 ) -> None:
-    if trainer.run.spec.training.save_final_checkpoint:
+    if trainer.run.spec.training.save_final_checkpoint and session.checkpoint_safe:
         checkpoint = trainer._write_checkpoint(session.counters)
         if not session.checkpoints or session.checkpoints[-1] != checkpoint:
             session.checkpoints.append(checkpoint)
+    elif trainer.run.spec.training.save_final_checkpoint:
+        previous = any(path.is_file() for path in session.checkpoints) or (
+            trainer.resume_checkpoint is not None and trainer.resume_checkpoint.is_file()
+        )
+        message = "Interrupted during a training cycle; no new checkpoint was saved. "
+        if previous:
+            message += "Resume from a previously completed checkpoint."
+        else:
+            message += "No previous checkpoint is known for this session; restart training."
+        print(message, flush=True)
     _log_exception(trainer, session, _Failure("run/interrupted", exc))
 
 

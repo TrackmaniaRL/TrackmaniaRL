@@ -77,6 +77,16 @@ compatible configuration; a policy-only export is not a training checkpoint.
 `Trainer` is the local runtime; use the [distributed workflow](architecture.md)
 for separate actor and learner processes.
 
+For local training, Ctrl+C during collection or a learner update does not save
+the partially completed cycle. Resume from a previously completed checkpoint;
+work since that checkpoint is lost. If no checkpoint has been saved yet, restart
+the run. Periodic checkpoints limit the amount of work that can be lost.
+Local checkpoints do not record whether the last periodic evaluation completed.
+When resuming a checkpoint saved just before a scheduled evaluation, that
+evaluation can be skipped; run it separately if it is required. Checkpoints
+from a different library version can be rejected when the run's source
+fingerprint differs.
+
 ## Plug in a model
 
 Download and run [custom_model.py](../examples/custom_model.py):
