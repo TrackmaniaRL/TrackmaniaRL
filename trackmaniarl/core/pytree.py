@@ -164,6 +164,10 @@ def policy_observation_snapshot(value: PyTree) -> PyTree:
         visited.add(identity)
         if isinstance(item, torch.Tensor):
             memo[identity] = item.detach().clone()
+        elif isinstance(item, np.void) and item.dtype.names:
+            # Structured scalar records can be nested inside object arrays.
+            for name in item.dtype.names:
+                visit(item[name])
         elif isinstance(item, np.ndarray):
             if item.dtype.hasobject or type(item) is not np.ndarray:
                 # NumPy's ndarray deepcopy cannot resolve a self-referential

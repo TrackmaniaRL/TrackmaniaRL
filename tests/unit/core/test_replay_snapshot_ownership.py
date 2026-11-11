@@ -162,6 +162,24 @@ def test_policy_snapshot_traverses_numeric_ndarray_subclass_attributes() -> None
     assert copied.tensor.item() == 2.0
 
 
+@pytest.mark.parametrize("snapshot", [tree_snapshot, policy_observation_snapshot])
+def test_object_array_with_structured_scalar_containing_tensor_is_owned(
+    snapshot: Callable[[Any], Any],
+) -> None:
+    tensor = torch.tensor([1.0], requires_grad=True) * 2
+    records = np.empty(1, dtype=[("x", object)])
+    records["x"][0] = {"nested": [tensor]}
+    array = np.empty(1, dtype=object)
+    array[0] = records[0]
+    copied = snapshot(array)
+    copied_tensor = copied[0]["x"]["nested"][0]
+    assert not copied_tensor.requires_grad
+    tensor.detach().fill_(9)
+    assert copied_tensor.item() == 2.0
+    copied_tensor.fill_(4)
+    assert tensor.item() == 9.0
+
+
 def test_append_sample_snapshot_and_restore_interleave() -> None:
     store = InMemoryReplayStore(capacity=16)
 
