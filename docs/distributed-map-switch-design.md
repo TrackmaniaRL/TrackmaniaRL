@@ -52,6 +52,26 @@ not share files or ports with another training session. This protocol assumes
 exclusive control of the game instance; manual map changes and other plugins
 that launch maps invalidate the lease and must not be treated as verified.
 
+`trackmaniarl.trackmania.map_switch_journal` is a game-free foundation for this
+protocol; **it is not wired into an actor or plugin**. Its SQLite transactions
+serialize intents and persist `dispatching` before a caller sends a command.
+Open a previously created journal without `create=True`; a missing or existing
+file cannot be silently replaced. The caller must keep its path and instance
+identity stable across restarts and must not recreate a missing file for a
+possibly active instance. Every controller of one game instance must use the
+same database: two different files can each accept an operation, and this
+module does not discover or prevent that misconfiguration. SQLite EXTRA
+synchronous mode requires a local filesystem with working locking and sync.
+Process-exit tests do not prove
+resilience to power loss or faulty storage.
+
+`resolve_terminal` records evidence supplied by the caller but does not verify
+its authenticity or meaning. Only a future backend that verifies the exact
+operation and epoch and proves its worker cannot issue a later load may call
+it. Queue acknowledgements, matching map UID alone, timeouts and plugin epoch
+changes are not terminal evidence. The journal is not yet an operational guard;
+it becomes one only when every command path and recovery path use it.
+
 ## Evaluation and restoration
 
 At admission, resolve each local map and geometry/reward asset and bind their
