@@ -71,6 +71,11 @@ silently discard them. Preserve the checkpoint, journal and actor spools, and
 investigate using the matching previous library version and a copy of the
 original files. Do not edit or delete journal rows to force recovery.
 
+If an actor is stopped before its scheduled evaluation suite completes, the
+partial suite is not submitted. The coordinator retains the assignment and
+its policy snapshot. Restart an actor with the same actor ID to receive and
+retry that assignment; a different actor ID does not take it over.
+
 ## Actor spool recovery
 
 An actor stores pending rollouts under

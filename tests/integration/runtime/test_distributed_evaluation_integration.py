@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
+import pytest
 from google.protobuf.wrappers_pb2 import BytesValue
 
 from tests.integration.runtime.distributed_runtime_support import (
@@ -16,6 +17,7 @@ from tests.integration.runtime.distributed_runtime_support import (
     _SlowLearner,
 )
 from trackmaniarl.core.builtins import TorchCheckpointCodec
+from trackmaniarl.core.environment_errors import EnvironmentPausedError
 from trackmaniarl.core.replay import InMemoryReplayStore, UniformSampler
 from trackmaniarl.core.runtime import ResolvedRun
 from trackmaniarl.core.spec import RunSpec
@@ -185,5 +187,90 @@ def test_attested_single_map_assignment_actor_spool_and_wal_restore(tmp_path: Pa
         assert restored._evaluation_policy_states[1] == {"value": 7}
         assert restored._best_evaluation is not None
         assert not restored.journal.pending_evaluation_promotions()
+    finally:
+        _close(restored)
+
+
+@pytest.mark.parametrize(
+    "stop_point",
+    ["before_reset", "after_reset", "between_trials", "during_step", "timeout", "paused"],
+)
+def test_stopped_evaluation_retries_same_assignment_after_actor_restart(
+    tmp_path: Path, stop_point: str
+) -> None:
+    config_path = _config(tmp_path)
+    request = ActorProcessRequest(config_path, "127.0.0.1:1", "test-actor", _DISTRIBUTED_TOKEN)
+    actor = ActorRuntime(request)
+    coordinator = _coordinator(config_path, actor.fingerprint)
+    resumed_actor: ActorRuntime | None = None
+    try:
+        pipeline, _ = actor._components()
+        coordinator._evaluation_due.add(actor.actor_id)
+        coordinator.counters.policy_version = 1
+        coordinator._policy_payload = coordinator.codec.encode({"value": 7})
+        initial = {
+            **actor._request_base(),
+            "sequence": 0,
+            "policy_version": 1,
+            "transitions": [],
+            "episodes": [],
+            "evaluations": [],
+            "evaluation_snapshot": b"",
+        }
+        assignment = _submit(coordinator, coordinator.codec.encode(initial))
+        _accept_evaluation_request(actor, assignment)
+        actor.sequence = 1
+
+        class _StopEnvironment(AttestedEnvironment):
+            def reset(self, *, seed: int) -> tuple[np.ndarray, dict[str, Any]]:
+                result = super().reset(seed=seed)
+                if stop_point == "after_reset":
+                    actor.stop.set()
+                return result
+
+            def step(self, action: Any) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
+                observation, reward, terminated, truncated, info = super().step(action)
+                actor.stop.set()
+                if stop_point == "timeout":
+                    raise TimeoutError("stop during telemetry wait")
+                if stop_point == "paused":
+                    raise EnvironmentPausedError("stop during pause")
+                if stop_point == "during_step":
+                    return observation, reward, False, False, {}
+                return observation, reward, terminated, truncated, info
+
+        if stop_point == "before_reset":
+            actor.stop.set()
+        actor._evaluate(_StopEnvironment(), pipeline)
+        assert actor.queue.empty()
+        assert actor.actor_id in coordinator._evaluation_assignments
+
+        resumed_actor = ActorRuntime(request)
+        resumed_pipeline, resumed_factory = resumed_actor._components()
+        retry = {**initial, **resumed_actor._request_base()}
+        response = _submit(coordinator, coordinator.codec.encode(retry))
+        assert response["evaluate"] is True
+        assert response["evaluation_assignment_id"] == assignment["evaluation_assignment_id"]
+        assert response["evaluation_snapshot"] == assignment["evaluation_snapshot"]
+        _accept_evaluation_request(resumed_actor, response)
+        resumed_actor.sequence = 1
+        resumed_actor._evaluate(resumed_factory.create(seed=0), resumed_pipeline)
+        payload = resumed_actor.queue.get_nowait().read_bytes()
+        result = coordinator.codec.decode(payload)
+        assert len(result["evaluations"]) == 2
+        assert all(item["finished"] for item in result["evaluations"])
+        assert _submit(coordinator, payload)["accepted"] is True
+        assert actor.actor_id not in coordinator._evaluation_assignments
+    finally:
+        actor.client.close()
+        if resumed_actor is not None:
+            resumed_actor.client.close()
+        _close(coordinator)
+
+    restored = _coordinator(config_path, actor.fingerprint)
+    try:
+        restored._recover_journal(0)
+        assert restored.counters.evaluations == 2
+        assert restored.counters.evaluation_finishes == 2
     finally:
         _close(restored)

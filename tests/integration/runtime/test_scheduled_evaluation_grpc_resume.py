@@ -113,6 +113,7 @@ def test_scheduled_evaluation_over_grpc_survives_full_resume(tmp_path: Path) -> 
     coordinator = _coordinator(config_path, actor.fingerprint)
     _run_until_evaluations(coordinator, actor, 2)
     previous_evaluations = coordinator.counters.evaluations
+    previous_finishes = coordinator.counters.evaluation_finishes
     previous_transitions = coordinator.counters.transitions
     checkpoints = sorted(
         (tmp_path / "suite-integration" / "checkpoints").glob("distributed-update-*.pt")
@@ -120,11 +121,12 @@ def test_scheduled_evaluation_over_grpc_survives_full_resume(tmp_path: Path) -> 
     assert checkpoints
 
     resumed_actor = ActorRuntime(
-        ActorProcessRequest(config_path, "127.0.0.1:1", "grpc-resumed", _DISTRIBUTED_TOKEN)
+        ActorProcessRequest(config_path, "127.0.0.1:1", "grpc-actor", _DISTRIBUTED_TOKEN)
     )
     resumed = _coordinator(config_path, resumed_actor.fingerprint, checkpoints[-1])
-    _run_until_evaluations(resumed, resumed_actor, previous_evaluations + 2)
-    assert resumed.counters.evaluation_finishes >= previous_evaluations + 2
+    _run_until_evaluations(resumed, resumed_actor, previous_finishes + 2)
+    assert resumed.counters.evaluation_finishes >= previous_finishes + 2
+    assert resumed.counters.evaluations >= previous_evaluations + 2
     assert resumed.counters.transitions > previous_transitions
 
 
@@ -166,7 +168,8 @@ def _run_until_evaluations(coordinator: Coordinator, actor: ActorRuntime, target
         actor_thread = threading.Thread(target=run_actor, daemon=True)
         actor_thread.start()
         _wait_until(
-            lambda: coordinator.counters.evaluations >= target or bool(errors),
+            # Actual DNFs count as evaluations without counting as finishes.
+            lambda: coordinator.counters.evaluation_finishes >= target or bool(errors),
             (server, actor_thread),
         )
         assert not errors, errors
