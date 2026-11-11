@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import multiprocessing as mp
 import os
+import signal
 import struct
 import subprocess
 import sys
@@ -518,7 +519,8 @@ def test_parent_death_releases_all_worker_native_leases(tmp_path: Path, exit_mod
         " root=Path(sys.argv[1])\n pool=_pool(root).open()\n"
         " pool.prepare_many({0:{'seed':0},1:{'seed':0}})\n"
         " pool.reset_many({0:{},1:{}})\n"
-        " (root/'ready.json').write_text(json.dumps(pool.metadata()))\n"
+        " (root/'ready.json.tmp').write_text(json.dumps(pool.metadata()))\n"
+        " (root/'ready.json.tmp').replace(root/'ready.json')\n"
         " if sys.argv[2] == 'kill': time.sleep(120)\n"
     )
     environment = dict(os.environ)
@@ -541,21 +543,42 @@ def test_parent_death_releases_all_worker_native_leases(tmp_path: Path, exit_mod
             time.sleep(0.01)
         metadata = json.loads((tmp_path / "ready.json").read_text())
         if exit_mode == "kill":
+            assert process.poll() is None
             process.kill()
-        process.wait(timeout=5)
+        returncode = process.wait(timeout=5)
+        assert returncode == (-signal.SIGKILL if exit_mode == "kill" else 0)
         for row in metadata.values():
             _gone(row["worker_identity"])
             path = Path(row["trace_dir"]) / "native-supervisor.json"
             deadline = time.monotonic() + 8
-            while not path.exists():
-                assert time.monotonic() < deadline
-                time.sleep(0.01)
-            receipt = json.loads(path.read_text())
+            # The supervisor opens its evidence file before writing JSON, so
+            # existence alone does not mean that publication has finished.
+            while True:
+                try:
+                    receipt = json.loads(path.read_text())
+                    break
+                except (FileNotFoundError, json.JSONDecodeError):
+                    if time.monotonic() >= deadline:
+                        raise
+                    time.sleep(0.01)
             assert receipt["remainingOwned"] == []
-            assert receipt["reason"] == "actor-lease-eof"
-            assert not (Path(row["trace_dir"]) / "close-v7.json").exists()
+            assert receipt["cleanupErrors"] == []
+            assert receipt["supervisorError"] is None
+            # Parent death can first close worker IPC, causing the worker to
+            # stop its supervisor, or kill the worker and close its lease.
+            assert receipt["reason"] in {"actor-stop", "actor-lease-eof"}
+            assert ownership.same_identity(receipt["driverIdentity"], row["driver_identity"])
+            assert ownership.same_identity(
+                receipt["supervisorIdentity"], row["supervisor_identity"]
+            )
+            assert any(
+                ownership.same_identity(identity, row["driver_identity"])
+                for identity in receipt["capturedOwned"]
+            )
             for identity in receipt["capturedOwned"]:
                 _gone(identity)
+            _gone(row["driver_identity"])
+            _gone(row["supervisor_identity"])
     finally:
         if process.poll() is None:
             process.kill()
