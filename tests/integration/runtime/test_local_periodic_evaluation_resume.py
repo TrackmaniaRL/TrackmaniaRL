@@ -553,3 +553,95 @@ def test_custom_evaluator_retains_existing_builtin_artifact_snapshot(tmp_path: P
     assert custom.checkpoint is not None
     assert custom.checkpoint.is_file()
     assert custom.checkpoint != original_snapshot
+
+
+@pytest.mark.parametrize("stop_phase", ["collection", "update"])
+def test_stop_during_collection_defers_periodic_evaluation_until_resume(
+    tmp_path: Path, stop_phase: str
+) -> None:
+    spec = _spec(tmp_path)
+    training = spec.training.model_copy(
+        update={"evaluate_every_episodes": 1, "save_final_checkpoint": True}
+    )
+    spec = spec.model_copy(update={"training": training})
+    stop = tmp_path / "stop"
+    events: list[str] = []
+    factory = _Factory(events)
+    original_create = factory.create
+
+    def create(*, seed: int) -> FakeEnvironment:
+        environment = original_create(seed=seed)
+        if events.count("collect") == 2 and stop_phase == "collection":
+            original_step = environment.step
+
+            def step_and_stop(action: object) -> tuple[Any, float, bool, bool, dict[str, object]]:
+                result = original_step(action)
+                if environment.step_index == 1:
+                    stop.touch()
+                return result
+
+            environment.step = step_and_stop  # type: ignore[method-assign]
+        return environment
+
+    factory.create = create  # type: ignore[method-assign]
+    run = _run(spec, _Evaluator(events), factory)
+    if stop_phase == "update":
+        original_update = run.learner.update
+
+        def update_and_stop(batch: Any) -> Any:
+            result = original_update(batch)
+            stop.touch()
+            return result
+
+        run.learner.update = update_and_stop
+    result = _train(run, stop=stop)
+
+    assert events == ["collect", "evaluation", "collect"]
+    assert result.transitions == 4
+    checkpoint = result.checkpoints[-1]
+    state = run.checkpoint_codec.load(checkpoint)
+    assert state["pending_periodic_evaluation"] is True
+    assert state["counters"]["transitions"] == 4
+
+    stop.unlink()
+    resumed_events: list[str] = []
+    resumed = _run(spec, _Evaluator(resumed_events, stop=stop), _Factory(resumed_events))
+    resumed_result = _train(resumed, checkpoint=checkpoint, stop=stop)
+    assert resumed_events == ["evaluation"]
+    assert resumed_result.transitions == 4
+
+
+def test_stop_after_evaluation_checkpoint_defers_evaluation_until_resume(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    spec = _spec(tmp_path)
+    training = spec.training.model_copy(
+        update={"evaluate_every_episodes": 1, "save_final_checkpoint": True}
+    )
+    spec = spec.model_copy(update={"training": training})
+    stop = tmp_path / "stop"
+    events: list[str] = []
+    run = _run(spec, _Evaluator(events), _Factory(events))
+    original = Trainer._checkpoint_for_evaluation
+
+    def checkpoint_then_stop(*args: Any, **kwargs: Any) -> Any:
+        result = original(*args, **kwargs)
+        stop.touch()
+        return result
+
+    monkeypatch.setattr(Trainer, "_checkpoint_for_evaluation", checkpoint_then_stop)
+    result = _train(run, stop=stop)
+    assert events == ["collect"]
+    assert result.transitions == 2
+    checkpoint = result.checkpoints[-1]
+    state = run.checkpoint_codec.load(checkpoint)
+    assert state["pending_periodic_evaluation"] is True
+    assert state["counters"]["transitions"] == 2
+
+    monkeypatch.setattr(Trainer, "_checkpoint_for_evaluation", original)
+    stop.unlink()
+    resumed_events: list[str] = []
+    resumed = _run(spec, _Evaluator(resumed_events, stop=stop), _Factory(resumed_events))
+    resumed_result = _train(resumed, checkpoint=checkpoint, stop=stop)
+    assert resumed_events == ["evaluation"]
+    assert resumed_result.transitions == 2

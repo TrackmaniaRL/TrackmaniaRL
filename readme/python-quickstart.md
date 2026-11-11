@@ -88,6 +88,10 @@ preserve the receipt, `evaluation-checkpoints/` and evaluation artifacts when
 moving recovery files. For checkpoint-aware evaluators, the receipt checks the
 checkpoint and snapshot hashes; for the built-in evaluator it also checks the
 required `evaluation.json` artifact.
+If a stop file is already present when a periodic evaluation is due, the trainer
+defers it until resume. If the stop arrives during an active Trackmania
+evaluation, the evaluator raises `EvaluationCancelledError`; the pending
+checkpoint remains available for resume after removing the stop file.
 An absent, invalid, moved or outdated receipt or artifact causes the evaluation
 to run again. Custom evaluators without `set_checkpoint` do not receive a
 snapshot, and are responsible for preserving their own result artifacts.

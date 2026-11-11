@@ -209,7 +209,7 @@ def _training_cycle(trainer: Trainer, session: _TrainingSession) -> None:
     _mark_periodic_evaluation(trainer, session, previous_episodes)
     _schedule_updates(trainer, session, previous_transitions)
     _perform_updates(trainer, session, result)
-    if trainer._pending_periodic_evaluation:
+    if trainer._pending_periodic_evaluation and not trainer.stop_requested():
         _run_pending_periodic_evaluation(trainer, session)
     session.checkpoint_safe = True
 
@@ -414,6 +414,10 @@ def _run_pending_periodic_evaluation(trainer: Trainer, session: _TrainingSession
     checkpoint, snapshot, digest = trainer._checkpoint_for_evaluation(
         session.checkpoints, session.counters
     )
+    # A stop can arrive while the checkpoint is being written. Keep the
+    # assignment pending and let normal shutdown save the completed cycle.
+    if trainer.stop_requested():
+        return
     _close_rollout_environment(session)
     session.evaluation = evaluator.evaluate(trainer.run.learner.policy())
     trainer._log("eval/suite", session.evaluation, session.counters)
