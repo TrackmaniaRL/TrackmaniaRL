@@ -4,6 +4,8 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
 import numpy as np
+import pytest
+import torch
 
 from trackmaniarl.core.builtins import IdentityFeaturePipeline
 from trackmaniarl.core.data import BatchRequest, Transition
@@ -74,6 +76,46 @@ def test_object_array_elements_are_owned_on_append_snapshot_and_restore() -> Non
     restored_value = restored.get([0])[0].info["objects"]
     restored_value[0]["values"].append(6)
     assert restored.get([0])[0].info["objects"][0]["values"] == [3]
+
+
+@pytest.mark.parametrize("structured", [False, True])
+def test_object_array_with_non_leaf_tensor_survives_replay_roundtrip(*, structured: bool) -> None:
+    tensor = torch.tensor([1.0], requires_grad=True) * 2
+    array = np.empty(1, dtype=[("value", object), ("count", "i4")] if structured else object)
+    objects = array["value"] if structured else array
+    objects[0] = {"nested": [tensor]}
+    store = InMemoryReplayStore(capacity=2)
+    store.append(
+        Transition(
+            np.array([1.0]),
+            0,
+            1.0,
+            array,
+            True,
+            False,
+            episode_id="episode",
+            step=0,
+            info={"array": array},
+        )
+    )
+    snapshot = store.state_dict()
+    restored = InMemoryReplayStore(capacity=2)
+    restored.load_state_dict(snapshot)
+    tensor.detach().fill_(9)
+    for saved in (snapshot["info"][0]["array"], snapshot["next_overrides"][0]):
+        cell = saved["value"][0] if structured else saved[0]
+        cell["nested"][0].fill_(8)
+    for replay in (store, restored):
+        transition = replay.get([0])[0]
+        for copied in (transition.next_observation, transition.info["array"]):
+            cell = copied["value"][0] if structured else copied[0]
+            observed = cell["nested"][0]
+            assert observed.item() == 2.0
+            assert not observed.requires_grad
+            observed.fill_(7)
+        fresh = replay.get([0])[0].info["array"]
+        cell = fresh["value"][0] if structured else fresh[0]
+        assert cell["nested"][0].item() == 2.0
 
 
 def test_append_sample_snapshot_and_restore_interleave() -> None:

@@ -123,7 +123,7 @@ def tree_snapshot(value: PyTree) -> PyTree:
             # An object array's buffer contains references; copying only the
             # buffer would leave its mutable elements owned by the caller.
             if leaf.dtype.hasobject:
-                return deepcopy(leaf)
+                return policy_observation_snapshot(leaf)
             return np.array(leaf, copy=True, order="C")
         return deepcopy(leaf)
 
@@ -147,6 +147,18 @@ def policy_observation_snapshot(value: PyTree) -> PyTree:
         visited.add(identity)
         if isinstance(item, torch.Tensor):
             memo[identity] = item.detach().clone()
+        elif isinstance(item, np.ndarray):
+            # Deepcopy of an object array traverses its elements. Seed tensor
+            # copies there as well, including tensors inside structured fields,
+            # because non-leaf tensors reject Python's default deepcopy.
+            if item.dtype.names:
+                field_views = [item[name] for name in item.dtype.names]
+                for field in field_views:
+                    visit(field)
+            elif item.dtype.hasobject:
+                for nested in item.flat:
+                    visit(nested)
+            return
         elif isinstance(item, memoryview):
             # memoryview does not support deepcopy. Keep element format and
             # dimensions while giving the policy its own writable backing
