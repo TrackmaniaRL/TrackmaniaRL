@@ -85,6 +85,11 @@ than by individual learner constructors.
 are separate from `InMemoryReplayStore`. PER receives `PriorityUpdate` from a
 learner, sequence sampling accepts only contiguous episode windows and demo
 mixing enforces explicit min/max fractions.
+Linked external replay stores may interleave transition IDs across episodes;
+sequence sampling validates episode identity, step continuity when known, and
+terminal boundaries instead of assuming numerically adjacent IDs.
+For n-step targets with interleaved IDs, a linked store must also provide
+`n_step_ids`; without it the sampler accepts only complete numeric horizons.
 
 Bundled model factories declare a `ModelContract` and bundled learners declare
 the contracts they accept. This keeps an encoder choice independent from runtime

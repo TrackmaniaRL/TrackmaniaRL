@@ -6,6 +6,7 @@ import random
 from collections.abc import Callable, Mapping
 from contextlib import nullcontext
 from dataclasses import dataclass, replace
+from itertools import pairwise
 from typing import Any, cast
 
 from trackmaniarl.core.contracts import ReplayStore
@@ -265,12 +266,45 @@ def _uncached_window_starts(candidates: _WindowCandidates) -> list[int]:
 
 
 def _linked_window_starts(candidates: _WindowCandidates, linked: _LinkedHistory) -> list[int]:
-    return [
+    starts = [
         transition_id
         for transition_id in candidates.ordered
         if linked.is_n_step_eligible(transition_id, candidates.request.n_step)
-        and len(set(linked.history_ids(transition_id, candidates.length))) == candidates.length
+        and _valid_linked_window(candidates, linked, transition_id)
     ]
+    if candidates.request.n_step == 1 or callable(getattr(candidates.store, "n_step_ids", None)):
+        return starts
+    # The generic n-step materializer follows numerical IDs when there is no
+    # resolver. Verify those horizons before drawing, even if the linked store
+    # says an interleaved episode has enough successors.
+    available = dict(zip(candidates.ordered, candidates.store.get(candidates.ordered), strict=True))
+    valid = [item for item in starts if _has_complete_n_step(item, available, candidates.request)]
+    if len(valid) < candidates.request.batch_size <= len(starts):
+        raise RuntimeError("linked replay needs n_step_ids for non-adjacent n-step horizons")
+    return valid
+
+
+def _valid_linked_window(
+    candidates: _WindowCandidates, linked: _LinkedHistory, final_id: int
+) -> bool:
+    history = linked.history_ids(final_id, candidates.length)
+    if (
+        len(history) != candidates.length
+        or len(set(history)) != candidates.length
+        or history[-1] != final_id
+    ):
+        return False
+    # Linked stores can interleave IDs across actors, so numeric adjacency is
+    # not required. Still reject stale predecessor links crossing a boundary.
+    transitions = candidates.store.get(history)
+    return all(
+        current.episode_id is not None
+        and current.episode_id == previous.episode_id
+        and (previous.step is None or current.step == previous.step + 1)
+        and not previous.terminated
+        and not previous.truncated
+        for previous, current in pairwise(transitions)
+    )
 
 
 def _sequence_window_starts(scan: _WindowScan) -> list[int]:
