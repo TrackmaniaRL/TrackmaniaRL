@@ -59,8 +59,7 @@ def get(store: InMemoryReplayStore, transition_ids: list[TransitionId]) -> list[
                 _transition(store, transition_id, owned=True) for transition_id in transition_ids
             ]
         return [
-            owned_transition(store._transition(transition_id))
-            for transition_id in transition_ids
+            owned_transition(store._transition(transition_id)) for transition_id in transition_ids
         ]
 
 

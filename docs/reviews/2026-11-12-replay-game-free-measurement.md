@@ -60,9 +60,10 @@ small sample. This is an observed regression on this particular test, not an
 attribution to a specific change. One changed run took 9.654 s and the machine
 was shared, so scheduling and competing load are uncontrolled. A pilot before
 the measured sequence took 16.345 s on the baseline and is not included in the
-table. Raw logs and independent output directories are under the local path
-`C:/Users/szulc/.codex/worktrees/roadmap-replay-benchmark-data-20261112`,
-outside either checkout. This path is specific to the measurement host.
+table. The [recorded result data](2026-11-12-replay-game-free-results.csv)
+contains the unrounded elapsed times and completed work counts. The original
+logs and independent output directories remain on the measurement host, outside
+either checkout; host-specific personal paths are omitted from distribution.
 
 This local run does not exercise the distributed journal or real Trackmania,
 larger observations, GPU execution, long-running replay, or representative

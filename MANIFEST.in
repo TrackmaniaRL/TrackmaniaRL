@@ -15,6 +15,7 @@ recursive-include experiments/sub37 *.py *.md
 recursive-include experiments/activation_film *.py
 recursive-include experiments/full_qr *.py *.md *.c *.rs *.as *.toml
 recursive-include docs/reviews *.md
+include docs/reviews/2026-11-12-replay-game-free-results.csv
 recursive-include tests *.py
 recursive-include tests *.json *.bin
 include tests/fixtures/full_qr/README.md
