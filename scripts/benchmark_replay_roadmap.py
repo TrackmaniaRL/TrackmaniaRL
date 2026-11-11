@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import cProfile
 import ctypes
 import json
 import sys
@@ -51,6 +52,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("output", type=Path)
     parser.add_argument("--transitions", type=int, default=64)
+    parser.add_argument("--profile", action="store_true")
     args = parser.parse_args()
     create_output_directory(args.output)
     if sys.platform == "win32":
@@ -89,13 +91,23 @@ def main() -> None:
         checkpoint_interval_updates=8,
     )
     spec = RunSpec.model_validate(config)
+    profiler = cProfile.Profile() if args.profile else None
+    if profiler is not None:
+        profiler.enable()
     start = time.perf_counter()
-    run = resolve_run(spec)
+    # Keep the project root inside the imported checkout even when a shared
+    # driver script is launched from a different checkout. Otherwise the
+    # runtime archives an unrelated second project during startup.
+    package_root = Path(trackmaniarl.__file__).resolve().parent.parent
+    run = resolve_run(spec, base_dir=package_root)
     try:
         result = Trainer(run).train()
     finally:
         run.logger.close()
     elapsed = time.perf_counter() - start
+    if profiler is not None:
+        profiler.disable()
+        profiler.dump_stats(args.output / "training.prof")
     print(
         json.dumps(
             {
