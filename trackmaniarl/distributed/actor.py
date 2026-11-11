@@ -102,6 +102,7 @@ class ActorRuntime:
         self._evaluation_request_lock = threading.Lock()
         self._evaluation_request: tuple[bytes, int, str] | None = None
         self._active_evaluation_assignment_id = ""
+        self._active_evaluation_initial_snapshot = b""
         self._evaluation_index = 0
         self.queue: Queue[Path] = Queue()
 

@@ -53,6 +53,10 @@ class EvaluatorRuntimeRequest:
 class Policy(Protocol):
     """Inference-only policy deployed to a rollout worker.
 
+    ``PolicyMode.EVALUATION`` must disable exploratory action selection without
+    changing the policy's configured online exploration. Both local and
+    distributed evaluation pass this mode to every inference call.
+
     Built-in collectors and Trackmania evaluators copy observations before
     inference. Custom observation types must support ``copy.deepcopy`` and
     implement it without sharing mutable state. Distinct array or tensor views

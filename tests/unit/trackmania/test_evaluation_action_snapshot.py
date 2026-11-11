@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 import torch
 
+from trackmaniarl.core.contracts import PolicyMode
 from trackmaniarl.distributed.actor_evaluation import (
     EvaluatedAction,
     _evaluation_action,
@@ -17,6 +18,33 @@ from trackmaniarl.distributed.actor_evaluation import (
 )
 from trackmaniarl.trackmania.evaluation import TrackmaniaEvaluator
 from trackmaniarl.trackmania.human_recovery_recording import _policy_step
+
+
+def test_local_and_distributed_evaluation_honor_mode_without_mutating_exploration() -> None:
+    class Policy:
+        def __init__(self) -> None:
+            self.epsilon = 0.8
+            self.modes: list[PolicyMode] = []
+
+        def set_exploration_epsilon(self, value: float) -> None:
+            self.epsilon = value
+
+        def act(self, observation: Any, mode: PolicyMode = PolicyMode.ONLINE) -> int:
+            self.modes.append(mode)
+            return 1 if mode is PolicyMode.EVALUATION else 0
+
+    class Environment:
+        def step(self, action: Any) -> tuple[int, float, bool, bool, dict[str, Any]]:
+            return 0, 0.0, False, False, {}
+
+    policy = Policy()
+    context = SimpleNamespace(policy=policy, prepared=0, environment=Environment())
+    for _ in range(2):
+        local = TrackmaniaEvaluator._take_step(None, context).action  # type: ignore[arg-type]
+        remote = _evaluation_action(context).value
+        assert local == remote == 1
+        assert policy.epsilon == 0.8
+    assert policy.modes == [PolicyMode.EVALUATION] * 4
 
 
 @pytest.mark.parametrize("backend", ["numpy", "torch"])

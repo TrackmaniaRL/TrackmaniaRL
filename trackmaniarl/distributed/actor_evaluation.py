@@ -9,7 +9,7 @@ from time import monotonic
 from typing import Any, cast
 
 import trackmaniarl.distributed.actor_watchdog as actor_watchdog
-from trackmaniarl.core.contracts import ExploratoryPolicy, PolicyMode, ReplicablePolicy
+from trackmaniarl.core.contracts import PolicyMode, ReplicablePolicy
 from trackmaniarl.core.environment_errors import EnvironmentPausedError
 from trackmaniarl.core.pytree import policy_observation_snapshot, tree_snapshot
 from trackmaniarl.distributed.actor_collection import reset_pipeline, reset_policy
@@ -45,7 +45,16 @@ def evaluate(runtime: CollectionRuntime, environment: Any, pipeline: Any) -> Non
         summaries = [
             {**summary, "evaluation_assignment_id": assignment_id} for summary in summaries
         ]
-    snapshot = runtime.codec.encode(dict(policy.export_state()))
+    # Identified assignments retain the loaded state from before actor-local
+    # exploration settings, warmup and trial inference can mutate it. Unassigned
+    # and legacy evaluations preserve their original post-trial export behavior.
+    snapshot = (
+        runtime._active_evaluation_initial_snapshot
+        if assignment_id
+        else runtime.codec.encode(dict(policy.export_state()))
+    )
+    if not snapshot:
+        raise RuntimeError("identified evaluation is missing its initial policy snapshot")
     runtime._spool(SpoolRequest([], [], version, summaries, snapshot))
 
 
@@ -97,10 +106,12 @@ def evaluation_policy(runtime: CollectionRuntime) -> tuple[ReplicablePolicy, int
         runtime._evaluation_request = None
     if request is None:
         runtime._active_evaluation_assignment_id = ""
+        runtime._active_evaluation_initial_snapshot = b""
         policy, _, version = runtime._policy()
         return policy, version
     snapshot, version, assignment_id = request
     runtime._active_evaluation_assignment_id = assignment_id
+    runtime._active_evaluation_initial_snapshot = b""
     return _policy_from_request(runtime, (snapshot, version))
 
 
@@ -113,8 +124,10 @@ def _policy_from_request(
         raise ValueError("evaluation policy snapshot must decode to a mapping")
     policy = runtime._new_policy()
     policy.load_state(state)
-    if isinstance(policy, ExploratoryPolicy):
-        policy.set_exploration_epsilon(0.0)
+    if getattr(runtime, "_active_evaluation_assignment_id", ""):
+        runtime._active_evaluation_initial_snapshot = runtime.codec.encode(
+            dict(policy.export_state())
+        )
     return policy, version
 
 

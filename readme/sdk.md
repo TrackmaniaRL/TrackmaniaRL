@@ -282,6 +282,13 @@ configuration or Python package.
 | `RunLogger` | receive neutral events and close resources | remote run identity if resume needs it |
 | `CheckpointCodec` | atomically save and safely load learner state | format/version metadata |
 
+Policies and custom action selectors must honor `PolicyMode.EVALUATION` by
+disabling exploratory action selection. Local and distributed evaluation pass
+that mode without changing the configured actor-local exploration epsilon.
+Custom policies that previously relied on distributed evaluation setting epsilon
+to zero should instead use the mode argument; this also makes their behavior
+consistent with local benchmarks.
+
 Built-in collectors and Trackmania evaluators copy observations before calling
 `Policy.act` or `act_with_info`, so mutating a properly copied input does not
 alter environment, pipeline, or replay state. Custom observation objects must

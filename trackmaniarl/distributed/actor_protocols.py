@@ -32,6 +32,7 @@ class CollectionRuntime(Protocol):
     _evaluation_index: int
     _evaluation_request: tuple[bytes, int, str] | None
     _active_evaluation_assignment_id: str
+    _active_evaluation_initial_snapshot: bytes
     _evaluation_request_lock: Any
 
     def _actor_seed(self) -> int: ...

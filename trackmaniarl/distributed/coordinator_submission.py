@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 import grpc
+import numpy as np
+import torch
 from google.protobuf.wrappers_pb2 import BytesValue
 
 from trackmaniarl.distributed import coordinator_delivery
@@ -161,12 +163,23 @@ def _append_journal(
 ) -> tuple[int, bool]:
     coordinator = submission.coordinator
     value = submission.value
+    evaluations = value["evaluations"]
+    assignment_id = evaluations[0].get("evaluation_assignment_id") if evaluations else None
+    previous = (
+        coordinator._evaluation_assignments.get(str(value["actor_id"])) if assignment_id else None
+    )
+    eligible = _matches_assignment(previous, value) if assignment_id else False
+    if eligible and previous is not None:
+        assigned = coordinator.codec.decode(previous["snapshot"])
+        returned = coordinator.codec.decode(value["evaluation_snapshot"])
+        if not _policy_states_equal(assigned, returned):
+            context.abort(
+                grpc.StatusCode.FAILED_PRECONDITION,
+                "evaluation policy snapshot does not match the assigned policy",
+            )
+            raise AssertionError("gRPC abort returned")
     try:
-        evaluations = value["evaluations"]
-        assignment_id = evaluations[0].get("evaluation_assignment_id") if evaluations else None
         if assignment_id:
-            previous = coordinator._evaluation_assignments.get(str(value["actor_id"]))
-            eligible = _matches_assignment(previous, value)
             assignment_row = int(previous["assigned_row_id"]) if previous is not None else 0
             return coordinator.journal.append(
                 value["session_id"],
@@ -182,6 +195,37 @@ def _append_journal(
     except Exception as exc:
         coordinator._log_wal_error("append", exc)
         raise
+
+
+def _policy_states_equal(left: Any, right: Any) -> bool:
+    """Compare decoded policy values without relying on serialized byte order."""
+    if isinstance(left, Mapping):
+        return (
+            isinstance(right, Mapping)
+            and left.keys() == right.keys()
+            and all(_policy_states_equal(left[key], right[key]) for key in left)
+        )
+    if isinstance(left, (list, tuple)):
+        return (
+            type(left) is type(right)
+            and len(left) == len(right)
+            and all(_policy_states_equal(a, b) for a, b in zip(left, right, strict=True))
+        )
+    if isinstance(left, torch.Tensor):
+        return (
+            isinstance(right, torch.Tensor)
+            and left.dtype == right.dtype
+            and left.shape == right.shape
+            and torch.equal(left, right)
+        )
+    if isinstance(left, np.ndarray):
+        return (
+            isinstance(right, np.ndarray)
+            and left.dtype == right.dtype
+            and left.shape == right.shape
+            and bool(np.array_equal(left, right))
+        )
+    return type(left) is type(right) and bool(left == right)
 
 
 def _wake_learner(coordinator: Coordinator, row_id: int) -> None:

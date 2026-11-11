@@ -408,6 +408,132 @@ def test_delayed_same_version_result_cannot_ack_new_assignment(tmp_path: Path) -
         _close(coordinator)
 
 
+def test_evaluation_snapshot_must_match_assignment_before_ack(tmp_path: Path) -> None:
+    coordinator = _coordinator(tmp_path, "evaluation-snapshot-mismatch")
+    coordinator._evaluation_due.add("actor")
+    coordinator.counters.policy_version = 1
+    coordinator._policy_payload = coordinator.codec.encode(
+        {"weights": torch.tensor([1.0, 2.0]), "metadata": {"a": 1, "b": 2}}
+    )
+    try:
+        first = coordinator.codec.decode(_submit(coordinator, _empty_request(coordinator, 0)).value)
+        payload = _base_payload(1)
+        summary = summarize_episode(
+            0.0,
+            {"policy_version": 1, "termination_reason": "finished", "race_time_ms": 36_000.0},
+            1,
+        )
+        summary["evaluation_assignment_id"] = first["evaluation_assignment_id"]
+        payload["evaluations"] = [summary]
+        payload["evaluation_snapshot"] = coordinator.codec.encode(
+            {"weights": torch.tensor([1.0, 3.0]), "metadata": {"a": 1, "b": 2}}
+        )
+        with pytest.raises(RuntimeError, match=r"FAILED_PRECONDITION.*snapshot"):
+            _submit(coordinator, _request(coordinator, payload))
+        assert "actor" in coordinator._evaluation_assignments
+        assert [row for row, _ in coordinator.journal.rows_after(0)] == [1]
+
+        # Mapping order and encoding differ, but the policy state is identical.
+        payload["evaluation_snapshot"] = coordinator.codec.encode(
+            {"metadata": {"b": 2, "a": 1}, "weights": torch.tensor([1.0, 2.0])}
+        )
+        request = _request(coordinator, payload)
+        accepted = coordinator.codec.decode(_submit(coordinator, request).value)
+        retry = coordinator.codec.decode(_submit(coordinator, request).value)
+        assert accepted["accepted"] is True
+        assert retry["duplicate"] is True
+        assert "actor" not in coordinator._evaluation_assignments
+    finally:
+        _close(coordinator)
+
+
+def test_actor_evaluation_preserves_assigned_state_before_exploration_and_inference(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from threading import Lock
+    from types import SimpleNamespace
+
+    from trackmaniarl.distributed import actor_evaluation
+
+    class ExploratoryStatefulPolicy:
+        def __init__(self) -> None:
+            self.weights = torch.tensor([0.0])
+            self.epsilon = 0.0
+
+        def load_state(self, state: dict[str, Any]) -> None:
+            self.weights = state["weights"]
+            self.epsilon = state["epsilon"]
+
+        def export_state(self) -> dict[str, Any]:
+            return {"weights": self.weights, "epsilon": self.epsilon}
+
+        def set_exploration_epsilon(self, value: float) -> None:
+            self.epsilon = value
+
+        def act(self) -> None:
+            self.weights.add_(1)
+
+    coordinator = _coordinator(tmp_path, "evaluation-stateful-actor")
+    coordinator._evaluation_due.add("actor")
+    coordinator.counters.policy_version = 1
+    coordinator._policy_payload = coordinator.codec.encode(
+        {"weights": torch.tensor([3.0]), "epsilon": 0.5}
+    )
+    try:
+        assignment = coordinator.codec.decode(
+            _submit(coordinator, _empty_request(coordinator, 0)).value
+        )
+        policy = ExploratoryStatefulPolicy()
+        spooled: list[Any] = []
+        runtime = SimpleNamespace(
+            spec=SimpleNamespace(evaluation=None),
+            codec=coordinator.codec,
+            _evaluation_request_lock=Lock(),
+            _evaluation_request=(
+                assignment["evaluation_snapshot"],
+                assignment["evaluation_policy_version"],
+                assignment["evaluation_assignment_id"],
+            ),
+            _new_policy=lambda: policy,
+            _active_evaluation_assignment_id="",
+            _active_evaluation_initial_snapshot=b"",
+            _spool=spooled.append,
+        )
+        runtime._evaluation_policy = lambda: actor_evaluation.evaluation_policy(runtime)
+
+        def trials(plan: Any, count: int) -> list[dict[str, Any]]:
+            assert count == 1
+            assert plan.policy.epsilon == 0.5
+            plan.policy.act()
+            plan.policy.act()
+            return [
+                summarize_episode(
+                    0.0,
+                    {
+                        "policy_version": 1,
+                        "termination_reason": "finished",
+                        "race_time_ms": 36_000.0,
+                    },
+                    1,
+                )
+            ]
+
+        monkeypatch.setattr(actor_evaluation, "_evaluation_trials", trials)
+        actor_evaluation.evaluate(runtime, object(), object())
+        result = _base_payload(1)
+        result["evaluations"] = spooled[0].evaluations
+        result["evaluation_snapshot"] = spooled[0].evaluation_snapshot
+        response = coordinator.codec.decode(
+            _submit(coordinator, _request(coordinator, result)).value
+        )
+        assert response["accepted"] is True
+        assert "actor" not in coordinator._evaluation_assignments
+        assert policy.weights.item() == 5.0
+        assert policy.epsilon == 0.5
+    finally:
+        _close(coordinator)
+
+
 def test_retired_session_cannot_ack_reassigned_evaluation(tmp_path: Path) -> None:
     coordinator = _coordinator(tmp_path, "evaluation-retired-result")
     coordinator._evaluation_due.add("actor")
