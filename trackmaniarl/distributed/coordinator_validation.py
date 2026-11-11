@@ -29,9 +29,35 @@ def _evaluation_admission_error(spec: Any, evaluations: list[Any]) -> str | None
         for item in evaluations
     ):
         return "evaluation suite results require a coordinator assignment"
-    expected = spec.evaluation.trials_per_map
+    maps = getattr(spec.evaluation, "maps", ())
+    expected = spec.evaluation.trials_per_map * max(len(maps), 1)
     if len(evaluations) != expected:
         return f"evaluation suite requires exactly {expected} trials; got {len(evaluations)}"
+    if len(maps) > 1:
+        return _multimap_trial_admission_error(maps, spec.evaluation.trials_per_map, evaluations)
+    return None
+
+
+def _multimap_trial_admission_error(
+    maps: Any, trials_per_map: int, evaluations: list[Any]
+) -> str | None:
+    """Check the complete map/trial set before journaling or replaying results.
+
+    This is only an accounting guard. Multi-map execution remains disabled
+    until an implementation can also attest switches and asset bindings.
+    """
+    expected = {
+        (item.id, item.expected_map_uid, index) for item in maps for index in range(trials_per_map)
+    }
+    observed: set[tuple[str, str, int]] = set()
+    for item in evaluations:
+        map_id, uid, index = item.get("map_id"), item.get("map_uid"), item.get("trial_index")
+        if not isinstance(map_id, str) or not isinstance(uid, str) or type(index) is not int:
+            return "multi-map evaluation requires map_id, map_uid and integer trial_index"
+        key = (map_id, uid, index)
+        if key not in expected or key in observed:
+            return "multi-map evaluation contains an unexpected or duplicate map trial"
+        observed.add(key)
     return None
 
 
