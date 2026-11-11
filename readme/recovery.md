@@ -59,6 +59,18 @@ promotion state needed for exact resume. Use a matching full training checkpoint
 instead. A compatible evaluated-policy checkpoint can still initialize a new
 run's model, subject to the model-initialization rules.
 
+For a configured distributed evaluation suite, recovery rejects journal rows
+or pending promotions containing evaluation results without a coordinator
+assignment ID, without a recorded admission decision, with a trial count
+different from the configured suite, or produced while scheduled evaluation
+was disabled. An assignment ID by itself is not evidence that the coordinator
+accepted the result.
+These records cannot establish the policy and map binding required for safe
+promotion. Recovery stops with an error and retains the records; it does not
+silently discard them. Preserve the checkpoint, journal and actor spools, and
+investigate using the matching previous library version and a copy of the
+original files. Do not edit or delete journal rows to force recovery.
+
 ## Actor spool recovery
 
 An actor stores pending rollouts under

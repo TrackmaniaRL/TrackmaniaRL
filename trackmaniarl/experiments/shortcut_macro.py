@@ -202,6 +202,9 @@ def actual_goal_ms(environment: AutonomousMacroEnvironment) -> int:
 
 
 class AutonomousMacroShortcutFactory(FullQrEnvironmentFactory):
+    def validate_scheduled_evaluation_map(self, evaluation_map: Any, pipeline: Any) -> None:
+        super().validate_scheduled_evaluation_map(evaluation_map, pipeline)
+
     def __init__(self, config: Mapping[str, Any]) -> None:
         if config.get("control_schema") != CONTROL_SCHEMA or "reference_controls" in config:
             raise ValueError(

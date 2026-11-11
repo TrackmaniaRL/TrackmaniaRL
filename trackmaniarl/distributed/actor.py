@@ -285,6 +285,9 @@ class ActorRuntime:
         _configure_actor_threads(self.spec.distributed.actor_execution)
         pipeline = _instantiate(self.spec.components.feature_pipeline, base_dir=self.base_dir)
         environment = self._environment_factory()
+        from trackmaniarl.distributed.evaluation_contract import validate_scheduled_evaluation
+
+        validate_scheduled_evaluation(self.spec, environment, pipeline, self.base_dir)
         model_factory = self._model_factory()
         self._replica_learner = self._create_replica_learner(model_factory)
         self._replica_learner.setup(self._replica_context(model_factory))

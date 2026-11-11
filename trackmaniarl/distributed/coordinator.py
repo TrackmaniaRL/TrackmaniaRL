@@ -53,6 +53,15 @@ class Coordinator:
                 "Distributed training does not support on-policy learners; "
                 "use trackmaniarl train for PPO"
             )
+        from trackmaniarl.distributed.evaluation_contract import validate_scheduled_evaluation
+
+        if (
+            run.spec.evaluation is not None
+            and run.spec.training.evaluate_every_episodes is not None
+        ):
+            validate_scheduled_evaluation(
+                run.spec, run.environment_factory, run.feature_pipeline, run.base_dir
+            )
         self._configure(run, config)
         self._initialize_transport()
         self._initialize_metrics()

@@ -18,7 +18,10 @@ from google.protobuf.wrappers_pb2 import BytesValue
 from trackmaniarl.distributed import coordinator_delivery
 from trackmaniarl.distributed.codec import WirePayloadTooLargeError
 from trackmaniarl.distributed.coordinator_support import _RolloutRejection, snapshot_value
-from trackmaniarl.distributed.coordinator_validation import _validate_submit_payload
+from trackmaniarl.distributed.coordinator_validation import (
+    _evaluation_admission_error,
+    _validate_submit_payload,
+)
 from trackmaniarl.distributed.journal import JournalPayloadConflictError
 
 if TYPE_CHECKING:
@@ -100,6 +103,10 @@ def _validate_submission(
     except (KeyError, TypeError, ValueError) as exc:
         context.abort(grpc.StatusCode.INVALID_ARGUMENT, "invalid rollout payload")
         raise AssertionError("gRPC abort returned") from exc
+    error = _evaluation_admission_error(coordinator.run.spec, value["evaluations"])
+    if error is not None:
+        context.abort(grpc.StatusCode.FAILED_PRECONDITION, error)
+        raise AssertionError("gRPC abort returned")
 
 
 def _submission(coordinator: Coordinator, value: Mapping[str, Any]) -> _Submission:

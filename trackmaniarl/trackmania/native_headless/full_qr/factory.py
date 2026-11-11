@@ -138,6 +138,31 @@ class FullQrEnvironmentFactory:
         if self._reward.maximum_race_time_s != 150:
             raise ValueError("full QR requires the historical150s reward horizon")
 
+    def validate_scheduled_evaluation_map(self, evaluation_map: Any, pipeline: Any) -> None:
+        """Attest the immutable map used by this native runtime."""
+        if (
+            type(self) is not FullQrEnvironmentFactory
+            and "validate_scheduled_evaluation_map" not in type(self).__dict__
+        ):
+            raise ValueError("factory subclasses must explicitly attest their map binding")
+        from trackmaniarl.distributed.evaluation_contract import validate_pipeline_binding
+
+        if (
+            evaluation_map.expected_map_uid != self._map_uid
+            or evaluation_map.geometry_path is None
+            or evaluation_map.geometry_path.resolve() != self._geometry_path.resolve()
+        ):
+            raise ValueError("native scheduled evaluation requires the pinned map and geometry")
+        geometry = BoundaryGeometry(self._geometry_path, expected_map_uid=self._map_uid)
+        if not geometry.map_sha256:
+            raise ValueError("native scheduled evaluation requires a source map checksum")
+        geometry.validate_map(evaluation_map.map_path)
+        verified = verify_bound_assets(self._runtime, self._manifest_sha)
+        geometry.validate_map(verified.paths["map"])
+        validate_pipeline_binding(pipeline, geometry, evaluation_map)
+        self._validate_native_pipeline_binding(self._create_pipeline(), geometry, evaluation_map)
+        self._scheduled_evaluation_map = evaluation_map
+
     def create(
         self, *, seed: int, evaluation_map: EvaluationMapSpec | None = None
     ) -> FullQrEnvironment:
@@ -163,6 +188,9 @@ class FullQrEnvironmentFactory:
         assets = verify_bound_assets(settings, self._manifest_sha)
         geometry.validate_map(assets.paths["map"])
         pipeline = self._create_pipeline()
+        scheduled_map = getattr(self, "_scheduled_evaluation_map", None)
+        if scheduled_map is not None:
+            self._validate_native_pipeline_binding(pipeline, geometry, scheduled_map)
         retention = ClosedTraceRetention(
             TraceRetentionSettings(
                 trace_parent=settings.trace_dir,
@@ -225,3 +253,22 @@ class FullQrEnvironmentFactory:
         if not all(callable(getattr(component, name, None)) for name in methods):
             raise TypeError("native observation pipeline must handle reset and all frame forms")
         return cast(NativeObservationPipeline, component)
+
+    @staticmethod
+    def _validate_native_pipeline_binding(
+        pipeline: NativeObservationPipeline, geometry: BoundaryGeometry, evaluation_map: Any
+    ) -> None:
+        from trackmaniarl.trackmania.native_headless.vision import NativeSchematicVisionPipeline
+
+        if type(pipeline) in (NativeGraphFeaturePipeline, NativeSchematicVisionPipeline):
+            pipeline_geometry = pipeline.geometry  # type: ignore[attr-defined]
+            if (
+                pipeline_geometry.map_uid != geometry.map_uid
+                or pipeline_geometry.sha256 != geometry.sha256
+            ):
+                raise ValueError("native observation pipeline geometry differs from the pinned map")
+            return
+        validate = getattr(pipeline, "validate_scheduled_evaluation_map", None)
+        if not callable(validate):
+            raise ValueError("native observation pipeline must attest its scheduled evaluation map")
+        validate(evaluation_map)

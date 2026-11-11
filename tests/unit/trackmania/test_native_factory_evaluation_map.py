@@ -8,7 +8,8 @@ from unittest.mock import Mock
 import pytest
 
 from tests.unit.trackmania._lidar_fixtures import _asset
-from trackmaniarl.core.spec import EvaluationMapSpec
+from trackmaniarl.core.builtins import IdentityFeaturePipeline
+from trackmaniarl.core.spec import ComponentSpec, EvaluationMapSpec
 from trackmaniarl.trackmania.native_headless.full_qr import factory as factory_module
 from trackmaniarl.trackmania.reward_config import RewardConfig
 
@@ -38,7 +39,7 @@ def factory_and_map(
     instance._reward = RewardConfig(maximum_race_time_s=150)
     instance._source_class = Mock(return_value=object())
     instance._source_kwargs = {}
-    instance._create_pipeline = Mock(return_value=object())
+    instance._pipeline_spec = None
     instance._create_provider = Mock(return_value=object())
     instance._create_environment = Mock(return_value="environment")
     monkeypatch.setattr(
@@ -57,6 +58,101 @@ def test_evaluation_map_and_training_create_use_same_factory(
     assert factory.create(seed=17, evaluation_map=spec) == "environment"
     assert factory.create(seed=17) == "environment"
     assert factory._create_provider.call_count == 2
+
+
+def test_scheduled_evaluation_attests_pinned_map_without_starting_provider(
+    factory_and_map: tuple[factory_module.FullQrEnvironmentFactory, EvaluationMapSpec],
+    tmp_path: Path,
+) -> None:
+    factory, spec = factory_and_map
+    factory.validate_scheduled_evaluation_map(spec, IdentityFeaturePipeline())
+    factory._create_provider.assert_not_called()
+    wrong = tmp_path / "wrong.Map.Gbx"
+    wrong.write_bytes(b"wrong")
+    with pytest.raises(ValueError, match="checksum"):
+        factory.validate_scheduled_evaluation_map(
+            spec.model_copy(update={"map_path": wrong}), IdentityFeaturePipeline()
+        )
+    factory._create_provider.assert_not_called()
+
+
+def test_scheduled_evaluation_supports_native_vision_pipelines(
+    factory_and_map: tuple[factory_module.FullQrEnvironmentFactory, EvaluationMapSpec],
+) -> None:
+    from trackmaniarl.trackmania.native_headless.vision import RibbonVisionFeaturePipeline
+    from trackmaniarl.trackmania.vision import PreparedVisionFeaturePipeline
+
+    factory, spec = factory_and_map
+    for pipeline in (PreparedVisionFeaturePipeline(), RibbonVisionFeaturePipeline()):
+        factory.validate_scheduled_evaluation_map(spec, pipeline)
+    factory._create_provider.assert_not_called()
+
+
+def test_scheduled_evaluation_verifies_actual_native_vision_geometry(
+    factory_and_map: tuple[factory_module.FullQrEnvironmentFactory, EvaluationMapSpec],
+    tmp_path: Path,
+) -> None:
+    from trackmaniarl.trackmania.native_headless.vision import NativeSchematicVisionPipeline
+
+    factory, spec = factory_and_map
+    correct = NativeSchematicVisionPipeline(spec.geometry_path, "trackmaniarl-test")
+    other_dir = tmp_path / "other-geometry"
+    other_dir.mkdir()
+    wrong = NativeSchematicVisionPipeline(
+        _asset(other_dir, lookahead_points=3), "trackmaniarl-test"
+    )
+    factory._create_pipeline = Mock(side_effect=[correct, wrong])
+    factory.validate_scheduled_evaluation_map(spec, IdentityFeaturePipeline())
+    with pytest.raises(ValueError, match="native observation pipeline geometry differs"):
+        factory.create(seed=17)
+    factory._create_provider.assert_not_called()
+    factory._source_class.assert_not_called()
+
+
+def test_custom_native_pipeline_must_explicitly_attest(
+    factory_and_map: tuple[factory_module.FullQrEnvironmentFactory, EvaluationMapSpec],
+) -> None:
+    factory, spec = factory_and_map
+    factory._create_pipeline = Mock(return_value=object())
+    with pytest.raises(ValueError, match="native observation pipeline must attest"):
+        factory.validate_scheduled_evaluation_map(spec, IdentityFeaturePipeline())
+    attest = Mock()
+    factory._create_pipeline = Mock(
+        return_value=SimpleNamespace(validate_scheduled_evaluation_map=attest)
+    )
+    factory.validate_scheduled_evaluation_map(spec, IdentityFeaturePipeline())
+    attest.assert_called_once_with(spec)
+
+
+@pytest.mark.parametrize(
+    "class_path",
+    [
+        "trackmaniarl.trackmania.native_headless.full_qr.native_features:NativeGraphFeaturePipeline",
+        "trackmaniarl.trackmania.native_headless.vision:NativeSchematicVisionPipeline",
+    ],
+)
+def test_configured_native_pipeline_must_use_pinned_geometry(
+    factory_and_map: tuple[factory_module.FullQrEnvironmentFactory, EvaluationMapSpec],
+    tmp_path: Path,
+    class_path: str,
+) -> None:
+    factory, spec = factory_and_map
+
+    def configure(path: Path) -> None:
+        factory._pipeline_spec = ComponentSpec(
+            class_path=class_path,
+            kwargs={"geometry_path": path, "expected_map_uid": "trackmaniarl-test"},
+        )
+
+    assert spec.geometry_path is not None
+    configure(spec.geometry_path)
+    factory.validate_scheduled_evaluation_map(spec, IdentityFeaturePipeline())
+    other_dir = tmp_path / "other-pipeline"
+    other_dir.mkdir()
+    configure(_asset(other_dir, lookahead_points=3))
+    with pytest.raises(ValueError, match="native observation pipeline geometry differs"):
+        factory.validate_scheduled_evaluation_map(spec, IdentityFeaturePipeline())
+    factory._create_provider.assert_not_called()
 
 
 @pytest.mark.parametrize("field", ["expected_map_uid", "geometry_path", "map_path"])

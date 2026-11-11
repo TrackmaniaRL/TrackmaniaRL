@@ -139,6 +139,10 @@ class NativeGraphFeaturePipeline(BoundaryGraphFeaturePipelineV5):
 
     schema_version = "native-v5-experimental-1"
 
+    def _install_geometry(self, geometry: Any) -> None:
+        self.geometry = geometry
+        super()._install_geometry(geometry)
+
     def reset_episode(self) -> None:
         super().reset_episode()
         self._native_last_time: float | None = None

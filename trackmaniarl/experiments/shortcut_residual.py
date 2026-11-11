@@ -170,6 +170,9 @@ class ReferenceResidualProvider(NativeFullQrProvider):
 class SourceGuidedShortcutFactory(FullQrEnvironmentFactory):
     """Separate task class path makes the action meaning part of the run identity."""
 
+    def validate_scheduled_evaluation_map(self, evaluation_map: Any, pipeline: Any) -> None:
+        super().validate_scheduled_evaluation_map(evaluation_map, pipeline)
+
     def __init__(self, config: Mapping[str, Any]) -> None:
         if config.get("control_schema") != CONTROL_SCHEMA or not config.get("reward_reference"):
             raise ValueError(

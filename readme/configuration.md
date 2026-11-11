@@ -9,11 +9,15 @@ the Torch default. Actor threads remain controlled separately by
 Local `train` and `resume` accept `--stop-file PATH`. Creating that file requests
 normal shutdown without sending a console interrupt. Local asynchronous runs
 stop the actor first, then drain accepted journal rows and earned learner
-updates before saving the final checkpoint. Actor shutdown is bounded to 60s;
-learner drain/save is bounded to 120s. An actor failure or timeout requests an
-immediate emergency save instead, and an unclean shutdown returns an error.
+updates. A final checkpoint is saved only if `training.save_final_checkpoint`
+is enabled. On the stop-file shutdown path the actor has a 60s grace period,
+followed by a 120s bound for the learner to drain and exit. If the actor exits
+naturally, the initial wait for the learner to drain has no fixed timeout; a
+stop file can request the bounded shutdown path. An actor failure or timeout
+requests an immediate emergency stop, and an unclean shutdown returns an error.
 An existing stop file is rejected before starting child processes; remove it
-before resuming. Check final checkpoint completion before closing the launcher.
+before resuming. Check checkpoint completion before relying on it. See the
+[migration and recovery guide](recovery.md) for recovery and backup details.
 
 A RunSpec YAML file is the public runtime configuration boundary in 1.3.0.
 The generated choices are `run.yaml`, `run-sac.yaml`, `run-redq.yaml`,
@@ -117,6 +121,28 @@ so it preserves the best individual completed lap even when its batch does not
 pass the reliability threshold. When one batch improves both leaders, each
 family writes its own exact-policy checkpoint. Promotion durability and
 checkpoint retention are independent for the two families.
+
+Scheduled **distributed** evaluation currently uses the actor's training
+environment; it cannot switch maps. When an `evaluation` suite is configured,
+it must contain exactly one map, and the environment factory must attest that
+the training environment and feature pipeline use that map. The built-in
+OpenPlanet and full QR factories check the configured UID, reward/geometry
+assets and map checksum where available. OpenPlanet still requires the user to
+load the map; its session verifies the UID on reset. A multi-map suite remains
+available to the local `benchmark` evaluator, which evaluates each map separately.
+Scheduled evaluation without an `evaluation` suite is unchanged.
+
+Custom environment factories used with a scheduled suite must implement
+`validate_scheduled_evaluation_map(map_spec, pipeline)`. The map paths are
+resolved relative to the project; the method must raise if it cannot establish
+that the environment and pipeline use the declared map. Returning without an
+error is an assertion by the custom factory, not verification by the library.
+Custom full QR native observation pipelines must also implement
+`validate_scheduled_evaluation_map(map_spec)` and reject maps they cannot
+attest. The factory checks the native pipeline both before the run and when it
+creates an environment. The built-in graph and schematic vision pipelines are
+checked against the pinned geometry. Custom pipeline hooks are assertions by
+their implementations.
 
 ## `distributed`
 

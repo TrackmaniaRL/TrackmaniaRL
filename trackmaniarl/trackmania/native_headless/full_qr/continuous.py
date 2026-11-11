@@ -76,6 +76,9 @@ class ExperimentalContinuousEnvironment(FullQrEnvironment):
 
 
 class ExperimentalContinuousEnvironmentFactory(FullQrEnvironmentFactory):
+    def validate_scheduled_evaluation_map(self, evaluation_map: Any, pipeline: Any) -> None:
+        super().validate_scheduled_evaluation_map(evaluation_map, pipeline)
+
     def __init__(self, config: Mapping[str, Any]) -> None:
         if config.get("allow_experimental_continuous") is not True:
             raise ValueError("explicit experimental continuous actuator opt-in required")

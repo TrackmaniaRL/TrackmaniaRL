@@ -142,6 +142,15 @@ class VisionEnvironmentFactory:
         )
         self.include_telemetry = include_telemetry
 
+    def validate_scheduled_evaluation_map(self, evaluation_map: Any, pipeline: Any) -> None:
+        """Verify the map used by the underlying OpenPlanet environment."""
+        if (
+            type(self) is not VisionEnvironmentFactory
+            and "validate_scheduled_evaluation_map" not in type(self).__dict__
+        ):
+            raise ValueError("factory subclasses must explicitly attest their map binding")
+        self._factory.validate_scheduled_evaluation_map(evaluation_map, pipeline)
+
     def create(self, *, seed: int, evaluation_map: Any | None = None) -> VisionEnvironment:
         frames = (
             ScreenFrameSource(self.capture)

@@ -16,7 +16,10 @@ from trackmaniarl.distributed.coordinator_evaluation import (
 )
 from trackmaniarl.distributed.coordinator_learning import ready_to_update
 from trackmaniarl.distributed.coordinator_support import snapshot_value
-from trackmaniarl.distributed.coordinator_validation import _validate_submit_payload
+from trackmaniarl.distributed.coordinator_validation import (
+    _evaluation_admission_error,
+    _validate_submit_payload,
+)
 from trackmaniarl.distributed.protocol import transition_from_wire
 
 if TYPE_CHECKING:
@@ -92,26 +95,31 @@ def validate_journal_payload(
 
 
 def ingest(coordinator: Coordinator, value: Mapping[str, Any], row_id: int) -> None:
+    admission_error = _evaluation_admission_error(coordinator.run.spec, value["evaluations"])
+    if admission_error is not None:
+        raise ValueError(f"journal contains unadmitted evaluation: {admission_error}")
     if row_id <= coordinator.counters.journal_applied_frontier:
         raise ValueError("journal rows must be ingested in strictly increasing order")
+    evaluations = [dict(summary) for summary in value["evaluations"]]
+    if evaluations and evaluations[0].get("evaluation_assignment_id"):
+        accepted = coordinator.journal.evaluation_row_accepted(row_id)
+        if accepted is None:
+            if coordinator.run.spec.evaluation is not None:
+                raise ValueError(
+                    "journal evaluation lacks a persisted admission verdict; "
+                    "cannot recover configured evaluation suite"
+                )
+            accepted = coordinator.journal.is_canonical_evaluation(
+                str(value["actor_id"]), str(evaluations[0]["evaluation_assignment_id"]), row_id
+            )
+        if not accepted:
+            evaluations = []
     batch = _ingest_batch(coordinator, value, row_id)
     before = coordinator.counters.transitions
     _append_transitions(batch)
     _credit_updates(coordinator, before)
     _record_actor_sequence(coordinator, value)
     coordinator_episode_ingest.ingest_episode_summaries(coordinator, value, row_id)
-    evaluations = [dict(summary) for summary in value["evaluations"]]
-    if evaluations and evaluations[0].get("evaluation_assignment_id"):
-        assignment_id = str(evaluations[0]["evaluation_assignment_id"])
-        accepted = coordinator.journal.evaluation_row_accepted(row_id)
-        if accepted is None:
-            # Journal rows from versions predating admission verdicts have no
-            # persisted decision. Preserve them once, including on replay.
-            accepted = coordinator.journal.is_canonical_evaluation(
-                str(value["actor_id"]), assignment_id, row_id
-            )
-        if not accepted:
-            evaluations = []
     if evaluations and value["evaluation_snapshot"]:
         evidence = coordinator.codec.encode(
             {"summaries": evaluations, "snapshot": value["evaluation_snapshot"]}
@@ -440,6 +448,14 @@ def _recover_pending_promotions(coordinator: Coordinator) -> None:
         snapshot = evidence.get("snapshot")
         if not isinstance(summaries, list) or not summaries or not isinstance(snapshot, bytes):
             raise ValueError("invalid pending evaluation promotion evidence")
+        admission_error = _evaluation_admission_error(coordinator.run.spec, summaries)
+        if admission_error is not None:
+            raise ValueError(f"pending promotion contains unadmitted evaluation: {admission_error}")
+        if (
+            coordinator.run.spec.evaluation is not None
+            and coordinator.journal.evaluation_row_accepted(row_id) is not True
+        ):
+            raise ValueError("pending promotion lacks a persisted accepted admission verdict")
         _ingest_evaluation_snapshot(coordinator, {"evaluation_snapshot": snapshot}, summaries)
         stats = _evaluation_batch_stats(summaries, coordinator._time_buckets)
         candidate = coordinator_leaders.candidate_from_stats(stats)

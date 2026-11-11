@@ -18,6 +18,23 @@ from trackmaniarl.distributed.coordinator_observability_validation import (
 from trackmaniarl.distributed.protocol import transition_from_wire
 
 
+def _evaluation_admission_error(spec: Any, evaluations: list[Any]) -> str | None:
+    """Require an assigned evaluation whenever a configured suite is in use."""
+    if not evaluations or getattr(spec, "evaluation", None) is None:
+        return None
+    if getattr(spec.training, "evaluate_every_episodes", None) is None:
+        return "evaluation suite is configured but scheduled evaluation is disabled"
+    if any(
+        not isinstance(item, Mapping) or not item.get("evaluation_assignment_id")
+        for item in evaluations
+    ):
+        return "evaluation suite results require a coordinator assignment"
+    expected = spec.evaluation.trials_per_map
+    if len(evaluations) != expected:
+        return f"evaluation suite requires exactly {expected} trials; got {len(evaluations)}"
+    return None
+
+
 def _validate_submit_payload(
     value: Mapping[str, Any], codec: WireCodec, *, pipeline: object | None = None
 ) -> None:
