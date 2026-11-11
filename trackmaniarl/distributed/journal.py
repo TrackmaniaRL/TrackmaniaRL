@@ -10,7 +10,10 @@ from pathlib import Path
 from threading import RLock
 from uuid import uuid4
 
-from trackmaniarl.distributed.journal_errors import JournalPayloadConflictError, JournalSchemaError
+from trackmaniarl.distributed.journal_errors import (
+    JournalPayloadConflictError as JournalPayloadConflictError,
+)
+from trackmaniarl.distributed.journal_errors import JournalSchemaError as JournalSchemaError
 from trackmaniarl.distributed.journal_evaluation import EvaluationJournalMixin
 
 _RECOVERY_BATCH_ROWS = 256

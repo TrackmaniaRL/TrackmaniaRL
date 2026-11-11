@@ -172,9 +172,9 @@ def policy_observation_snapshot(value: PyTree) -> PyTree:
             if item.dtype.hasobject or type(item) is not np.ndarray:
                 # NumPy's ndarray deepcopy cannot resolve a self-referential
                 # object array. Register its copy before traversing elements.
-                copied = np.ndarray.copy(item, order="K")
-                memo[identity] = copied
-                owned_arrays.append((item, copied))
+                copied_array = np.ndarray.copy(item, order="K")
+                memo[identity] = copied_array
+                owned_arrays.append((item, copied_array))
                 visit_array_elements(item)
         elif isinstance(item, memoryview):
             # memoryview does not support deepcopy. Keep element format and
