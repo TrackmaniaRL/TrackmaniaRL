@@ -59,3 +59,18 @@ def test_build_backend_does_not_allow_affected_setuptools(source: str) -> None:
     )
     assert not requirement.specifier.contains("84.0.0")
     assert requirement.specifier.contains("84.1.0")
+
+
+def test_runtime_and_lock_require_safe_setuptools() -> None:
+    root = Path(__file__).resolve().parents[2]
+    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    lock = tomllib.loads((root / "uv.lock").read_text(encoding="utf-8"))
+    requirement = next(
+        req
+        for item in project["project"]["dependencies"]
+        if (req := Requirement(item)).name == "setuptools"
+    )
+    assert not requirement.specifier.contains("84.0.0")
+    assert requirement.specifier.contains("84.1.0")
+    setuptools = next(item for item in lock["package"] if item["name"] == "setuptools")
+    assert Version(setuptools["version"]) >= Version("84.1.0")

@@ -41,7 +41,7 @@ def _pyproject(
     template: str = "starter",
 ) -> str:
     requirement = _trackmaniarl_requirement(trackmaniarl_extras)
-    dependencies = [f'"{requirement}"', '"torch>=2.10,!=2.14.*"']
+    dependencies = [f'"{requirement}"', '"torch>=2.13,!=2.14.*"']
     if template == "trackmania":
         dependencies.append(
             "\"vgamepad>=0.1.0; sys_platform == 'win32' or sys_platform == 'linux'\""
@@ -97,7 +97,7 @@ def _torch_indexes() -> str:
         "explicit = true\n"
         "\n[[tool.uv.index]]\n"
         'name = "pytorch-cuda"\n'
-        'url = "https://download.pytorch.org/whl/cu128"\n'
+        'url = "https://download.pytorch.org/whl/cu132"\n'
         "explicit = true\n"
     )
 

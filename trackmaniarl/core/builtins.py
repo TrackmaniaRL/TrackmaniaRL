@@ -19,7 +19,7 @@ from trackmaniarl.core.data import TrainingBatch, Transition
 
 _CHECKPOINT_COPY_CHUNK_BYTES = 8 * 1024**2
 _DEFAULT_MAX_DECOMPRESSED_CHECKPOINT_BYTES = 8 * 1024**3
-_SAFE_TORCH_VERSIONS = SpecifierSet(">=2.10,!=2.14.*")
+_SAFE_TORCH_VERSIONS = SpecifierSet(">=2.13,!=2.14.*")
 
 
 class IdentityFeaturePipeline:
@@ -159,7 +159,7 @@ def _load_torch_checkpoint(path: Path) -> Mapping[str, Any]:
     if not supported:
         raise RuntimeError(
             "Cannot load a checkpoint with this PyTorch version; install a stable "
-            "PyTorch release matching >=2.10,!=2.14.* and use trusted checkpoints."
+            "PyTorch release matching >=2.13,!=2.14.* and use trusted checkpoints."
         )
     with torch.serialization.safe_globals(_checkpoint_safe_globals()):
         return cast(

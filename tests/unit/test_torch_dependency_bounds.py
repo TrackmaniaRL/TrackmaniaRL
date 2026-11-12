@@ -15,8 +15,11 @@ from trackmaniarl.project.scaffold_templates import _pyproject
     [
         ("2.4.0", False),
         ("2.9.1", False),
-        ("2.10.0+cpu", True),
-        ("2.11.0+cu128", True),
+        ("2.10.0+cpu", False),
+        ("2.11.0+cu128", False),
+        ("2.12.1+cu132", False),
+        ("2.13.0+cpu", True),
+        ("2.13.0+cu132", True),
         ("2.13.1", True),
         ("2.14.0", False),
         ("2.14.1+cpu", False),

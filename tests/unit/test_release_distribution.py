@@ -17,7 +17,7 @@ REPOSITORY = Path(__file__).resolve().parents[2]
 PINNED_ACTION = re.compile(r"[^@]+@[0-9a-f]{40}")
 CPU_TORCH_ENV = {
     "TORCH_CPU_INDEX": "https://download.pytorch.org/whl/cpu",
-    "TORCH_CPU_VERSION": "2.11.0+cpu",
+    "TORCH_CPU_VERSION": "2.13.0+cpu",
 }
 CPU_THREAD_ENV = {"OMP_NUM_THREADS": "2", "MKL_NUM_THREADS": "2"}
 LOCKED_DEV_EXPORT = "uv export --quiet --locked --group dev --prune torch"

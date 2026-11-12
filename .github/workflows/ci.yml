@@ -19,7 +19,7 @@ env:
   MKL_NUM_THREADS: "2"
   UV_VERSION: "0.12.5"
   TORCH_CPU_INDEX: https://download.pytorch.org/whl/cpu
-  TORCH_CPU_VERSION: 2.11.0+cpu
+  TORCH_CPU_VERSION: 2.13.0+cpu
 
 jobs:
   lint:

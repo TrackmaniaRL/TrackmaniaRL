@@ -26,7 +26,7 @@ disclosure. Security fixes target the latest supported release line.
 - Checkpoints should come from a trusted run. The default codec uses PyTorch
   `weights_only=True` to restrict pickle globals, but this is not a guarantee
   against malicious checkpoints or vulnerabilities in PyTorch. The package
-  requires PyTorch 2.10 or later and excludes 2.14.x because of known
+  requires PyTorch 2.13 or later and excludes 2.14.x because of known
   `weights_only` vulnerabilities. Existing environments and generated projects
   should be updated too. The default codec also checks the installed PyTorch
   version before loading and rejects unsupported or prerelease versions. A
@@ -86,18 +86,3 @@ managed using W&B's own authentication. Export only the variables needed by the
 selected integration and keep tokens out of command-line arguments, component
 kwargs, screenshots and shared run directories. Local manifests and recording
 sidecars may contain paths and timestamps even when tokens are redacted.
-
-## Dependency advisory disposition for 1.2.0
-
-`PYSEC-2026-3447` affects source-distribution exclusion matching in setuptools
-before 83.0.0. PyTorch 2.11.0 requires runtime `setuptools<82`, so that runtime
-dependency still appears in the raw audit. It must not be used to build release
-archives. Both this package and generated projects pin `setuptools==84.1.0`
-in their isolated build requirements and CI builds with isolation enabled.
-
-For 1.2.0, the disposition is **accepted for the Torch runtime only, mitigated
-for package building by isolated setuptools 84.1.0**. This is not a claim that
-the installed runtime dependency is patched or that the raw audit passes.
-Do not use `--no-build-isolation` for distribution builds. Reassess this narrow
-disposition when changing Torch, setuptools, or the build workflow; unrelated
-advisories are not covered by it.
