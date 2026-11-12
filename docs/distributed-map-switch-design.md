@@ -239,6 +239,12 @@ used by another process or person. The staged files are retained after shutdown;
 remove them only after ensuring the isolated game has stopped and no load can
 still be pending.
 
+`trackmaniarl validate` runs a synthetic learner update; it does not perform
+multi-map actor admission or check the switch journal. The actor checks the
+opt-ins, assets and supported policy during initialization before it creates
+the game session. It opens the previously provisioned journal during session
+creation, before dispatching a switch.
+
 Connect allows up to 30 seconds to leave the old map and another 30 seconds
 to load the new one. The controller's default 75-second polling budget covers
 both phases with some scheduling margin. A shorter explicitly supplied timeout
