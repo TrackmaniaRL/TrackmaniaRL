@@ -25,8 +25,9 @@ The bundled `.as` source is a developer reference derived from 2.4.0; it also
 contains an **experimental, disabled-by-default** protocol 3 map switcher. The
 signed 2.4.0 plugin does not contain it. Do not install the loose script alongside
 the managed plugin. The reference waits until both player and vehicle-visual state
-exist; it never fabricates missing orientation, wheel-slip or contact-material
-values with zeroes.
+exist and the viewed vehicle belongs to the local GUI player; it never fabricates
+missing orientation, wheel-slip or contact-material values with zeroes. A
+spectated vehicle is not accepted as evidence of local-player readiness.
 
 Protocol 3 is not a supported multi-map backend yet. It has not been compiled
 or exercised in an isolated game. Do not enable it in a game used for training.
@@ -44,6 +45,13 @@ exited with an unresolved `VehicleState` dependency. A negative control using
 an intentionally nonexistent symbol also produced no diagnostic, so this run
 does not establish that the script or its API calls compile. In-game compilation
 and controlled runtime testing remain necessary.
+
+A follow-up check supplied the official [VehicleState dependency source](https://github.com/openplanet-nl/vehiclestate/tree/edd4bbb9dd17da89fa7eeef5ee52d4c267665f2f)
+in a separate temporary dependency directory. With that dependency resolved,
+the same LSP reported no errors, and a separate copy with an intentionally
+unknown API call did report the expected unknown-symbol error. This gives a
+more useful static check for this particular tool and type database, but is
+still not the Openplanet compiler or a test in game.
 
 The client first calls protocol-3 `get_instance` to read the plugin-generated
 `instance_epoch`, then durably records that value alongside its own random

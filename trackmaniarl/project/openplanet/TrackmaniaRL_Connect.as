@@ -62,6 +62,7 @@ bool IsReadyToDrive() {
     if (playground is null || playground.GameTerminals.Length == 0) return false;
     auto player = cast<CSmPlayer>(playground.GameTerminals[0].GUIPlayer);
     return player !is null && cast<CSmScriptPlayer>(player.ScriptAPI) !is null
+        && VehicleState::GetViewingPlayer() is player
         && VehicleState::ViewingPlayerState() !is null;
 }
 
@@ -298,7 +299,12 @@ void Main() {
             auto player = cast<CSmPlayer>(terminal.GUIPlayer);
             CSmScriptPlayer@ api = player is null ? null : cast<CSmScriptPlayer>(player.ScriptAPI);
             CSceneVehicleVisState@ vis = VehicleState::ViewingPlayerState();
-            if (api is null || vis is null) { yield(); continue; }
+            // A valid viewing state can belong to a spectated player, or exist
+            // while GetViewingPlayer is null. Never mix that vehicle's state
+            // with the local player's telemetry or claim local readiness.
+            if (api is null || VehicleState::GetViewingPlayer() !is player || vis is null) {
+                yield(); continue;
+            }
 
             auto raceData = PlayerState::GetRaceData();
             float raceTime = RaceTimeMs(api);
