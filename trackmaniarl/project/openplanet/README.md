@@ -36,8 +36,9 @@ exclusive control of a separate game instance. Use only trusted local map files:
 the command can leave the current playground, and native map loading may fail or
 crash outside the script's exception handling. The socket is localhost-only but
 does not authenticate local processes; the epoch is an identity, not a security
-boundary. Its ports are fixed by the reference source, so a separate instance
-must first use nonconflicting ports and a separate plugin installation.
+boundary. Its ports are fixed by the reference source, and the experimental
+Python factory currently requires session endpoint `127.0.0.1:9001`. It cannot
+run alongside another Connect instance using those ports on the same host.
 
 The reference was inspected using `openplanet-lsp` 0.8.2 with the local
 Openplanet 1.29.14 type database and the school signature profile. The check
@@ -61,6 +62,9 @@ lowercase 32-hex `epoch` before sending `claim`. `claim` carries both epochs;
 Responses include `status`, `protocol_version`, and `instance_epoch`;
 operation responses also include `epoch`, `operation_id`, `state`, `map_uid`,
 and string-valued `ready`. Errors do not disclose lease or operation tokens.
+The session server reads each JSONL command incrementally and rejects a line
+longer than 16 KiB, including its newline. A client sends one command per
+connection. This bound applies to protocol 2 and protocol 3.
 States
 are `idle`, `accepted`, `leaving`, `loading`, `ready`, and `indeterminate`.
 An exact retry of the current operation returns its status; a conflicting or

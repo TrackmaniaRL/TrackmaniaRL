@@ -227,8 +227,20 @@ string ReadJsonLine(Net::Socket@ sock, uint timeoutMs = 2000) {
     while (Time::Now - started < timeoutMs) {
         if (sock is null || sock.IsHungUp()) return "";
         if (!sock.IsReady()) { yield(); continue; }
-        if (sock.Available() > int(MAX_COMMAND_BYTES)) return "";
-        if (sock.ReadLine(request)) return request;
+        int available = sock.Available();
+        if (available <= 0) { yield(); continue; }
+        // ReadLine keeps an internal application buffer. Checking Available()
+        // alone does not bound a line assembled across multiple reads. Keep the
+        // accumulator here and never read more than the limit plus one byte.
+        int remaining = int(MAX_COMMAND_BYTES) - int(request.Length);
+        int take = available < remaining + 1 ? available : remaining + 1;
+        request += sock.ReadRaw(take);
+        int newline = request.IndexOf("\n");
+        if (newline >= 0) {
+            if (newline + 1 > int(MAX_COMMAND_BYTES)) return "";
+            return request.SubStr(0, newline + 1);
+        }
+        if (int(request.Length) > int(MAX_COMMAND_BYTES)) return "";
         yield();
     }
     return "";
