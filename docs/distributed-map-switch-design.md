@@ -57,12 +57,40 @@ not share files or ports with another training session. This protocol assumes
 exclusive control of the game instance; manual map changes and other plugins
 that launch maps invalidate the lease and must not be treated as verified.
 
-After an indeterminate operation and loss of its plugin epoch, there is no
-supported automated procedure to prove the old game has stopped processing the
-load or safely release and rebind the fixed endpoint. Restarting the plugin or
-game alone does not clear the quarantine. Preserve the journal and registry
-markers; do not delete or replace them to force progress. Further experiments
-require an independently verified, isolated environment with its own resources.
+After an indeterminate operation and loss of its plugin epoch, no automated
+procedure proves the old game has stopped processing the load. Restarting the
+plugin or game alone does not clear the quarantine. Preserve the journal and
+registry markers; do not delete or replace them to force progress. Further
+experiments require an independently verified, isolated environment with its
+own resources.
+
+The experimental `map_switch_retirement` helper offers operator-supervised
+retirement on Windows. It records the operator's explicit assertions and archives
+caller-supplied evidence, but it does not establish that the evidence is
+authentic or that the old plugin epoch belonged to a particular OS process.
+Do not use it unless every prerequisite has been independently established. In
+particular, the operator must
+independently verify the old game process exited, exclude external map workers
+and other clients, and establish exclusive ownership of a separate environment
+that shares no active training resources. The helper reserves the Connect ports
+while changing records; this does not establish the preceding facts. The prior
+live test did not capture a durable link between its plugin epoch and an OS
+process identity, so a new process or a plugin restart alone cannot establish
+the old operation's quiescence.
+
+The prototype retains the old journal and archives copies and hashes before
+replacing the old binding with an invalid-JSON sentinel. Ordinary controllers
+reject the sentinel. The pending marker is retired only after the sentinel is
+in place, and a validated fresh-journal binding is published last. If an
+interruption leaves the sentinel, stop: keep the sentinel, archive, journal and
+all other evidence intact, do not start a controller on that endpoint, and
+obtain an independent review. There is no supported automatic resume or manual
+editing procedure. If final publication may have succeeded but the operation or
+its cleanup reports an error, the binding may already be live; do not use the
+endpoint and obtain independent review. A failed sentinel restoration can leave
+that ambiguous published state. The code cannot guarantee fail-closed behavior
+when both publication handling and the subsequent filesystem recovery fail.
+Windows directory-entry durability after power loss is unverified.
 
 `trackmaniarl.trackmania.map_switch_journal` provides durable storage for the
 experimental controller. Its SQLite transactions
@@ -103,9 +131,10 @@ retains it through evaluation, restoration and subsequent training. A clean
 shutdown releases controls, closes telemetry, verifies the training map and
 removes the guard; an observed error or process exit leaves it in place and
 blocks automatic restart or recovery. Stopping the isolated game and determining
-its state are necessary for recovery, but there is no supported automated reset
-procedure; a ready status by itself does not clear this guard. As with the switch
-marker, Windows directory-entry durability after power loss is unverified.
+its state are necessary for recovery; a ready status by itself does not clear this
+guard. The experimental retirement helper refuses any existing telemetry guard
+and does not reset it. As with the switch marker, Windows directory-entry
+durability after power loss is unverified.
 
 ## Evaluation and restoration
 
