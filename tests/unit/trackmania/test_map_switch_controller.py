@@ -55,6 +55,30 @@ class FakePlugin:
         }
 
 
+@pytest.mark.parametrize("phase", ["accepted", "leaving", "loading", "ready"])
+def test_indeterminate_phase_is_reported_without_clearing_quarantine(
+    tmp_path: Path, phase: str
+) -> None:
+    path = tmp_path / "map.gbx"
+    path.write_bytes(b"map")
+    plugin = FakePlugin()
+    journal = MapSwitchJournal(tmp_path / "switch.sqlite", "instance", create=True)
+
+    def exchange(request: dict[str, str]) -> dict[str, Any]:
+        response = plugin(request)
+        if request["command"] in {"switch_map", "switch_status"}:
+            response.update(state="indeterminate", failure_phase=phase)
+        return response
+
+    with MapSwitchController(journal, exchange) as controller:
+        for operation in (lambda: controller.switch(path, "uid"), controller.recover):
+            with pytest.raises(MapSwitchIndeterminateError, match=f"phase: {phase}"):
+                operation()
+            assert journal.pending() is not None
+            assert controller._quarantine_path.exists()
+    assert plugin.switch_count == 1
+
+
 def test_telemetry_guard_blocks_restart_even_when_plugin_reports_ready(tmp_path: Path) -> None:
     path = tmp_path / "map.gbx"
     path.write_bytes(b"map")

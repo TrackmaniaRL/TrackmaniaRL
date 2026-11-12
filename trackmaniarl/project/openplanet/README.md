@@ -31,8 +31,11 @@ to the local GUI player. Protocol 2 retains the earlier behavior, which can mix
 local player data with a spectated vehicle's visual state. Real-game protocol-2
 compatibility of this reference has not been verified.
 
-Protocol 3 is not a supported multi-map backend yet. It has not been compiled
-or exercised in an isolated game. Do not enable it in a game used for training.
+Protocol 3 is not a supported multi-map backend yet. A prior source revision
+compiled in an isolated game, but its first attempted map switch ended
+indeterminate; automatic evaluation and training-map restoration remain
+unverified. Later source changes require their own compilation and game tests.
+Do not enable it in a game used for training.
 It requires explicit enabling in plugin settings, `PlayLocalMap` permission and
 exclusive control of a separate game instance. Use only trusted local map files:
 the command can leave the current playground, and native map loading may fail or
@@ -142,7 +145,10 @@ player across several frames, with no further call to PlayMap by that coroutine.
 It is not a hash of
 the map bytes or proof against other plugins or manual game actions. A timeout,
 plugin reload, lost or changed instance epoch, unexpected status or unknown operation requires
-durable quarantine. A reload cannot prove that the game has stopped processing
+durable quarantine. An indeterminate status can report the plugin phase at the
+first failure (`accepted`, `leaving`, `loading`, or `ready`) for diagnosis; it
+does not prove whether an asynchronous game action has completed. A reload
+cannot prove that the game has stopped processing
 an earlier request. A client with an unresolved operation must not reclaim the
 game after a reload, even if the plugin would accept a fresh claim. Resolve that
 uncertainty using a separately verified game

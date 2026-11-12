@@ -20,6 +20,7 @@ string g_switchOperation = "";
 string g_switchPath = "";
 string g_switchUid = "";
 string g_switchState = "idle";
+string g_switchFailurePhase = "";
 array<string> g_usedSwitchOperations;
 
 Net::Socket@ g_telemetryServer;
@@ -92,12 +93,19 @@ bool HasString(Json::Value@ value, const string &in key) {
     return value.HasKey(key) && value[key].GetType() == Json::Type::String;
 }
 
+void MarkSwitchIndeterminate() {
+    // Preserve the phase of the first failure for diagnosis; this does not
+    // establish whether any asynchronous engine action has finished.
+    if (g_switchState != "indeterminate") g_switchFailurePhase = g_switchState;
+    g_switchState = "indeterminate";
+}
+
 string SwitchReply(const string &in status, const string &in error = "") {
     string uid = ActiveMapUid();
     // A successful status or claim also observes the active UID. Retain a
     // mismatch for this operation even if the expected map later returns.
     if (status == "ok" && g_enableMapSwitch && g_switchState == "ready"
-        && uid != g_switchUid) g_switchState = "indeterminate";
+        && uid != g_switchUid) MarkSwitchIndeterminate();
     auto response = Json::Object();
     response["status"] = status;
     response["protocol_version"] = SWITCH_PROTOCOL_VERSION;
@@ -106,6 +114,8 @@ string SwitchReply(const string &in status, const string &in error = "") {
     response["epoch"] = status == "ok" ? g_switchEpoch : "";
     response["operation_id"] = status == "ok" ? g_switchOperation : "";
     response["state"] = g_switchState;
+    if (status == "ok" && g_switchState == "indeterminate")
+        response["failure_phase"] = g_switchFailurePhase;
     if (status == "ok") response["remaining_operations"] = 4096 - int(g_usedSwitchOperations.Length);
     response["map_uid"] = uid;
     response["ready"] = (uid.Length > 0 && IsReadyToDrive(true)) ? "true" : "false";
@@ -120,7 +130,7 @@ void SwitchMapWorker() {
     try {
         auto app = cast<CTrackMania>(GetApp());
         if (app is null || app.ManiaTitleControlScriptAPI is null || !Permissions::PlayLocalMap()) {
-            g_switchState = "indeterminate"; return;
+            MarkSwitchIndeterminate(); return;
         }
         g_switchState = "leaving";
         app.BackToMainMenu();
@@ -132,7 +142,7 @@ void SwitchMapWorker() {
             yield();
         }
         if (Time::Now - started >= SWITCH_TIMEOUT_MS) {
-            g_switchState = "indeterminate"; return;
+            MarkSwitchIndeterminate(); return;
         }
         g_switchState = "loading";
         app.ManiaTitleControlScriptAPI.PlayMap(g_switchPath, "", "");
@@ -157,7 +167,7 @@ void SwitchMapWorker() {
     } catch {
         // Do not reissue a request whose side effects may already be in flight.
     }
-    g_switchState = "indeterminate";
+    MarkSwitchIndeterminate();
 }
 
 string HandleSwitchCommand(Json::Value@ request) {
@@ -216,16 +226,17 @@ string HandleSwitchCommand(Json::Value@ request) {
         return SwitchReply("error", "operation_pending");
     // A manual change or another plugin invalidates the previous confirmation.
     if (g_switchState == "ready" && ActiveMapUid() != g_switchUid) {
-        g_switchState = "indeterminate";
+        MarkSwitchIndeterminate();
         return SwitchReply("error", "active_map_changed");
     }
     if (g_usedSwitchOperations.Length >= 4096)
         return SwitchReply("error", "operation_limit");
     g_usedSwitchOperations.InsertLast(operation);
     g_switchOperation = operation; g_switchPath = path; g_switchUid = uid;
+    g_switchFailurePhase = "";
     g_switchState = "accepted";
     try { startnew(SwitchMapWorker); }
-    catch { g_switchState = "indeterminate"; }
+    catch { MarkSwitchIndeterminate(); }
     return SwitchReply("ok");
 }
 
@@ -238,7 +249,7 @@ bool BoundTelemetryIdentity(
     // Persist an observed mismatch for this operation, including across socket
     // closes and reconnects. Never poison a newer operation or an intentional stop.
     if (ActiveMapUid() != uid) {
-        g_switchState = "indeterminate";
+        MarkSwitchIndeterminate();
         return false;
     }
     return true;
@@ -299,7 +310,7 @@ void HandleSessionClient(Net::Socket@ sock) {
     // Preserve this protocol-2 response while recording a mismatch observed
     // by the experimental protocol-3 lease, including a missing active map.
     if (g_enableMapSwitch && g_switchState == "ready" && uid != g_switchUid)
-        g_switchState = "indeterminate";
+        MarkSwitchIndeterminate();
     if (uid.Length == 0) { sock.WriteRaw(JsonError("no_local_map_loaded")); return; }
     if (request.IndexOf("\"command\":\"verify_loaded_map\"") >= 0) {
         sock.WriteRaw(JsonOk(uid, false)); return;

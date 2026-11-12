@@ -627,6 +627,13 @@ class MapSwitchController:
                 self.journal.resolve_terminal(intent.operation_id, intent.plugin_epoch, "ready")
                 self._clear_quarantine(intent.operation_id)
                 return
+            if state == "indeterminate":
+                phase = response.get("failure_phase")
+                if phase in ("accepted", "leaving", "loading", "ready"):
+                    raise MapSwitchIndeterminateError(
+                        f"switch did not reach a verified terminal state (phase: {phase})"
+                    )
+                raise MapSwitchIndeterminateError("switch did not reach a verified terminal state")
             if state not in ("accepted", "leaving", "loading") or monotonic() >= deadline:
                 raise MapSwitchIndeterminateError("switch did not reach a verified terminal state")
             sleep(min(0.1, max(0.0, deadline - monotonic())))

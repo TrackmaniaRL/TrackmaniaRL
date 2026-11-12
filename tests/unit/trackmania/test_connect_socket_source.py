@@ -96,6 +96,18 @@ def test_local_view_requirement_is_scoped_to_protocol_three() -> None:
     assert "CollectTelemetry(buf)" in legacy
 
 
+def test_indeterminate_reply_preserves_first_failure_phase() -> None:
+    source = (
+        Path(__file__).resolve().parents[3]
+        / "trackmaniarl/project/openplanet/TrackmaniaRL_Connect.as"
+    ).read_text(encoding="utf-8")
+    marker = source.split("void MarkSwitchIndeterminate()", 1)[1].split("string SwitchReply(", 1)[0]
+    assert 'if (g_switchState != "indeterminate") g_switchFailurePhase = g_switchState;' in marker
+    assert 'g_switchState = "indeterminate";' in marker
+    reply = source.split("string SwitchReply(", 1)[1].split("void SwitchMapWorker()", 1)[0]
+    assert 'response["failure_phase"] = g_switchFailurePhase;' in reply
+
+
 def test_observed_map_mismatch_persists_across_telemetry_reconnects() -> None:
     source = (
         Path(__file__).resolve().parents[3]
@@ -107,7 +119,7 @@ def test_observed_map_mismatch_persists_across_telemetry_reconnects() -> None:
     # A mismatch poisons the current ready operation, so returning to the old
     # UID cannot make a fresh connection accept that operation again.
     mismatch = identity.split("if (ActiveMapUid() != uid) {", 1)[1].split("}", 1)[0]
-    assert 'g_switchState = "indeterminate";' in mismatch
+    assert "MarkSwitchIndeterminate();" in mismatch
     assert "return false;" in mismatch
     guard = identity.split("if (ActiveMapUid() != uid)", 1)[0]
     for current in (
@@ -127,7 +139,7 @@ def test_observed_map_mismatch_persists_across_telemetry_reconnects() -> None:
 
     reply = source.split("string SwitchReply(", 1)[1].split("void SwitchMapWorker(", 1)[0]
     observation = reply.index('status == "ok" && g_enableMapSwitch && g_switchState == "ready"')
-    mismatch = reply.index('uid != g_switchUid) g_switchState = "indeterminate";')
+    mismatch = reply.index("uid != g_switchUid) MarkSwitchIndeterminate();")
     state_response = reply.index('response["state"] = g_switchState;')
     assert observation < mismatch < state_response
 
@@ -140,7 +152,7 @@ def test_protocol_two_observation_quarantines_only_opted_in_switching() -> None:
     handler = source.split("void HandleSessionClient(", 1)[1].split("void SessionServer(", 1)[0]
     observation = handler.index("string uid = ActiveMapUid();")
     guard = handler.index('g_enableMapSwitch && g_switchState == "ready" && uid != g_switchUid')
-    quarantine = handler.index('g_switchState = "indeterminate";', guard)
+    quarantine = handler.index("MarkSwitchIndeterminate();", guard)
     missing = handler.index('JsonError("no_local_map_loaded")', quarantine)
     assert observation < guard < quarantine < missing
     assert "sock.WriteRaw(JsonOk(uid, false)); return;" in handler

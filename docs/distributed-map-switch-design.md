@@ -11,8 +11,10 @@ compatibility in a real game has not been verified with this plugin snapshot.
 The checked-in Connect source is a reference snapshot of the separately
 distributed signed plugin. Its protocol 2 exposes the active UID and player
 readiness, but has no map-load command. It uses substring matching for its two
-commands; a new protocol must parse JSON instead. No local Openplanet compiler or
-isolated game instance has been verified for this work.
+commands; a new protocol must parse JSON instead. A prior protocol-3 source
+revision compiled in an isolated game, but its first switch ended
+indeterminate. Automatic evaluation and training-map restoration remain
+unverified; later revisions need their own compilation and game tests.
 
 The [tm-control-mcp implementation at commit 04e713b](https://github.com/clankercode/tm-control-mcp/blob/04e713bb4c18cca8bd792d2f3185c6ac9688e767/src/McpTools.as)
 provides evidence that `ManiaTitleControlScriptAPI.PlayMap` is callable in a

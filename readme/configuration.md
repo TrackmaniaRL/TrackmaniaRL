@@ -139,7 +139,8 @@ and `assume_exclusive_no_unobserved_map_changes: true`. The latter explicitly
 accepts a trusted, exclusively controlled game instance with no autonomous or
 unobserved map changes. The checks reject observed mismatches but do not prove
 continuous map identity or which bytes the game loaded. This is not production
-or real-game support: the plugin has not been compiled or validated in a game.
+or validated real-game support: a prior plugin revision compiled in an isolated
+game, but its first attempted switch ended indeterminate.
 Use a separate instance and profile, never the one used by active training. See the
 [design and remaining verification](../docs/distributed-map-switch-design.md).
 
