@@ -150,9 +150,12 @@ first failure (`accepted`, `leaving`, `loading`, or `ready`) for diagnosis; it
 does not prove whether an asynchronous game action has completed. A reload
 cannot prove that the game has stopped processing
 an earlier request. A client with an unresolved operation must not reclaim the
-game after a reload, even if the plugin would accept a fresh claim. Resolve that
-uncertainty using a separately verified game
-instance before attempting restoration or resuming collection. Protocol 2 map
+game after a reload, even if the plugin would accept a fresh claim. There is no
+supported automated way to prove quiescence and release or rebind the fixed
+endpoint after the operation's plugin epoch is lost. Preserve the journal and
+registry markers; restarting the game or deleting these records does not resolve
+the uncertainty. Further experiments require an independently verified isolated
+environment with its own resources. Protocol 2 map
 checks are rejected while a protocol 3 operation is unresolved, but that does
 not itself stop a legacy client from sending controls to the game.
 

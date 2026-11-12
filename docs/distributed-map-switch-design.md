@@ -57,6 +57,13 @@ not share files or ports with another training session. This protocol assumes
 exclusive control of the game instance; manual map changes and other plugins
 that launch maps invalidate the lease and must not be treated as verified.
 
+After an indeterminate operation and loss of its plugin epoch, there is no
+supported automated procedure to prove the old game has stopped processing the
+load or safely release and rebind the fixed endpoint. Restarting the plugin or
+game alone does not clear the quarantine. Preserve the journal and registry
+markers; do not delete or replace them to force progress. Further experiments
+require an independently verified, isolated environment with its own resources.
+
 `trackmaniarl.trackmania.map_switch_journal` provides durable storage for the
 experimental controller. Its SQLite transactions
 serialize intents and persist `dispatching` before a caller sends a command.
@@ -95,10 +102,10 @@ flushes a separate session guard in the instance registry. The owning session
 retains it through evaluation, restoration and subsequent training. A clean
 shutdown releases controls, closes telemetry, verifies the training map and
 removes the guard; an observed error or process exit leaves it in place and
-blocks automatic restart or recovery. Explicit recovery requires first
-stopping the isolated game and determining the state; a ready status by itself
-does not clear this guard. As with the switch marker, Windows directory-entry
-durability after power loss is unverified.
+blocks automatic restart or recovery. Stopping the isolated game and determining
+its state are necessary for recovery, but there is no supported automated reset
+procedure; a ready status by itself does not clear this guard. As with the switch
+marker, Windows directory-entry durability after power loss is unverified.
 
 ## Evaluation and restoration
 
