@@ -1,6 +1,7 @@
 # Design: attested distributed map switching
 
-Status: experimental implementation; real-game validation remains outstanding.
+Status: experimental implementation; scheduled multi-map admission is blocked.
+Continuous map identity and real-game validation remain outstanding.
 The default protocol-2 and single-map paths retain their existing behavior.
 
 ## Evidence and constraints
@@ -101,10 +102,10 @@ assignment. The actor compares its local files before and after the suite;
 accepted WAL rows retain the coordinator's assigned digest for recovery. This
 is only file-content binding. In particular, it neither proves which bytes the
 game loaded nor detects a file replaced and restored between the two actor
-checks. The experimental opt-in described below has these limitations. Older
+checks. The prototype described below has these limitations. Older
 single-map assignments and journals retain their existing format.
 
-An experimental, explicitly enabled OpenPlanet path stages map and reward
+An experimental OpenPlanet path stages map and reward
 assets in a new Windows directory, denies writes and deletes while handles are
 open, and compares staged suite contents with the assigned digest. It retains
 the staged files after shutdown because an uncertain game load may outlive the
@@ -118,12 +119,23 @@ per-user registry and holds an OS lock across the game session. The
 experimental factory only accepts `127.0.0.1:9001`, matching the checked-in
 plugin. The plugin does not prove an operating-system game-process identity;
 other accounts, a modified plugin using another endpoint, or uncooperative local
-software can bypass the registry. The
-experimental path requires a separately owned game, the unverified protocol-3
-plugin, and explicit `enable_experimental_multimap: true`; it is not validated
-against a real game. Windows file locks, source
+software can bypass the registry. Any future use of the experimental path
+requires a separately owned game, the unverified protocol-3 plugin, and explicit
+`enable_experimental_multimap: true`; scheduled admission is currently blocked.
+Windows file locks, source
 hashes, and UID/readiness checks do not themselves prove the game loaded the
 expected bytes.
+
+The prototype requests each telemetry frame with a fresh request ID and checks
+the associated plugin epoch, switch operation and UID before returning it. A
+missing, partial or mismatched frame aborts the suite without publishing results.
+For the first frame after an episode reset, the client requests a bounded wait
+for player readiness on the same connection. An EOF is never retried: it may
+also signal an identity failure. Later frame requests do not wait for readiness.
+These sampled checks do not detect an A→B→A map change between observations,
+and collecting several engine fields without yielding is not proof of an atomic
+engine snapshot. Admission stays blocked until a reliable continuity signal or
+equivalent verified guarantee closes this gap, and the real plugin is validated.
 
 The plugin retains at most 4096 operation IDs for its epoch. Before staging or
 leaving the training map, the actor checks the authenticated status response
@@ -136,7 +148,7 @@ The experimental multi-map actor currently refuses a configured
 progress information to distinguish a slow valid operation from a hang. This
 restriction must be resolved before enabling the backend for such runs.
 
-### Experimental setup
+### Prototype setup (admission remains blocked)
 
 Use a separate, exclusively controlled Windows game instance, a development
 installation of the protocol-3 Connect source and local, checksum-bound map

@@ -16,10 +16,13 @@ import stat
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from time import monotonic, sleep
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from trackmaniarl.trackmania.map_switch_journal import MapSwitchIntent, MapSwitchJournal
+
+if TYPE_CHECKING:
+    from trackmaniarl.trackmania.bound_telemetry import BoundTelemetryIdentity
 
 
 class MapSwitchIndeterminateError(RuntimeError):
@@ -406,6 +409,15 @@ class MapSwitchController:
         The caller must retain exclusive control between this check and use.
         """
         self._active_map_status(expected_uid, require_player=require_player)
+
+    def telemetry_identity(self, expected_uid: str) -> BoundTelemetryIdentity:
+        """Bind telemetry to the current verified plugin instance and operation."""
+        from trackmaniarl.trackmania.bound_telemetry import BoundTelemetryIdentity
+
+        response = self._active_map_status(expected_uid, require_player=True)
+        return BoundTelemetryIdentity(
+            str(response["instance_epoch"]), str(response["operation_id"]), expected_uid
+        )
 
     def require_capacity(self, expected_uid: str, required: int) -> None:
         """Check there is room for a whole suite and its training-map restore.

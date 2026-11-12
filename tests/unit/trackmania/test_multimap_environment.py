@@ -44,7 +44,7 @@ def _factory(
     )
 
 
-def test_multi_map_admission_requires_explicit_factory_opt_in(tmp_path: Path) -> None:
+def test_multi_map_admission_is_blocked_even_with_experimental_opt_in(tmp_path: Path) -> None:
     from trackmaniarl.distributed.evaluation_contract import validate_scheduled_evaluation
 
     factory, other = _factory(tmp_path)
@@ -55,16 +55,23 @@ def test_multi_map_admission_requires_explicit_factory_opt_in(tmp_path: Path) ->
         training=SimpleNamespace(evaluate_every_episodes=1),
         evaluation=SimpleNamespace(maps=(other, second)),
     )
-    with pytest.raises(ValueError, match="explicitly enabled"):
+    with pytest.raises(ValueError, match="continuous map identity"):
         validate_scheduled_evaluation(spec, factory, IdentityFeaturePipeline(), tmp_path)
 
     factory.enable_experimental_multimap = True
-    validate_scheduled_evaluation(spec, factory, IdentityFeaturePipeline(), tmp_path)
+    with pytest.raises(ValueError, match="continuous map identity"):
+        validate_scheduled_evaluation(spec, factory, IdentityFeaturePipeline(), tmp_path)
+    # The lower-level validator remains testable without unblocking admission.
+    factory.validate_scheduled_evaluation_suite(
+        spec.evaluation, IdentityFeaturePipeline(), tmp_path
+    )
     assert factory._training_map_sha256 is not None
 
     other.map_path.write_bytes(b"changed")
     with pytest.raises(ValueError, match="checksum"):
-        validate_scheduled_evaluation(spec, factory, IdentityFeaturePipeline(), tmp_path)
+        factory.validate_scheduled_evaluation_suite(
+            spec.evaluation, IdentityFeaturePipeline(), tmp_path
+        )
 
 
 def test_multi_map_opt_in_rejects_non_boolean(tmp_path: Path) -> None:
@@ -89,6 +96,30 @@ def test_validates_each_map_and_isolates_pipeline(tmp_path: Path) -> None:
     other.map_path.write_bytes(b"changed")
     with pytest.raises(ValueError, match="checksum"):
         factory.validate_scheduled_evaluation_suite(suite, source, tmp_path)
+
+
+def test_bound_client_is_replaced_for_each_verified_map_operation(tmp_path: Path) -> None:
+    from unittest.mock import Mock
+
+    from trackmaniarl.trackmania.bound_telemetry import (
+        BoundOpenPlanetClient,
+        BoundTelemetryIdentity,
+    )
+
+    factory, _ = _factory(tmp_path)
+    old = Mock()
+    environment = SimpleNamespace(client=old)
+    identity = BoundTelemetryIdentity("epoch", "map-operation", "map-uid")
+    switch = SimpleNamespace(telemetry_identity=Mock(return_value=identity))
+
+    factory._bind_telemetry(environment, switch, "map-uid")
+
+    old.close.assert_called_once_with()
+    switch.telemetry_identity.assert_called_once_with("map-uid")
+    assert isinstance(environment.client, BoundOpenPlanetClient)
+    assert environment.client.identity == identity
+    assert (environment.client.host, environment.client.port) == ("127.0.0.1", 9002)
+    environment.client.close()
 
 
 def test_training_pipeline_must_match_current_geometry_bytes(tmp_path: Path) -> None:
@@ -185,6 +216,12 @@ def test_switch_evaluation_and_restore_keep_the_same_owned_controller(
         def verify_active_map(self, uid: str, *, require_player: bool = True) -> None:
             assert self.uid == uid
             events.append("verify " + uid)
+
+        def telemetry_identity(self, uid: str) -> Any:
+            from trackmaniarl.trackmania.bound_telemetry import BoundTelemetryIdentity
+
+            assert self.uid == uid
+            return BoundTelemetryIdentity("epoch", "operation", uid)
 
         def close(self) -> None:
             events.append("lock closed")

@@ -15,6 +15,7 @@ from typing import Any
 
 from trackmaniarl.core.runtime import _resolve_evaluation_map
 from trackmaniarl.distributed.evaluation_contract import validate_pipeline_binding
+from trackmaniarl.trackmania.bound_telemetry import BoundOpenPlanetClient
 from trackmaniarl.trackmania.environment import OpenPlanetEnvironment, OpenPlanetEnvironmentFactory
 from trackmaniarl.trackmania.map_staging import StagedAssets
 from trackmaniarl.trackmania.map_switch_controller import (
@@ -23,6 +24,9 @@ from trackmaniarl.trackmania.map_switch_controller import (
 )
 from trackmaniarl.trackmania.map_switch_journal import MapSwitchJournal
 from trackmaniarl.trackmania.reward_points import load_reward_asset
+from trackmaniarl.trackmania.telemetry import OpenPlanetClientConfig
+
+_BOUND_TELEMETRY_PORT = 9002
 
 
 class _TrainingSession:
@@ -224,6 +228,7 @@ class OpenPlanetMultiMapEnvironmentFactory:
             )
             environment = holder[0]
             switch.verify_active_map(self.config.expected_map_uid or "")
+            self._bind_telemetry(environment, switch, self.config.expected_map_uid or "")
             session = _TrainingSession(
                 environment,
                 switch,
@@ -259,6 +264,7 @@ class OpenPlanetMultiMapEnvironmentFactory:
             self.config, training.environment.controller, evaluation_map=item
         )
         try:
+            self._bind_telemetry(evaluation, training.switch, item.expected_map_uid)
             yield evaluation
         finally:
             # The training session owns the shared input device; only close the
@@ -273,6 +279,7 @@ class OpenPlanetMultiMapEnvironmentFactory:
             training.training_path, training.uid, before_dispatch=lambda: self._quiesce(training)
         )
         training.switch.verify_active_map(training.uid)
+        self._bind_telemetry(training.environment, training.switch, training.uid)
 
     def verify_evaluation_map(self, training: _TrainingSession, item: Any) -> None:
         self._asset(item)
@@ -283,6 +290,17 @@ class OpenPlanetMultiMapEnvironmentFactory:
         if not isinstance(training, _TrainingSession):
             raise TypeError("multi-map evaluation requires its owning training session")
         training.switch.require_capacity(training.uid, required)
+
+    def _bind_telemetry(
+        self, environment: OpenPlanetEnvironment, switch: MapSwitchController, uid: str
+    ) -> None:
+        """Consume only frames tagged with the verified map operation."""
+        identity = switch.telemetry_identity(uid)
+        environment.client.close()
+        environment.client = BoundOpenPlanetClient(
+            OpenPlanetClientConfig(self.config.host, _BOUND_TELEMETRY_PORT, self.config.timeout_s),
+            identity,
+        )
 
     @staticmethod
     def _quiesce(training: _TrainingSession) -> None:

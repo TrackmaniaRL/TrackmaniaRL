@@ -68,7 +68,7 @@ class _SimulatedMapFactory:
         self.events.append("restore")
 
 
-def test_real_experimental_factory_admitted_by_actor_and_coordinator(
+def test_experimental_factory_integration_under_guard_override(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from tests.integration.runtime.distributed_runtime_support import _Logger
@@ -117,6 +117,15 @@ def test_real_experimental_factory_admitted_by_actor_and_coordinator(
     ]
     path.write_text(json.dumps(config), encoding="utf-8")
     actor = ActorRuntime(ActorProcessRequest(path, "127.0.0.1:1", "actor", _DISTRIBUTED_TOKEN))
+    # Production admission remains blocked: this override exercises only the
+    # experimental internals with a simulated game, not continuous map identity.
+    monkeypatch.setattr(
+        evaluation_contract,
+        "validate_scheduled_evaluation",
+        lambda spec, factory, pipeline, base: factory.validate_scheduled_evaluation_suite(
+            spec.evaluation, pipeline, base
+        ),
+    )
     # The simulated learner is deliberately not on the real policy allowlist.
     # Real first-party policy isolation is covered in the unit suite.
     monkeypatch.setattr(actor_evaluation, "_supports_multimap_policy", lambda _: True)

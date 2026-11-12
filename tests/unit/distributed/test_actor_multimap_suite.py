@@ -223,6 +223,28 @@ def test_insufficient_capacity_rejects_suite_before_staging_or_switch() -> None:
     assert not runtime.requests
 
 
+def test_wrong_map_frame_aborts_suite_and_never_spools_after_restore() -> None:
+    from tests.unit.trackmania.test_bound_telemetry import _IDENTITY, _sequential_server
+    from trackmaniarl.trackmania.bound_telemetry import BoundOpenPlanetClient, BoundTelemetryError
+    from trackmaniarl.trackmania.telemetry import OpenPlanetClientConfig
+
+    events: list[str] = []
+    runtime = _Runtime(events)
+    with _sequential_server(["map-a", "map-b", "map-a"]) as port:
+        client = BoundOpenPlanetClient(OpenPlanetClientConfig(port=port, timeout_s=2), _IDENTITY)
+
+        def evaluate_episode(request: Any) -> dict[str, Any]:
+            client.read()
+            client.read()  # The wrong-map frame cannot become a scored trial.
+            return {"termination": "finished", "policy_version": request.version}
+
+        runtime._evaluate_episode = evaluate_episode  # type: ignore[method-assign]
+        with pytest.raises(BoundTelemetryError, match="identity differs"):
+            actor_evaluation.evaluate(runtime, object(), _Pipeline())  # type: ignore[arg-type]
+    assert events[-3:] == ["close:a", "restore", "unstage"]
+    assert runtime.requests == []
+
+
 def test_stopped_suite_restores_and_never_spools_partial_results() -> None:
     events: list[str] = []
     runtime = _Runtime(events)
