@@ -44,8 +44,8 @@ def _multimap_trial_admission_error(
 ) -> str | None:
     """Check the complete map/trial set before journaling or replaying results.
 
-    This is only an accounting guard. Multi-map execution remains disabled
-    until an implementation can also attest switches and asset bindings.
+    This is only an accounting guard; the experimental backend also checks
+    switch identity and asset bindings during execution.
     """
     expected = {
         (item.id, item.expected_map_uid, index) for item in maps for index in range(trials_per_map)

@@ -156,7 +156,7 @@ class MapSwitchJournal:
         self._transition(operation_id, "prepared", "abandoned")
 
     def resolve_terminal(self, operation_id: str, plugin_epoch: str, evidence: str) -> None:
-        """Record a terminal result verified by the future backend, not a queue ACK."""
+        """Record a terminal result verified by the backend, not a queue ACK."""
         if not evidence.strip():
             raise ValueError("verified terminal evidence is required")
         with self._connect() as db:
