@@ -196,15 +196,22 @@ Use a separate, exclusively controlled Windows game instance, a development
 installation of the protocol-3 Connect source and local, checksum-bound map
 and reward assets. Its compilation and runtime have not yet been verified.
 Create an empty local staging directory and a parent directory for the journal.
-For a genuinely new, isolated game instance only, initialize the journal once:
+For the CLI, relative paths in the example below are resolved relative to the
+directory containing the run configuration. From that same directory, and for
+a genuinely new, isolated game instance only, initialize the journal once:
 
 ```powershell
+Set-Location -LiteralPath 'C:\path\to\directory-containing-run-yaml'
 python -c "from pathlib import Path; from trackmaniarl.trackmania.map_switch_journal import MapSwitchJournal; MapSwitchJournal(Path('isolated/switch.sqlite'), 'isolated-game', create=True)"
 ```
 
 Creation fails if the path already exists. Never recreate or replace a journal
 after an uncertain operation: its pending record is the quarantine. Keep the
 same absolute-resolving path, endpoint and `instance_id` across actor restarts.
+If invoking the SDK with a different `base_dir`, resolve the initialization
+path against that `base_dir` instead, or use the same absolute path in both
+places. See the [separate development-instance preparation](../trackmaniarl/project/openplanet/README.md#preparing-a-separate-development-instance)
+for the unsigned plugin, dependencies and fixed-port constraints.
 An example environment component is:
 
 ```yaml

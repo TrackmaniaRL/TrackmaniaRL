@@ -45,6 +45,44 @@ the assumption that this trusted instance makes no autonomous or unobserved map
 changes. Sampled checks cannot establish that assumption; do not enable the path
 if it does not hold. See the [experimental setup](../../../docs/distributed-map-switch-design.md).
 
+### Preparing a separate development instance
+
+These are preparation steps for a future isolated test, not a verified
+installation procedure for this snapshot. Use a separate Windows game and
+Openplanet user profile and an isolated network namespace or machine. A
+second Windows user alone does **not** isolate localhost ports. Do not change
+the plugin, signature mode, or settings of a game used for training. The
+reference listens on fixed ports 9000, 9001 and 9002; it cannot share those
+ports with another Connect instance in the same network namespace.
+
+1. In the separate Openplanet user folder, make a new plugin directory under
+   `Plugins`, for example `OpenplanetNext/Plugins/TrackmaniaRL-Connect-Dev`.
+   Copy this repository's `info.toml` and `TrackmaniaRL_Connect.as` into that
+   directory. The [Remote Build documentation](https://github.com/skybaks/vscode-openplanet-remotebuild)
+   describes the plugin folder and manifest layout; do not run its remote
+   build tools against a host with another active game.
+2. In that isolated profile only, make sure the managed signed Connect
+   (`SAC_GetData`) and any other Connect source are not active. The manifest
+   declares `VehicleState` and `PlayerState` dependencies; check that the
+   separate Openplanet installation resolves them before attempting a load.
+   Do not copy or overwrite a plugin in the training profile.
+3. The copied source is unsigned. Follow Openplanet's development signature
+   mode instructions for that separate instance; the ordinary signed-plugin
+   School Mode setup above is not evidence that this source will load. Whether
+   the account and mode permit this source and `PlayLocalMap` needs to be
+   established in the isolated test. If not, stop rather than change another
+   game or account.
+4. With no other Connect bound in the isolated network namespace, load the
+   source, inspect Openplanet's compilation output and enable **Enable
+   experimental map switching** in that plugin's settings. A visible setting
+   or a protocol-2 handshake alone does not establish protocol-3 behavior.
+   Then use the separate journal and both Python opt-ins in the
+   [prototype setup](../../../docs/distributed-map-switch-design.md#prototype-setup-experimental-assumptions-required).
+
+Do not treat LSP output as game compilation. A real test must separately
+establish that the copied source loads, its declared dependencies resolve,
+permissions allow local loading, and the game accepts the staged map paths.
+
 The reference was inspected using `openplanet-lsp` 0.8.2 with the local
 Openplanet 1.29.14 type database and the school signature profile. The check
 exited with an unresolved `VehicleState` dependency. A negative control using
