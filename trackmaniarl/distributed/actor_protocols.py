@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from pathlib import Path
 from threading import Event
 from typing import Any, Protocol
 
@@ -21,6 +22,7 @@ from trackmaniarl.distributed.codec import WireCodec
 
 class CollectionRuntime(Protocol):
     spec: RunSpec
+    base_dir: Path
     watchdog: ProgressWatchdog
     actor_id: str
     session_id: str
@@ -30,8 +32,9 @@ class CollectionRuntime(Protocol):
     collect_allowed: Event
     codec: WireCodec
     _evaluation_index: int
-    _evaluation_request: tuple[bytes, int, str] | None
+    _evaluation_request: tuple[bytes, int, str] | tuple[bytes, int, str, str] | None
     _active_evaluation_assignment_id: str
+    _active_evaluation_assets_sha256: str
     _active_evaluation_initial_snapshot: bytes
     _evaluation_request_lock: Any
 

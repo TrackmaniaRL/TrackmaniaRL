@@ -12,15 +12,22 @@ from trackmaniarl.core.spec import RunSpec
 def validate_scheduled_evaluation(  # noqa: PLR0913
     spec: RunSpec, factory: Any, pipeline: Any, base_dir: Path
 ) -> None:
-    """Require an attested single map until distributed map switching exists."""
+    """Validate a single map or explicitly opted-in experimental suite."""
     suite = spec.evaluation
     if spec.training.evaluate_every_episodes is None or suite is None:
         return
     if len(suite.maps) != 1:
-        raise ValueError(
-            "scheduled distributed evaluation does not support multiple maps; "
-            "use the local benchmark for a multi-map suite"
+        from trackmaniarl.trackmania.multimap_environment import (
+            OpenPlanetMultiMapEnvironmentFactory,
         )
+
+        if type(factory) is not OpenPlanetMultiMapEnvironmentFactory:
+            raise ValueError(
+                "scheduled distributed evaluation does not support multiple maps "
+                "without the experimental OpenPlanet factory"
+            )
+        factory.validate_scheduled_evaluation_suite(suite, pipeline, base_dir)
+        return
     validate = getattr(factory, "validate_scheduled_evaluation_map", None)
     if not callable(validate):
         raise ValueError(

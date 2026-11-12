@@ -84,6 +84,46 @@ def test_stopping_actor_persists_final_buffer_even_when_spool_is_full(tmp_path: 
     assert actor.codec.decode(path.read_bytes())["episodes"] == [{"episode_id": "last"}]
 
 
+def test_stopping_during_full_spool_wait_does_not_publish_cancelled_evaluation(
+    tmp_path: Path,
+) -> None:
+    actor = object.__new__(ActorRuntime)
+    actor.actor_id = "actor"
+    actor.session_id = "session"
+    actor.fingerprint = "fingerprint"
+    actor.spool_dir = tmp_path
+    actor.codec = WireCodec(1024 * 1024)
+    actor.spec = SimpleNamespace(distributed=SimpleNamespace(spool_max_bytes=1024))
+    actor.stop = threading.Event()
+    actor.queue = Queue()
+    actor.sequence = 0
+    actor._spool_lock = threading.Lock()
+    actor._spool_bytes_total = 1024
+    waiting = threading.Event()
+
+    def full_spool() -> int:
+        waiting.set()
+        return 1024
+
+    actor._current_spool_bytes = full_spool  # type: ignore[method-assign]
+    request = SpoolRequest(
+        [], [], 0, [{"termination": "finished"}], b"snapshot", cancel_on_stop=True
+    )
+    worker = threading.Thread(target=actor._spool, args=(request,))
+    worker.start()
+    try:
+        assert waiting.wait(5)
+        actor.stop.set()
+    finally:
+        actor.stop.set()
+        worker.join(5)
+    assert not worker.is_alive()
+    assert actor.queue.empty()
+    assert actor.sequence == 0
+    assert not list(tmp_path.glob("*.rollout"))
+    assert not list(tmp_path.glob("*.tmp"))
+
+
 def test_sender_waits_for_final_collection_after_stop(tmp_path: Path) -> None:
     codec = WireCodec(1024 * 1024)
     path = tmp_path / "00000000000000000000.rollout"

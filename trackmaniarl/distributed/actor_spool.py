@@ -50,9 +50,16 @@ class SpoolRuntime(Protocol):
 def spool(runtime: SpoolRuntime, request: SpoolRequest) -> None:
     if not request.transitions and not request.summaries and not request.evaluations:
         return
+    if request.cancel_on_stop and runtime.stop.is_set():
+        return
     value = _spool_value(runtime, request)
     payload = runtime.codec.encode(value)
     runtime._wait_for_spool_capacity(len(payload))
+    # Evaluation cancellation is checked after the potentially blocking wait.
+    # A stop racing the following durable write can still be published: Event
+    # and the filesystem commit do not share an atomic transaction.
+    if request.cancel_on_stop and runtime.stop.is_set():
+        return
     _persist_rollout(runtime, payload)
 
 

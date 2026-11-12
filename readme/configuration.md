@@ -123,17 +123,28 @@ pass the reliability threshold. When one batch improves both leaders, each
 family writes its own exact-policy checkpoint. Promotion durability and
 checkpoint retention are independent for the two families.
 
-Scheduled **distributed** evaluation currently uses the actor's training
-environment; it cannot switch maps. When an `evaluation` suite is configured,
-it must contain exactly one map, and the environment factory must attest that
+Scheduled **distributed** evaluation normally uses the actor's training
+environment. When an `evaluation` suite is configured, it normally contains
+one map, and the environment factory must attest that
 the training environment and feature pipeline use that map. The built-in
 OpenPlanet and full QR factories check the configured UID, reward/geometry
 assets and map checksum where available. OpenPlanet still requires the user to
-load the map; its session verifies the UID on reset. A multi-map suite remains
+load the map; its session verifies the UID on reset. A multi-map suite is also
 available to the local `benchmark` evaluator, which evaluates each map separately.
 Scheduled evaluation without an `evaluation` suite is unchanged.
 
-Custom environment factories used with a scheduled suite must implement
+Scheduled distributed multi-map suites are available only through the
+experimental OpenPlanet factory with both `enable_experimental_multimap: true`
+and `assume_exclusive_no_unobserved_map_changes: true`. The latter explicitly
+accepts a trusted, exclusively controlled game instance with no autonomous or
+unobserved map changes. The checks reject observed mismatches but do not prove
+continuous map identity or which bytes the game loaded. This is not production
+or validated real-game support: a prior plugin revision compiled in an isolated
+game, but its first attempted switch ended indeterminate.
+Use a separate instance and profile, never the one used by active training. See the
+[design and remaining verification](../docs/distributed-map-switch-design.md).
+
+Custom environment factories used with a scheduled single-map suite must implement
 `validate_scheduled_evaluation_map(map_spec, pipeline)`. The map paths are
 resolved relative to the project; the method must raise if it cannot establish
 that the environment and pipeline use the declared map. Returning without an

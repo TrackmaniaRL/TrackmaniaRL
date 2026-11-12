@@ -351,6 +351,14 @@ class RolloutJournal:
             ).fetchone()
             return None if row is None else str(row[0]) == "1"
 
+    def evaluation_row_assets(self, row_id: int) -> str | None:
+        """Return the immutable assigned asset digest written with admission."""
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT value FROM metadata WHERE key = ?", (f"evaluation_assets:{row_id}",)
+            ).fetchone()
+            return None if row is None else str(row[0])
+
     def stage_evaluation_promotion(self, row_id: int, payload: bytes) -> None:
         """Keep exact policy evidence until both leader promotions are durable."""
         if row_id <= 0:
@@ -395,7 +403,13 @@ class RolloutJournal:
         payload: bytes,
         *,
         evaluation: tuple[str, str, bool, int] | None = None,
+        evaluation_assets: str | None = None,
     ) -> tuple[int, bool]:
+        if evaluation_assets is not None:
+            from trackmaniarl.distributed.evaluation_assets import is_sha256
+
+            if evaluation is None or not is_sha256(evaluation_assets):
+                raise ValueError("an evaluation asset digest requires an evaluation assignment")
         chunk = _JournalChunk(session_id, sequence, payload, sha256(payload).digest())
         with self._lock, self._connection:
             receipt = self._find_receipt(chunk)
@@ -413,6 +427,11 @@ class RolloutJournal:
                     "INSERT INTO metadata(key, value) VALUES (?, ?)",
                     (f"evaluation_row:{row_id}", "1" if accepted else "0"),
                 )
+                if accepted and evaluation_assets is not None:
+                    self._connection.execute(
+                        "INSERT INTO metadata(key, value) VALUES (?, ?)",
+                        (f"evaluation_assets:{row_id}", evaluation_assets),
+                    )
         return row_id, True
 
     def _find_receipt(self, chunk: _JournalChunk) -> _Receipt | None:
