@@ -261,6 +261,7 @@ def _supports_multimap_policy(policy: ReplicablePolicy) -> bool:
     """Only admit the reviewed, resettable first-party value-policy components."""
     from trackmaniarl.algorithms.value_based.policy import DiscreteValuePolicy
     from trackmaniarl.trackmania.actions import TrackmaniaActionSelector
+    from trackmaniarl.trackmania.encoders import LidarSensorEncoder
 
     if type(policy) is not DiscreteValuePolicy:
         return False
@@ -268,7 +269,8 @@ def _supports_multimap_policy(policy: ReplicablePolicy) -> bool:
     if selector is not None and type(selector) is not TrackmaniaActionSelector:
         return False
     return all(
-        type(module).__module__.startswith(("trackmaniarl.models.", "torch.nn."))
+        type(module) is LidarSensorEncoder
+        or type(module).__module__.startswith(("trackmaniarl.models.", "torch.nn."))
         for module in policy.model.modules()
     )
 
