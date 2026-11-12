@@ -18,9 +18,16 @@ from trackmaniarl.distributed.coordinator_types import CoordinatorConfig
 
 _FIXTURES = Path(__file__).parents[2] / "fixtures" / "replay_legacy"
 _IDENTITY = "synthetic-fixture-fingerprint"
+_CASES = [
+    ("journal-v1-536b42b5.bin", "checkpoint-v2-536b42b5.bin"),
+    ("journal-v1-v130-eb803a21.bin", "checkpoint-v130-eb803a21.bin"),
+]
 
 
-def _restore_case(tmp_path: Path, fingerprint: str) -> tuple[Coordinator, Path, list[tuple]]:
+def _restore_case(
+    tmp_path: Path, fingerprint: str, fixture: tuple[str, str]
+) -> tuple[Coordinator, Path, list[tuple]]:
+    journal_file, checkpoint_file = fixture
     run = _resolved_run(
         tmp_path,
         "fixture",
@@ -29,21 +36,33 @@ def _restore_case(tmp_path: Path, fingerprint: str) -> tuple[Coordinator, Path, 
     run = replace(run, sampler=SequenceSampler(run.feature_pipeline, sequence_length=2, seed=1))
     journal = run.run_dir / "distributed" / "rollouts.sqlite3"
     journal.parent.mkdir(parents=True)
-    journal.write_bytes(zlib.decompress((_FIXTURES / "journal-v1-536b42b5.bin").read_bytes()))
+    journal.write_bytes(zlib.decompress((_FIXTURES / journal_file).read_bytes()))
     with closing(sqlite3.connect(journal)) as connection:
+        assert connection.execute(
+            "SELECT value FROM metadata WHERE key='schema_version'"
+        ).fetchone() == ("1",)
+        tables = {
+            row[0]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            if not row[0].startswith("sqlite_")
+        }
+        assert tables == {"chunks", "actor_profiles", "receipts", "metadata"}
         receipts = connection.execute(
             "SELECT session_id, sequence, row_id, payload_sha256 FROM receipts ORDER BY sequence"
         ).fetchall()
     checkpoint = tmp_path / "legacy-checkpoint.pt"
-    checkpoint.write_bytes((_FIXTURES / "checkpoint-v2-536b42b5.bin").read_bytes())
+    checkpoint.write_bytes((_FIXTURES / checkpoint_file).read_bytes())
     coordinator = Coordinator(
         run, CoordinatorConfig("127.0.0.1:0", _DISTRIBUTED_TOKEN, fingerprint)
     )
     return coordinator, checkpoint, receipts
 
 
-def test_legacy_checkpoint_and_v1_journal_recover_and_sample(tmp_path: Path) -> None:
-    coordinator, checkpoint, legacy_receipts = _restore_case(tmp_path, _IDENTITY)
+@pytest.mark.parametrize("fixture", _CASES)
+def test_legacy_checkpoint_and_v1_journal_recover_and_sample(
+    tmp_path: Path, fixture: tuple[str, str]
+) -> None:
+    coordinator, checkpoint, legacy_receipts = _restore_case(tmp_path, _IDENTITY, fixture)
     try:
         coordinator.restore_checkpoint(checkpoint)
         assert coordinator.run.learner.value == 11
@@ -62,6 +81,9 @@ def test_legacy_checkpoint_and_v1_journal_recover_and_sample(tmp_path: Path) -> 
         assert len(coordinator.run.replay_store) == 3
         # Both pre-checkpoint and later durable receipts survive migration.
         with coordinator.journal._lock:
+            assert coordinator.journal._connection.execute(
+                "SELECT value FROM metadata WHERE key='schema_version'"
+            ).fetchone() == ("2",)
             receipts = coordinator.journal._connection.execute(
                 "SELECT session_id, sequence, row_id, payload_sha256 FROM receipts "
                 "ORDER BY sequence"
@@ -81,8 +103,11 @@ def _journal_payload(coordinator: Coordinator) -> bytes:
     return next(iter(coordinator.journal.rows_after(1)))[1]
 
 
-def test_legacy_checkpoint_still_rejects_a_different_run_identity(tmp_path: Path) -> None:
-    coordinator, checkpoint, _ = _restore_case(tmp_path, "different-fingerprint")
+@pytest.mark.parametrize("fixture", _CASES)
+def test_legacy_checkpoint_still_rejects_a_different_run_identity(
+    tmp_path: Path, fixture: tuple[str, str]
+) -> None:
+    coordinator, checkpoint, _ = _restore_case(tmp_path, "different-fingerprint", fixture)
     try:
         with pytest.raises(ValueError, match="run fingerprint mismatch"):
             coordinator.restore_checkpoint(checkpoint)
