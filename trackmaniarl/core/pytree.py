@@ -119,7 +119,15 @@ def tree_snapshot(value: PyTree) -> PyTree:
     def snapshot(leaf: Any) -> Any:
         if isinstance(leaf, torch.Tensor):
             return leaf.detach().clone()
+        if isinstance(leaf, np.void) and leaf.dtype.hasobject:
+            # Structured scalars can be standalone metadata, not just elements
+            # of an object array. Their object fields may contain non-leaf tensors.
+            return policy_observation_snapshot(leaf)
         if isinstance(leaf, np.ndarray):
+            # An object array's buffer contains references; copying only the
+            # buffer would leave its mutable elements owned by the caller.
+            if leaf.dtype.hasobject:
+                return policy_observation_snapshot(leaf)
             return np.array(leaf, copy=True, order="C")
         return deepcopy(leaf)
 
@@ -135,6 +143,24 @@ def policy_observation_snapshot(value: PyTree) -> PyTree:
     """
     memo: dict[int, Any] = {}
     visited: set[int] = set()
+    owned_arrays: list[tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]] = []
+    owned_records: list[tuple[np.void, np.void]] = []
+
+    def visit_array_elements(array: np.ndarray[Any, Any]) -> None:
+        if array.dtype.names:
+            for name in array.dtype.names:
+                visit_array_elements(array[name])
+        elif array.dtype.hasobject:
+            for nested in array.flat:
+                visit(nested)
+
+    def copy_array_elements(source: np.ndarray[Any, Any], target: np.ndarray[Any, Any]) -> None:
+        if source.dtype.names:
+            for name in source.dtype.names:
+                copy_array_elements(source[name], target[name])
+        elif source.dtype.hasobject:
+            for index in np.ndindex(source.shape):
+                target[index] = deepcopy(source[index], memo)
 
     def visit(item: Any) -> None:
         identity = id(item)
@@ -143,6 +169,24 @@ def policy_observation_snapshot(value: PyTree) -> PyTree:
         visited.add(identity)
         if isinstance(item, torch.Tensor):
             memo[identity] = item.detach().clone()
+        elif isinstance(item, np.void) and item.dtype.names:
+            # Structured scalar records can be nested inside object arrays.
+            # Register the copy before visiting fields, since an object field
+            # can refer back to the same scalar.
+            if item.dtype.hasobject:
+                copied_record = item.copy()
+                memo[identity] = copied_record
+                owned_records.append((item, copied_record))
+            for name in item.dtype.names:
+                visit(item[name])
+        elif isinstance(item, np.ndarray):
+            if item.dtype.hasobject or type(item) is not np.ndarray:
+                # NumPy's ndarray deepcopy cannot resolve a self-referential
+                # object array. Register its copy before traversing elements.
+                copied_array = np.ndarray.copy(item, order="K")
+                memo[identity] = copied_array
+                owned_arrays.append((item, copied_array))
+                visit_array_elements(item)
         elif isinstance(item, memoryview):
             # memoryview does not support deepcopy. Keep element format and
             # dimensions while giving the policy its own writable backing
@@ -184,6 +228,22 @@ def policy_observation_snapshot(value: PyTree) -> PyTree:
                         visit(nested)
 
     visit(value)
+    for source_record, target_record in owned_records:
+        for name in source_record.dtype.names or ():
+            target_record[name] = deepcopy(source_record[name], memo)
+    for source, target in owned_arrays:
+        copy_array_elements(source, target)
+        if hasattr(source, "__dict__"):
+            target.__dict__.clear()
+            target.__dict__.update(deepcopy(source.__dict__, memo))
+        for cls in type(source).__mro__:
+            for name, descriptor in vars(cls).items():
+                if isinstance(descriptor, MemberDescriptorType):
+                    try:
+                        nested = getattr(source, name)
+                    except AttributeError:
+                        continue
+                    setattr(target, name, deepcopy(nested, memo))
     return deepcopy(value, memo)
 
 

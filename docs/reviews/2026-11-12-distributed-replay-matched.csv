@@ -1,0 +1,5 @@
+trial,variant,elapsed_s,transitions,updates,checkpoint_transitions,checkpoint_updates,frontier,receipts,checkpoints,source_archives
+1,baseline,39.401892,128,60,128,60,50,50,8,1
+2,changed,32.400170,128,60,128,60,51,51,8,1
+3,changed,24.381237,128,60,128,60,43,43,8,1
+4,baseline,27.383748,128,60,128,60,45,45,8,1

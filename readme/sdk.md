@@ -85,6 +85,11 @@ than by individual learner constructors.
 are separate from `InMemoryReplayStore`. PER receives `PriorityUpdate` from a
 learner, sequence sampling accepts only contiguous episode windows and demo
 mixing enforces explicit min/max fractions.
+Linked external replay stores may interleave transition IDs across episodes;
+sequence sampling validates episode identity, step continuity when known, and
+terminal boundaries instead of assuming numerically adjacent IDs.
+For n-step targets with interleaved IDs, a linked store must also provide
+`n_step_ids`; without it the sampler accepts only complete numeric horizons.
 
 Bundled model factories declare a `ModelContract` and bundled learners declare
 the contracts they accept. This keeps an encoder choice independent from runtime
@@ -300,6 +305,19 @@ but distinct NumPy or Torch views of the same buffer may be copied separately;
 policies must not rely on mutations through one view appearing in another.
 Torch snapshots are detached from autograd. Copying observations also has a
 per-decision cost, especially for image inputs.
+
+The built-in in-memory replay takes its checkpoint snapshot while holding its
+store lock. Column arrays and nested transition metadata and next-observation
+overrides belong to that snapshot; subsequent mutations of the replay or the
+returned state do not alter each other. Loading also copies these values, so the
+caller may retain the input state independently. For object-dtype NumPy columns,
+mutable elements are copied on append, owned reads, snapshot and restore;
+training pipelines must still support their chosen observation and action dtypes.
+Column storage does not promise preservation of cyclic references to an
+observation or action array itself.
+Custom mutable objects must
+honor the same copying contract described above. Snapshot copying has a cost;
+measure complete training runs before drawing throughput conclusions.
 
 If resume behavior would change after recreating a component, its relevant state
 belongs in the checkpoint. Do not hide configuration in module globals or read
