@@ -404,7 +404,7 @@ def test_interrupted_suite_retries_same_assignment_and_recovers_wal(
         for name in ("one", "two")
     ]
     path.write_text(json.dumps(config), encoding="utf-8")
-    # Test the real suite loop and delivery, but do not claim backend attestation.
+    # Exercise suite execution and delivery with a simulated backend.
     monkeypatch.setattr(evaluation_contract, "validate_scheduled_evaluation", lambda *args: None)
     monkeypatch.setattr(actor_evaluation, "_supports_multimap_policy", lambda _: True)
     monkeypatch.setattr(actor_evaluation, "_validate_model_isolation", lambda *_: None)

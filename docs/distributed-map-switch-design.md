@@ -1,4 +1,4 @@
-# Design: attested distributed map switching
+# Experimental distributed map switching
 
 Status: experimental opt-in; real-game validation remains outstanding.
 This path assumes exclusive control of a trusted game instance and no
@@ -33,8 +33,8 @@ may be active. Concurrent requests, missing permission, unsupported game mode,
 or a lost lease fail closed. All requests and responses use parsed JSON and
 strict length and field limits.
 
-The plugin owns one state machine, rather than spawning untracked launch
-coroutines. It records the operation before initiating any game side effect,
+The plugin owns one state machine and tracks its launch coroutines. It records
+the operation before initiating any game side effect,
 then exposes `accepted`, `leaving`, `loading`, `ready`, or `indeterminate`.
 `ready` requires that the worker can no longer issue a load, the active map UID
 matches the request, and the local player is ready. Before `ready`, disconnect,
@@ -45,8 +45,8 @@ positive terminal failure; if a request may still execute, report
 while the worker progresses. Acknowledging queueing is not completion.
 
 The actor persists the operation ID, lease and plugin epoch before sending the
-command. After a lost response it queries that same operation, never submits a
-new ID. If the epoch changes, the status cannot be established, or a previous
+command. After a lost response it queries the same operation without submitting
+a new ID. If the epoch changes, the status cannot be established, or a previous
 load might still be pending, the actor stops and requires explicit recovery of
 the isolated game instance. An epoch change alone cannot prove an old engine
 load has stopped. Durable actor records must survive an actor restart and must
