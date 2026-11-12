@@ -137,6 +137,32 @@ and collecting several engine fields without yielding is not proof of an atomic
 engine snapshot. Admission stays blocked until a reliable continuity signal or
 equivalent verified guarantee closes this gap, and the real plugin is validated.
 
+The following alternatives were examined but do not establish that guarantee:
+
+- Openplanet 1.29.14's local `OpenplanetNext.json` exposes
+  `CGamePlaygroundScript.MapLoaded` as a boolean. The older
+  [ManiaScript reference](https://maniaplanet.github.io/maniascript-reference/doc_8h_source.html)
+  likewise describes a boolean. Sampling it cannot distinguish an unchanged
+  map from an unload and reload between observations; the older reference is
+  not evidence of current Trackmania behavior.
+- [TMEvents' map tracking](https://github.com/brekekekex001/TMEvents/blob/de65dc4d1c186fb345465fdf6b92ae4ba4da0216/Main.as)
+  compares the current UID during `Update`. A→B→A between updates is invisible.
+  Its event interface does not turn those observations into continuous proof.
+- Openplanet 1.29.14's local `OpenplanetCore.json` describes
+  `RegisterLoadCallback` as notification of loaded nods of a given class; an
+  [example callback](https://github.com/XertroV/tm-birds/blob/4ca2d9a575d6b2ad79de43eb6687391d2e1d9fe7/src/Main.as#L69-L72)
+  describes a nod loaded from a file. We found no guarantee that every map
+  activation loads such a nod, or that the callback is ordered with activation
+  and telemetry. Background loads and reuse also need investigation. A counter
+  of these callbacks therefore cannot attest continuous map identity.
+
+Removing the guard requires evidence for a signal covering every relevant map
+activation, including reuse and A→B→A, with no lost events and an ordering that
+binds it to the sampled telemetry and instance; an equivalent verified guarantee
+would also suffice. Validate the mechanism and its failure behavior in an
+isolated real game, in addition to protocol tests. An observed callback or a
+passing simulated A→B→A test alone does not establish that coverage.
+
 The plugin retains at most 4096 operation IDs for its epoch. Before staging or
 leaving the training map, the actor checks the authenticated status response
 has enough remaining IDs for every evaluation map and the training-map
