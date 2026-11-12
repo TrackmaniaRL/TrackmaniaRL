@@ -405,6 +405,24 @@ class MapSwitchController:
 
         The caller must retain exclusive control between this check and use.
         """
+        self._active_map_status(expected_uid, require_player=require_player)
+
+    def require_capacity(self, expected_uid: str, required: int) -> None:
+        """Check there is room for a whole suite and its training-map restore.
+
+        The caller must retain exclusive ownership through all reserved switches.
+        Missing or malformed capacity is rejected before dispatching a switch.
+        """
+        if type(required) is not int or not 1 <= required <= 4096:
+            raise ValueError("required switch capacity must be an integer in [1, 4096]")
+        response = self._active_map_status(expected_uid, require_player=False)
+        remaining = response.get("remaining_operations")
+        if type(remaining) is not int or not 0 <= remaining <= 4096:
+            raise MapSwitchIndeterminateError("switch endpoint did not report valid capacity")
+        if remaining < required:
+            raise MapSwitchIndeterminateError("insufficient switch capacity for suite and restore")
+
+    def _active_map_status(self, expected_uid: str, *, require_player: bool) -> Mapping[str, Any]:
         self._require_owner()
         if self._read_quarantine() is not None or self.journal.pending() is not None:
             raise MapSwitchIndeterminateError("a previous switch is unresolved")
@@ -427,6 +445,7 @@ class MapSwitchController:
                 operation_id=intent.operation_id,
             )
             self._require_ready(response, intent, instance, lease, require_player=require_player)
+            return response
         except Exception as error:
             if isinstance(error, MapSwitchIndeterminateError):
                 raise

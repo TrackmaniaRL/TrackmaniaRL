@@ -51,7 +51,55 @@ class FakePlugin:
             "state": self.state,
             "map_uid": self.uid,
             "ready": "true",
+            "remaining_operations": 4096 - self.switch_count,
         }
+
+
+@pytest.mark.parametrize("remaining", [None, True, -1, 4097, "3"])
+def test_capacity_rejects_missing_or_invalid_report_without_dispatch(
+    tmp_path: Path, remaining: Any
+) -> None:
+    class CapacityPlugin(FakePlugin):
+        def __call__(self, request: dict[str, str]) -> dict[str, Any]:
+            response = super().__call__(request)
+            if request["command"] == "switch_status":
+                response["remaining_operations"] = remaining
+            return response
+
+    path = tmp_path / "map.gbx"
+    path.write_bytes(b"map")
+    journal = MapSwitchJournal(tmp_path / "switch.sqlite", "instance", create=True)
+    plugin = CapacityPlugin()
+    with MapSwitchController(journal, plugin) as controller:
+        controller.switch(path, "uid")
+        with pytest.raises(MapSwitchIndeterminateError, match="valid capacity"):
+            controller.require_capacity("uid", 3)
+        assert journal.pending() is None
+        assert plugin.switch_count == 1
+
+
+def test_capacity_requires_room_for_suite_and_restore(tmp_path: Path) -> None:
+    class CapacityPlugin(FakePlugin):
+        remaining = 2
+
+        def __call__(self, request: dict[str, str]) -> dict[str, Any]:
+            response = super().__call__(request)
+            if request["command"] == "switch_status":
+                response["remaining_operations"] = self.remaining
+            return response
+
+    path = tmp_path / "map.gbx"
+    path.write_bytes(b"map")
+    journal = MapSwitchJournal(tmp_path / "switch.sqlite", "instance", create=True)
+    plugin = CapacityPlugin()
+    with MapSwitchController(journal, plugin) as controller:
+        controller.switch(path, "uid")
+        with pytest.raises(MapSwitchIndeterminateError, match="insufficient switch capacity"):
+            controller.require_capacity("uid", 3)
+        assert journal.pending() is None
+        assert plugin.switch_count == 1
+        plugin.remaining = 3
+        controller.require_capacity("uid", 3)
 
 
 @pytest.mark.parametrize("replacement", ["in_place", "rename"])

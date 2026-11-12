@@ -125,6 +125,12 @@ against a real game. Windows file locks, source
 hashes, and UID/readiness checks do not themselves prove the game loaded the
 expected bytes.
 
+The plugin retains at most 4096 operation IDs for its epoch. Before staging or
+leaving the training map, the actor checks the authenticated status response
+has enough remaining IDs for every evaluation map and the training-map
+restore. It fails closed if capacity is missing, invalid, or insufficient.
+This relies on exclusive ownership of the plugin instance throughout the suite.
+
 The experimental multi-map actor currently refuses a configured
 `actor_stall_timeout_s`: staging and the game switch do not yet expose enough
 progress information to distinguish a slow valid operation from a hang. This

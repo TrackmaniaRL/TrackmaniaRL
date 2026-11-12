@@ -35,6 +35,9 @@ class _SimulatedMapFactory:
     def __init__(self, events: list[str], actor: ActorRuntime, *, interrupt: bool) -> None:
         self.events, self.actor, self.interrupt = events, actor, interrupt
 
+    def require_switch_capacity(self, training: Any, required: int) -> None:
+        assert required == 3
+
     @contextmanager
     def staged_suite(self, suite: Any, base: Path, assets: str) -> Iterator[Any]:
         assert assets

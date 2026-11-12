@@ -61,7 +61,8 @@ lowercase 32-hex `epoch` before sending `claim`. `claim` carries both epochs;
 `expected_map_uid`; `switch_status` carries both epochs and the operation ID.
 Responses include `status`, `protocol_version`, and `instance_epoch`;
 operation responses also include `epoch`, `operation_id`, `state`, `map_uid`,
-and string-valued `ready`. Errors do not disclose lease or operation tokens.
+string-valued `ready`, and integer `remaining_operations`. Errors do not
+disclose lease or operation tokens.
 The session server reads each JSONL command incrementally and rejects a line
 longer than 16 KiB, including its newline. A client sends one command per
 connection. This bound applies to protocol 2 and protocol 3.
@@ -69,6 +70,8 @@ States
 are `idle`, `accepted`, `leaving`, `loading`, `ready`, and `indeterminate`.
 An exact retry of the current operation returns its status; a conflicting or
 older ID is rejected. The operation history is bounded to 4096 IDs per epoch.
+Before a suite, the actor checks that enough IDs remain for every map and one
+training-map restore. An older plugin without the capacity field is rejected.
 
 Before sending a switch command, a client must durably record the intent and
 its uncertain-dispatch state. After a lost response it must query the same ID;

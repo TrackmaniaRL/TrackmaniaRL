@@ -278,6 +278,12 @@ class OpenPlanetMultiMapEnvironmentFactory:
         self._asset(item)
         training.switch.verify_active_map(item.expected_map_uid, require_player=False)
 
+    def require_switch_capacity(self, training: _TrainingSession, required: int) -> None:
+        """Check available plugin operation IDs before leaving the training map."""
+        if not isinstance(training, _TrainingSession):
+            raise TypeError("multi-map evaluation requires its owning training session")
+        training.switch.require_capacity(training.uid, required)
+
     @staticmethod
     def _quiesce(training: _TrainingSession) -> None:
         training.release_controls()

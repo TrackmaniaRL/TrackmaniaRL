@@ -93,6 +93,9 @@ def _multi_map_trials(plan: EvaluationPlan, suite: Any) -> list[dict[str, Any]]:
     factory = getattr(plan.runtime, "_multi_map_factory", None)
     if factory is None:
         raise RuntimeError("multi-map evaluation requires a verified map-switching factory")
+    # Each evaluation map consumes one operation ID and restoration consumes
+    # one more. Check the entire suite before staging or leaving training.
+    factory.require_switch_capacity(plan.environment, len(suite.maps) + 1)
     summaries: list[dict[str, Any]] = []
     pipelines: list[Any] = []
     restore_required = False

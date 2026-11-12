@@ -67,6 +67,11 @@ class _Factory:
         self.fail_restore = False
         self.fail_verify = False
         self.reuse_training = False
+        self.remaining_switches = 4096
+
+    def require_switch_capacity(self, training: Any, required: int) -> None:
+        if self.remaining_switches < required:
+            raise RuntimeError("insufficient switch capacity")
 
     @contextmanager
     def staged_suite(self, suite: Any, base: Path, assets: str) -> Iterator[Any]:
@@ -201,6 +206,19 @@ def test_unsupported_policy_is_rejected_before_staging_or_switch(
     monkeypatch.setattr(actor_evaluation, "_supports_multimap_policy", lambda _: False)
     with pytest.raises(RuntimeError, match="policy or selector is not supported"):
         actor_evaluation.evaluate(runtime, object(), _Pipeline())  # type: ignore[arg-type]
+    assert events == []
+    assert not runtime.requests
+
+
+def test_insufficient_capacity_rejects_suite_before_staging_or_switch() -> None:
+    events: list[str] = []
+    runtime = _Runtime(events)
+    # Two maps need three operation IDs including restoration.
+    runtime._multi_map_factory.remaining_switches = 2
+
+    with pytest.raises(RuntimeError, match="insufficient switch capacity"):
+        actor_evaluation.evaluate(runtime, object(), _Pipeline())
+
     assert events == []
     assert not runtime.requests
 

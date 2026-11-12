@@ -98,6 +98,7 @@ string SwitchReply(const string &in status, const string &in error = "") {
     response["epoch"] = status == "ok" ? g_switchEpoch : "";
     response["operation_id"] = status == "ok" ? g_switchOperation : "";
     response["state"] = g_switchState;
+    if (status == "ok") response["remaining_operations"] = 4096 - int(g_usedSwitchOperations.Length);
     string uid = ActiveMapUid();
     response["map_uid"] = uid;
     response["ready"] = (uid.Length > 0 && IsReadyToDrive()) ? "true" : "false";
