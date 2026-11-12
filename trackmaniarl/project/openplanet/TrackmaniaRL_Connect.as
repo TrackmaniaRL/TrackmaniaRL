@@ -4,6 +4,7 @@
 
 const uint TELEMETRY_PORT = 9000;
 const uint SESSION_PORT = 9001;
+const uint ATTESTED_TELEMETRY_PORT = 9002;
 const string PROTOCOL_VERSION = "2";
 const uint MAX_COMMAND_BYTES = 16 * 1024;
 
@@ -23,10 +24,12 @@ array<string> g_usedSwitchOperations;
 
 Net::Socket@ g_telemetryServer;
 Net::Socket@ g_sessionServer;
+Net::Socket@ g_attestedTelemetryServer;
 
 void OnDestroy() {
     if (g_telemetryServer !is null) g_telemetryServer.Close();
     if (g_sessionServer !is null) g_sessionServer.Close();
+    if (g_attestedTelemetryServer !is null) g_attestedTelemetryServer.Close();
 }
 
 void AppendBool(MemoryBuffer@ buf, bool value) { buf.Write(value ? 1.0f : 0.0f); }
@@ -222,14 +225,18 @@ string HandleSwitchCommand(Json::Value@ request) {
     return SwitchReply("ok");
 }
 
-string ReadJsonLine(Net::Socket@ sock, uint timeoutMs = 2000) {
+string ReadJsonLine(Net::Socket@ sock, uint timeoutMs = 2000, bool requireSwitchEnabled = false) {
     string request = "";
     uint started = Time::Now;
     while (Time::Now - started < timeoutMs) {
-        if (sock is null || sock.IsHungUp()) return "";
-        if (!sock.IsReady()) { yield(); continue; }
+        if (sock is null || (requireSwitchEnabled && !g_enableMapSwitch)) return "";
         int available = sock.Available();
-        if (available <= 0) { yield(); continue; }
+        if (available <= 0) {
+            // Openplanet can report hangup while unread bytes remain buffered.
+            // Drain those bytes first so a complete half-closed line is valid.
+            if (sock.IsHungUp()) return "";
+            yield(); continue;
+        }
         // ReadLine keeps an internal application buffer. Checking Available()
         // alone does not bound a line assembled across multiple reads. Keep the
         // accumulator here and never read more than the limit plus one byte.
@@ -291,12 +298,110 @@ void SessionServer() {
     }
 }
 
+// Collect one legacy 33-float payload without yielding. This does not claim
+// the game engine's fields form an atomic snapshot.
+bool CollectTelemetry(MemoryBuffer@ buf) {
+    CTrackMania@ app = cast<CTrackMania>(GetApp());
+    CSmArenaClient@ playground = app is null ? null : cast<CSmArenaClient>(app.CurrentPlayground);
+    if (playground is null || playground.GameTerminals.Length == 0) return false;
+    auto terminal = playground.GameTerminals[0];
+    auto player = cast<CSmPlayer>(terminal.GUIPlayer);
+    CSmScriptPlayer@ api = player is null ? null : cast<CSmScriptPlayer>(player.ScriptAPI);
+    CSceneVehicleVisState@ vis = VehicleState::ViewingPlayerState();
+    // Do not combine a spectated vehicle with the local player's telemetry.
+    if (api is null || VehicleState::GetViewingPlayer() !is player || vis is null) return false;
+
+    auto raceData = PlayerState::GetRaceData();
+    float raceTime = RaceTimeMs(api);
+    bool driving = raceTime > 0.0f;
+    bool finished = terminal.UISequence_Current == CGamePlaygroundUIConfig::EUISequence::Finish;
+    buf.Seek(0, 0);
+    AppendFloat(buf, driving ? float(raceData.dPlayerInfo.NumberOfCheckpointsPassed) : 0.0f);
+    AppendFloat(buf, driving ? float(raceData.dPlayerInfo.CurrentLapNumber) : 0.0f);
+    AppendBool(buf, finished);
+    AppendFloat(buf, raceTime);
+    AppendVec3(buf, api.Position); AppendVec3(buf, api.Velocity);
+    AppendVec3(buf, vis.Dir); AppendVec3(buf, vis.Up);
+    AppendFloat(buf, api.Speed); AppendFloat(buf, api.EngineRpm); AppendInt(buf, api.EngineCurGear);
+    AppendFloat(buf, vis.FLSlipCoef); AppendFloat(buf, vis.FRSlipCoef);
+    AppendFloat(buf, vis.RLSlipCoef); AppendFloat(buf, vis.RRSlipCoef);
+    AppendInt(buf, uint(vis.FLGroundContactMaterial)); AppendInt(buf, uint(vis.FRGroundContactMaterial));
+    AppendInt(buf, uint(vis.RLGroundContactMaterial)); AppendInt(buf, uint(vis.RRGroundContactMaterial));
+    AppendInt(buf, api.WheelsSkiddingCount); AppendInt(buf, api.FlyingDuration);
+    AppendFloat(buf, api.AdherenceCoef);
+    AppendFloat(buf, api.InputSteer); AppendFloat(buf, api.InputGasPedal); AppendBool(buf, api.InputIsBraking);
+    buf.Seek(0, 0);
+    return true;
+}
+
+// Request/response telemetry is opt-in and separate from protocol 2. Each
+// request yields one header and one payload, preventing an unsent frame FIFO.
+// Socket writes may still fail; the receiver must reject incomplete records.
+void AttestedTelemetryServer() {
+    while (true) {
+        if (!g_enableMapSwitch) { yield(120); continue; }
+        @g_attestedTelemetryServer = Net::Socket();
+        if (!g_attestedTelemetryServer.Listen("127.0.0.1", ATTESTED_TELEMETRY_PORT)) {
+            yield(120); continue;
+        }
+        Net::Socket@ sock = null;
+        while (g_enableMapSwitch && sock is null) {
+            yield(); @sock = g_attestedTelemetryServer.Accept();
+        }
+        if (sock !is null) {
+            MemoryBuffer@ buf = MemoryBuffer(0);
+            while (g_enableMapSwitch) {
+                string request = ReadJsonLine(sock, 75000, true);
+                Json::Value@ parsed = null;
+                try { @parsed = Json::Parse(request); } catch { }
+                if (parsed is null || parsed.GetType() != Json::Type::Object
+                    || parsed.GetKeys().Length != 2 || !HasString(parsed, "command")
+                    || string(parsed["command"]) != "frame" || !HasString(parsed, "request_id")) {
+                    sock.Close(); break;
+                }
+                string requestId = string(parsed["request_id"]);
+                if (!IsHexToken(requestId)) { sock.Close(); break; }
+                string instance = g_switchInstanceEpoch;
+                string operation = g_switchOperation;
+                string uid = ActiveMapUid();
+                if (instance.Length == 0 || operation.Length == 0 || uid.Length == 0
+                    || g_switchState != "ready" || uid != g_switchUid || !IsReadyToDrive()) {
+                    // Do not hide a map or session transition inside a live
+                    // stream: the receiver must establish a new connection.
+                    sock.Close(); break;
+                }
+                if (!CollectTelemetry(buf)) { sock.Close(); break; }
+                // Do not emit a pair if our own switch identity changed while
+                // collecting it. This is not a byte-level attestation of a map.
+                if (!g_enableMapSwitch || g_switchState != "ready" || g_switchInstanceEpoch != instance
+                    || g_switchOperation != operation || g_switchUid != uid || ActiveMapUid() != uid
+                    || !IsReadyToDrive()) {
+                    sock.Close(); break;
+                }
+                auto header = Json::Object();
+                header["protocol_version"] = SWITCH_PROTOCOL_VERSION;
+                header["request_id"] = requestId;
+                header["instance_epoch"] = instance;
+                header["operation_id"] = operation;
+                header["map_uid"] = uid;
+                header["state"] = "ready";
+                header["payload_bytes"] = 132;
+                if (!sock.WriteRaw(Json::Write(header) + "\n") || !sock.Write(buf)) break;
+                yield();
+            }
+            sock.Close();
+        }
+        g_attestedTelemetryServer.Close();
+    }
+}
+
 void Main() {
     // A new random identity is required on every plugin load. A client must
     // quarantine any unresolved operation on a changed or missing identity.
     try { g_switchInstanceEpoch = Crypto::RandomBase64(32, true); }
     catch { g_switchInstanceEpoch = ""; }
     startnew(SessionServer);
+    startnew(AttestedTelemetryServer);
     while (true) {
         @g_telemetryServer = Net::Socket();
         if (!g_telemetryServer.Listen("127.0.0.1", TELEMETRY_PORT)) { yield(120); continue; }
@@ -305,40 +410,7 @@ void Main() {
         MemoryBuffer@ buf = MemoryBuffer(0);
         while (!sock.IsHungUp()) {
             if (!sock.IsReady()) { yield(); continue; }
-            CTrackMania@ app = cast<CTrackMania>(GetApp());
-            CSmArenaClient@ playground = app is null ? null : cast<CSmArenaClient>(app.CurrentPlayground);
-            if (playground is null || playground.GameTerminals.Length == 0) { yield(); continue; }
-            auto terminal = playground.GameTerminals[0];
-            auto player = cast<CSmPlayer>(terminal.GUIPlayer);
-            CSmScriptPlayer@ api = player is null ? null : cast<CSmScriptPlayer>(player.ScriptAPI);
-            CSceneVehicleVisState@ vis = VehicleState::ViewingPlayerState();
-            // A valid viewing state can belong to a spectated player, or exist
-            // while GetViewingPlayer is null. Never mix that vehicle's state
-            // with the local player's telemetry or claim local readiness.
-            if (api is null || VehicleState::GetViewingPlayer() !is player || vis is null) {
-                yield(); continue;
-            }
-
-            auto raceData = PlayerState::GetRaceData();
-            float raceTime = RaceTimeMs(api);
-            bool driving = raceTime > 0.0f;
-            bool finished = terminal.UISequence_Current == CGamePlaygroundUIConfig::EUISequence::Finish;
-            buf.Seek(0, 0);
-            AppendFloat(buf, driving ? float(raceData.dPlayerInfo.NumberOfCheckpointsPassed) : 0.0f);
-            AppendFloat(buf, driving ? float(raceData.dPlayerInfo.CurrentLapNumber) : 0.0f);
-            AppendBool(buf, finished);
-            AppendFloat(buf, raceTime);
-            AppendVec3(buf, api.Position); AppendVec3(buf, api.Velocity);
-            AppendVec3(buf, vis.Dir); AppendVec3(buf, vis.Up);
-            AppendFloat(buf, api.Speed); AppendFloat(buf, api.EngineRpm); AppendInt(buf, api.EngineCurGear);
-            AppendFloat(buf, vis.FLSlipCoef); AppendFloat(buf, vis.FRSlipCoef);
-            AppendFloat(buf, vis.RLSlipCoef); AppendFloat(buf, vis.RRSlipCoef);
-            AppendInt(buf, uint(vis.FLGroundContactMaterial)); AppendInt(buf, uint(vis.FRGroundContactMaterial));
-            AppendInt(buf, uint(vis.RLGroundContactMaterial)); AppendInt(buf, uint(vis.RRGroundContactMaterial));
-            AppendInt(buf, api.WheelsSkiddingCount); AppendInt(buf, api.FlyingDuration);
-            AppendFloat(buf, api.AdherenceCoef);
-            AppendFloat(buf, api.InputSteer); AppendFloat(buf, api.InputGasPedal); AppendBool(buf, api.InputIsBraking);
-            buf.Seek(0, 0);
+            if (!CollectTelemetry(buf)) { yield(); continue; }
             if (!sock.Write(buf)) break;
             yield();
         }

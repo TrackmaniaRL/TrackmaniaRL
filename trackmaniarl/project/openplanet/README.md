@@ -68,6 +68,18 @@ longer than 16 KiB, including its newline. A client sends one command per
 connection. This bound applies to protocol 2 and protocol 3.
 States
 are `idle`, `accepted`, `leaving`, `loading`, `ready`, and `indeterminate`.
+When experimental map switching is enabled, the separate TCP listener on
+`127.0.0.1:9002` accepts one JSONL request at a time with `command: "frame"`
+and a fresh lowercase 32-hex `request_id`. It returns a JSONL header followed
+by exactly 132 bytes containing the same 33 float32 values as port 9000. The
+header identifies `protocol_version`, `request_id`, `instance_epoch`,
+`operation_id`, `map_uid`, `state` and `payload_bytes`. Clients must read the
+complete pair before requesting another frame. The script checks the switch
+identity and local player before
+and after collecting each payload without yielding between those checks. This
+does not prove the game's fields are an atomic snapshot, identify loaded map
+bytes, or authenticate a local peer. A receiver must reject incomplete frames
+and identity mismatches. Port 9000 retains the existing protocol-2 format.
 An exact retry of the current operation returns its status; a conflicting or
 older ID is rejected. The operation history is bounded to 4096 IDs per epoch.
 Before a suite, the actor checks that enough IDs remain for every map and one
