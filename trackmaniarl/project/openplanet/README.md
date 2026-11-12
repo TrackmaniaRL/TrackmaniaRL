@@ -147,8 +147,21 @@ the map bytes or proof against other plugins or manual game actions. A timeout,
 plugin reload, lost or changed instance epoch, unexpected status or unknown operation requires
 durable quarantine. An indeterminate status can report the plugin phase at the
 first failure (`accepted`, `leaving`, `loading`, or `ready`) for diagnosis; it
-does not prove whether an asynchronous game action has completed. A reload
-cannot prove that the game has stopped processing
+does not prove whether an asynchronous game action has completed. A local
+diagnostic candidate additionally reports a timeout or caught exception and a
+best-effort snapshot of title API readiness, menu-stack state, empty UID, and
+editor/playground flags. Values are `true`, `false`, or `unavailable`; no map
+UID, path or exception text is included in these optional diagnostics. The
+snapshot is taken after quarantine and is not an atomic record of the preceding
+gate evaluations. A compatible Python controller exposes recognized fields on
+`MapSwitchIndeterminateError.leaving_reason` and `.leaving_observations`; old
+plugins without these optional fields remain supported. An immediately
+indeterminate dispatch response may lack the snapshot; a later status query
+for the same operation can retrieve it only if existing guard rules permit that
+query. Never bypass the guard or issue a fresh operation to obtain diagnostics.
+The candidate has not been compiled or validated in-game; reading engine
+objects during transitions may fail outside the script's exception handling.
+A reload cannot prove that the game has stopped processing
 an earlier request. A client with an unresolved operation must not reclaim the
 game after a reload, even if the plugin would accept a fresh claim. There is no
 supported automated way to prove quiescence and release or rebind the fixed

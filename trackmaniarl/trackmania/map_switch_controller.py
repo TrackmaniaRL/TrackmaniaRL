@@ -28,6 +28,47 @@ if TYPE_CHECKING:
 class MapSwitchIndeterminateError(RuntimeError):
     """The game may still execute a map load; do not resume collection."""
 
+    def __init__(
+        self,
+        *args: object,
+        leaving_reason: str | None = None,
+        leaving_observations: Mapping[str, str] | None = None,
+    ) -> None:
+        super().__init__(*args)
+        self.leaving_reason = leaving_reason
+        self.leaving_observations = dict(leaving_observations or {})
+
+
+_LEAVING_OBSERVATION_FIELDS = (
+    "title_api_present",
+    "title_api_ready",
+    "menu_stack_nonempty",
+    "menu_at_index_zero",
+    "map_uid_empty",
+    "playground_present",
+    "editor_present",
+    "editor_validating",
+    "editor_testing",
+    "editor_playground",
+)
+
+
+def _leaving_diagnostics(response: Mapping[str, Any]) -> tuple[str | None, dict[str, str]]:
+    """Keep only bounded known values; old or malformed diagnostics are optional."""
+    candidate = response.get("failure_reason")
+    reason = (
+        candidate if isinstance(candidate, str) and candidate in ("timeout", "exception") else None
+    )
+    raw = response.get("leaving_observations")
+    if not isinstance(raw, Mapping):
+        return reason, {}
+    observations = {}
+    for name in _LEAVING_OBSERVATION_FIELDS:
+        value = raw.get(name)
+        if isinstance(value, str) and value in ("true", "false", "unavailable"):
+            observations[name] = value
+    return reason, observations
+
 
 # Connect gives both the return-to-menu and map-load phases up to 30 seconds.
 # Allow both phases to complete, plus time for status requests and scheduling.
@@ -630,8 +671,13 @@ class MapSwitchController:
             if state == "indeterminate":
                 phase = response.get("failure_phase")
                 if phase in ("accepted", "leaving", "loading", "ready"):
+                    reason, observations = (
+                        _leaving_diagnostics(response) if phase == "leaving" else (None, {})
+                    )
                     raise MapSwitchIndeterminateError(
-                        f"switch did not reach a verified terminal state (phase: {phase})"
+                        f"switch did not reach a verified terminal state (phase: {phase})",
+                        leaving_reason=reason,
+                        leaving_observations=observations,
                     )
                 raise MapSwitchIndeterminateError("switch did not reach a verified terminal state")
             if state not in ("accepted", "leaving", "loading") or monotonic() >= deadline:

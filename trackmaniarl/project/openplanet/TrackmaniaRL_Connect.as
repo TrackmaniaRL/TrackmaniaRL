@@ -21,6 +21,17 @@ string g_switchPath = "";
 string g_switchUid = "";
 string g_switchState = "idle";
 string g_switchFailurePhase = "";
+string g_leavingFailureReason = "";
+string g_leaveTitlePresent = "unavailable";
+string g_leaveTitleReady = "unavailable";
+string g_leaveStackNonempty = "unavailable";
+string g_leaveMenuZero = "unavailable";
+string g_leaveMapUidEmpty = "unavailable";
+string g_leavePlaygroundPresent = "unavailable";
+string g_leaveEditorPresent = "unavailable";
+string g_leaveEditorValidating = "unavailable";
+string g_leaveEditorTesting = "unavailable";
+string g_leaveEditorPlayground = "unavailable";
 array<string> g_usedSwitchOperations;
 
 Net::Socket@ g_telemetryServer;
@@ -100,7 +111,52 @@ void MarkSwitchIndeterminate() {
     g_switchState = "indeterminate";
 }
 
-string SwitchReply(const string &in status, const string &in error = "") {
+string ObservedBool(bool value) { return value ? "true" : "false"; }
+
+// A best-effort snapshot taken after a leaving failure, not an atomic record
+// of every gate evaluation. Individual unavailable fields stay unavailable.
+void RecordLeavingFailure(const string &in reason) {
+    g_leavingFailureReason = reason;
+    CTrackMania@ app = null;
+    try { @app = cast<CTrackMania>(GetApp()); } catch { }
+    if (app is null) return;
+    try {
+        g_leaveTitlePresent = ObservedBool(app.ManiaTitleControlScriptAPI !is null);
+    } catch { }
+    try {
+        if (app.ManiaTitleControlScriptAPI !is null)
+            g_leaveTitleReady = ObservedBool(app.ManiaTitleControlScriptAPI.IsReady);
+    } catch { }
+    try {
+        if (app.Switcher !is null) {
+            g_leaveStackNonempty = ObservedBool(app.Switcher.ModuleStack.Length > 0);
+            g_leaveMenuZero = ObservedBool(app.Switcher.ModuleStack.Length > 0
+                && cast<CTrackManiaMenus>(app.Switcher.ModuleStack[0]) !is null);
+        }
+    } catch { }
+    try { g_leaveMapUidEmpty = ObservedBool(ActiveMapUid().Length == 0); } catch { }
+    try { g_leavePlaygroundPresent = ObservedBool(app.CurrentPlayground !is null); } catch { }
+    try { g_leaveEditorPresent = ObservedBool(app.Editor !is null); } catch { }
+    CGameCtnEditorFree@ editor = null;
+    try { @editor = cast<CGameCtnEditorFree>(app.Editor); } catch { }
+    if (editor is null) return;
+    try {
+        if (editor.PluginMapType !is null)
+            g_leaveEditorValidating = ObservedBool(editor.PluginMapType.IsValidating);
+    } catch { }
+    try {
+        if (editor.PluginMapType !is null)
+            g_leaveEditorTesting = ObservedBool(editor.PluginMapType.IsTesting);
+    } catch { }
+    try {
+        if (editor.PluginMapType !is null)
+            g_leaveEditorPlayground = ObservedBool(editor.PluginMapType.IsSwitchedToPlayground);
+    } catch { }
+}
+
+string SwitchReply(
+    const string &in status, const string &in error = "", bool includeLeavingDiagnostics = false
+) {
     string uid = ActiveMapUid();
     // A successful status or claim also observes the active UID. Retain a
     // mismatch for this operation even if the expected map later returns.
@@ -116,6 +172,23 @@ string SwitchReply(const string &in status, const string &in error = "") {
     response["state"] = g_switchState;
     if (status == "ok" && g_switchState == "indeterminate")
         response["failure_phase"] = g_switchFailurePhase;
+    if (status == "ok" && g_switchState == "indeterminate"
+        && includeLeavingDiagnostics && g_switchFailurePhase == "leaving"
+        && g_leavingFailureReason.Length > 0) {
+        response["failure_reason"] = g_leavingFailureReason;
+        auto observations = Json::Object();
+        observations["title_api_present"] = g_leaveTitlePresent;
+        observations["title_api_ready"] = g_leaveTitleReady;
+        observations["menu_stack_nonempty"] = g_leaveStackNonempty;
+        observations["menu_at_index_zero"] = g_leaveMenuZero;
+        observations["map_uid_empty"] = g_leaveMapUidEmpty;
+        observations["playground_present"] = g_leavePlaygroundPresent;
+        observations["editor_present"] = g_leaveEditorPresent;
+        observations["editor_validating"] = g_leaveEditorValidating;
+        observations["editor_testing"] = g_leaveEditorTesting;
+        observations["editor_playground"] = g_leaveEditorPlayground;
+        response["leaving_observations"] = observations;
+    }
     if (status == "ok") response["remaining_operations"] = 4096 - int(g_usedSwitchOperations.Length);
     response["map_uid"] = uid;
     response["ready"] = (uid.Length > 0 && IsReadyToDrive(true)) ? "true" : "false";
@@ -142,7 +215,9 @@ void SwitchMapWorker() {
             yield();
         }
         if (Time::Now - started >= SWITCH_TIMEOUT_MS) {
-            MarkSwitchIndeterminate(); return;
+            MarkSwitchIndeterminate();
+            try { RecordLeavingFailure("timeout"); } catch { }
+            return;
         }
         g_switchState = "loading";
         app.ManiaTitleControlScriptAPI.PlayMap(g_switchPath, "", "");
@@ -166,6 +241,10 @@ void SwitchMapWorker() {
         }
     } catch {
         // Do not reissue a request whose side effects may already be in flight.
+        bool failedLeaving = g_switchState == "leaving";
+        MarkSwitchIndeterminate();
+        if (failedLeaving) { try { RecordLeavingFailure("exception"); } catch { } }
+        return;
     }
     MarkSwitchIndeterminate();
 }
@@ -204,7 +283,7 @@ string HandleSwitchCommand(Json::Value@ request) {
     if (command == "switch_status") {
         if (request.GetKeys().Length != 5) return SwitchReply("error", "invalid_request");
         if (operation != g_switchOperation) return SwitchReply("error", "unknown_operation");
-        return SwitchReply("ok");
+        return SwitchReply("ok", "", true);
     }
     if (command != "switch_map" || request.GetKeys().Length != 7
         || !HasString(request, "map_path") || !HasString(request, "expected_map_uid"))
@@ -234,6 +313,13 @@ string HandleSwitchCommand(Json::Value@ request) {
     g_usedSwitchOperations.InsertLast(operation);
     g_switchOperation = operation; g_switchPath = path; g_switchUid = uid;
     g_switchFailurePhase = "";
+    g_leavingFailureReason = "";
+    g_leaveTitlePresent = "unavailable"; g_leaveStackNonempty = "unavailable";
+    g_leaveTitleReady = "unavailable"; g_leaveMenuZero = "unavailable";
+    g_leaveMapUidEmpty = "unavailable"; g_leavePlaygroundPresent = "unavailable";
+    g_leaveEditorPresent = "unavailable";
+    g_leaveEditorValidating = "unavailable"; g_leaveEditorTesting = "unavailable";
+    g_leaveEditorPlayground = "unavailable";
     g_switchState = "accepted";
     try { startnew(SwitchMapWorker); }
     catch { MarkSwitchIndeterminate(); }

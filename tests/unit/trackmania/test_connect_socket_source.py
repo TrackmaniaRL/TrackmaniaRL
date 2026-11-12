@@ -108,6 +108,51 @@ def test_indeterminate_reply_preserves_first_failure_phase() -> None:
     assert 'response["failure_phase"] = g_switchFailurePhase;' in reply
 
 
+def test_leaving_snapshot_is_bounded_after_quarantine_and_only_on_valid_status() -> None:
+    source = (
+        Path(__file__).resolve().parents[3]
+        / "trackmaniarl/project/openplanet/TrackmaniaRL_Connect.as"
+    ).read_text(encoding="utf-8")
+    capture = source.split("void RecordLeavingFailure(", 1)[1].split("string SwitchReply(", 1)[0]
+    assert "yield(" not in capture
+    assert "PlayMap(" not in capture
+    assert "BackToMainMenu(" not in capture
+    assert "getExceptionInfo" not in capture
+    assert capture.count("catch { }") >= 8
+    reply = source.split("string SwitchReply(", 1)[1].split("void SwitchMapWorker()", 1)[0]
+    assert 'includeLeavingDiagnostics && g_switchFailurePhase == "leaving"' in reply
+    assert 'response["leaving_observations"] = observations;' in reply
+    worker = source.split("void SwitchMapWorker()", 1)[1].split("string HandleSwitchCommand(", 1)[0]
+    assert (
+        "if (app.ManiaTitleControlScriptAPI.IsReady && app.Switcher.ModuleStack.Length > 0\n"
+        "                && cast<CTrackManiaMenus>(app.Switcher.ModuleStack[0]) !is null\n"
+        "                && ActiveMapUid().Length == 0) break;"
+    ) in worker
+    timeout = worker.split("if (Time::Now - started >= SWITCH_TIMEOUT_MS)", 1)[1]
+    assert timeout.index("MarkSwitchIndeterminate();") < timeout.index(
+        'RecordLeavingFailure("timeout")'
+    )
+    assert 'if (failedLeaving) { try { RecordLeavingFailure("exception"); } catch { } }' in worker
+    exception = worker.split("// Do not reissue a request", 1)[1]
+    assert exception.index("MarkSwitchIndeterminate();") < exception.index(
+        'RecordLeavingFailure("exception")'
+    )
+    commands = source.split("string HandleSwitchCommand(", 1)[1].split(
+        "bool BoundTelemetryIdentity(", 1
+    )[0]
+    status = commands.split('if (command == "switch_status")', 1)[1].split("}", 1)[0]
+    assert status.index("operation != g_switchOperation") < status.index(
+        'SwitchReply("ok", "", true)'
+    )
+    assert commands.count('SwitchReply("ok", "", true)') == 1
+    assert commands.index(
+        'return SwitchReply("error", "instance_epoch_mismatch")'
+    ) < commands.index('if (command == "switch_status")')
+    assert commands.index("if (g_switchEpoch.Length == 0 || g_switchEpoch != epoch)") < (
+        commands.index('if (command == "switch_status")')
+    )
+
+
 def test_observed_map_mismatch_persists_across_telemetry_reconnects() -> None:
     source = (
         Path(__file__).resolve().parents[3]

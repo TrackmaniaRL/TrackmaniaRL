@@ -55,6 +55,19 @@ class FakePlugin:
         }
 
 
+def test_indeterminate_error_keeps_runtime_error_construction_and_pickle() -> None:
+    import pickle
+
+    assert MapSwitchIndeterminateError().args == ()
+    error = MapSwitchIndeterminateError(
+        "one", "two", leaving_reason="timeout", leaving_observations={"map_uid_empty": "true"}
+    )
+    restored = pickle.loads(pickle.dumps(error))
+    assert restored.args == ("one", "two")
+    assert restored.leaving_reason == "timeout"
+    assert restored.leaving_observations == {"map_uid_empty": "true"}
+
+
 @pytest.mark.parametrize(
     ("phase", "expected"),
     [
@@ -91,6 +104,159 @@ def test_indeterminate_phase_is_reported_without_clearing_quarantine(
             assert journal.pending() is not None
             assert controller._quarantine_path.exists()
     assert plugin.switch_count == 1
+
+
+def test_leaving_diagnostics_are_bounded_and_keep_same_operation_quarantined(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "map.gbx"
+    path.write_bytes(b"map")
+    plugin = FakePlugin()
+    journal = MapSwitchJournal(tmp_path / "switch.sqlite", "instance", create=True)
+    status_operations: list[str] = []
+
+    def exchange(request: dict[str, str]) -> dict[str, Any]:
+        response = plugin(request)
+        if request["command"] == "switch_map":
+            response["state"] = "accepted"
+        elif request["command"] == "switch_status":
+            status_operations.append(request["operation_id"])
+            response.update(
+                state="indeterminate",
+                failure_phase="leaving",
+                failure_reason="timeout",
+                leaving_observations={
+                    "title_api_ready": "false",
+                    "menu_at_index_zero": "unavailable",
+                    "map_uid_empty": "true",
+                    "editor_testing": "path-or-secret-must-not-escape",
+                    "unknown_field": "private-path",
+                },
+            )
+        return response
+
+    with MapSwitchController(journal, exchange) as controller:
+        for operation in (lambda: controller.switch(path, "uid"), controller.recover):
+            with pytest.raises(MapSwitchIndeterminateError, match="phase: leaving") as caught:
+                operation()
+            assert caught.value.leaving_reason == "timeout"
+            assert caught.value.leaving_observations == {
+                "title_api_ready": "false",
+                "menu_at_index_zero": "unavailable",
+                "map_uid_empty": "true",
+            }
+            assert "private" not in str(caught.value)
+            assert journal.pending() is not None
+            assert controller._quarantine_path.exists()
+        pending = journal.pending()
+        assert pending is not None
+    assert plugin.switch_count == 1
+    assert status_operations == [pending[0].operation_id] * 2
+
+
+def test_wrong_epoch_cannot_supply_leaving_diagnostics(tmp_path: Path) -> None:
+    path = tmp_path / "map.gbx"
+    path.write_bytes(b"map")
+    plugin = FakePlugin()
+    journal = MapSwitchJournal(tmp_path / "switch.sqlite", "instance", create=True)
+
+    def exchange(request: dict[str, str]) -> dict[str, Any]:
+        response = plugin(request)
+        if request["command"] == "switch_map":
+            response["state"] = "accepted"
+        elif request["command"] == "switch_status":
+            response.update(
+                epoch="wrong",
+                state="indeterminate",
+                failure_phase="leaving",
+                failure_reason="timeout",
+                leaving_observations={"title_api_ready": "true"},
+            )
+        return response
+
+    with MapSwitchController(journal, exchange) as controller:
+        with pytest.raises(MapSwitchIndeterminateError, match="epoch differs") as caught:
+            controller.switch(path, "uid")
+        assert caught.value.leaving_reason is None
+        assert caught.value.leaving_observations == {}
+        assert journal.pending() is not None
+        assert controller._quarantine_path.exists()
+    assert plugin.switch_count == 1
+
+
+def test_initial_indeterminate_can_obtain_optional_snapshot_only_on_same_id_recovery(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "map.gbx"
+    path.write_bytes(b"map")
+    plugin = FakePlugin()
+    journal = MapSwitchJournal(tmp_path / "switch.sqlite", "instance", create=True)
+    status_operations: list[str] = []
+
+    def exchange(request: dict[str, str]) -> dict[str, Any]:
+        response = plugin(request)
+        if request["command"] in {"switch_map", "switch_status"}:
+            response.update(state="indeterminate", failure_phase="leaving")
+        if request["command"] == "switch_status":
+            status_operations.append(request["operation_id"])
+            response.update(
+                failure_reason="exception",
+                leaving_observations={"title_api_ready": "unavailable"},
+            )
+        return response
+
+    with MapSwitchController(journal, exchange) as controller:
+        with pytest.raises(MapSwitchIndeterminateError) as first:
+            controller.switch(path, "uid")
+        assert first.value.leaving_reason is None
+        assert first.value.leaving_observations == {}
+        pending = journal.pending()
+        assert pending is not None
+        with pytest.raises(MapSwitchIndeterminateError) as retried:
+            controller.recover()
+        assert retried.value.leaving_reason == "exception"
+        assert retried.value.leaving_observations == {"title_api_ready": "unavailable"}
+        assert journal.pending() == pending
+        assert controller._quarantine_path.exists()
+    assert plugin.switch_count == 1
+    assert status_operations == [pending[0].operation_id]
+
+
+@pytest.mark.parametrize(
+    ("phase", "reason", "raw"),
+    [
+        ("leaving", "invalid secret", {"title_api_ready": "private path"}),
+        ("leaving", ["timeout"], ["not-an-object"]),
+        ("leaving", None, None),
+        ("loading", "timeout", {"title_api_ready": "true"}),
+    ],
+)
+def test_optional_or_malformed_leaving_diagnostics_do_not_change_failure(  # noqa: PLR0913
+    tmp_path: Path, phase: str, reason: object, raw: object
+) -> None:
+    path = tmp_path / "map.gbx"
+    path.write_bytes(b"map")
+    journal = MapSwitchJournal(tmp_path / "switch.sqlite", "instance", create=True)
+    plugin = FakePlugin()
+
+    def exchange(request: dict[str, str]) -> dict[str, Any]:
+        response = plugin(request)
+        if request["command"] == "switch_map":
+            response.update(
+                state="indeterminate",
+                failure_phase=phase,
+                failure_reason=reason,
+                leaving_observations=raw,
+            )
+        return response
+
+    with MapSwitchController(journal, exchange) as controller:
+        with pytest.raises(MapSwitchIndeterminateError, match=f"phase: {phase}") as caught:
+            controller.switch(path, "uid")
+        assert caught.value.leaving_reason is None
+        assert caught.value.leaving_observations == {}
+        assert journal.pending() is not None
+        assert controller._quarantine_path.exists()
 
 
 def test_telemetry_guard_blocks_restart_even_when_plugin_reports_ready(tmp_path: Path) -> None:
