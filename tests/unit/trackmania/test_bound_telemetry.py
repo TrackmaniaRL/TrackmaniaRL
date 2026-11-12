@@ -39,6 +39,64 @@ def _header(**changes: Any) -> bytes:
 _PAYLOAD = struct.pack("<33f", *([0.0] * 33))
 
 
+@pytest.mark.parametrize(("keep_listener", "expect_disconnect"), [(False, True), (True, False)])
+def test_reset_reconnect_with_pending_accept_backlog(
+    monkeypatch: pytest.MonkeyPatch, *, keep_listener: bool, expect_disconnect: bool
+) -> None:
+    """Model listener lifetime without binding a port or claiming plugin execution."""
+    requests: list[dict[str, Any]] = []
+    connections: list[FakeSocket] = []
+
+    class FakeSocket:
+        def __init__(self) -> None:
+            self.closed = False
+            self.output = b""
+
+        def settimeout(self, _timeout: float) -> None:
+            pass
+
+        def sendall(self, data: bytes) -> None:
+            request = json.loads(data)
+            requests.append(request)
+            if len(connections) == 2:
+                # The second connect succeeded while the server had not yet
+                # observed the first connection's FIN. Closing that listener
+                # rejects the queued connection; retaining it accepts the next.
+                assert connections[0].closed
+                if not keep_listener:
+                    raise ConnectionResetError("old listener closed with pending accept")
+            self.output = _header(request_id=request["request_id"]) + _PAYLOAD
+
+        def recv(self, limit: int) -> bytes:
+            result, self.output = self.output[:limit], self.output[limit:]
+            return result
+
+        def close(self) -> None:
+            self.closed = True
+
+    def connect(_address: Any, *, timeout: float) -> FakeSocket:
+        assert timeout > 0
+        connection = FakeSocket()
+        connections.append(connection)
+        return connection
+
+    monkeypatch.setattr(socket, "create_connection", connect)
+    client = BoundOpenPlanetClient(OpenPlanetClientConfig(port=1, timeout_s=1), _IDENTITY)
+    try:
+        client.read()
+        client.begin_reset()
+        if expect_disconnect:
+            with pytest.raises(BoundTelemetryError):
+                client.read()
+        else:
+            client.read()
+        assert len(connections) == 2
+        assert [request["wait_ready"] for request in requests] == [False, True]
+        assert requests[0]["request_id"] != requests[1]["request_id"]
+    finally:
+        client.close()
+
+
 def _read_request(connection: socket.socket) -> tuple[str, bool]:
     data = bytearray()
     while not data.endswith(b"\n"):
