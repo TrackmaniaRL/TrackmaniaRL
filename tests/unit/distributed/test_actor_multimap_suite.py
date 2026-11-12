@@ -257,6 +257,60 @@ def test_stopped_suite_restores_and_never_spools_partial_results() -> None:
     assert not runtime.requests
 
 
+def test_stop_on_last_completed_trial_restores_without_spooling() -> None:
+    events: list[str] = []
+    runtime = _Runtime(events)
+    completed = 0
+
+    def evaluate_episode(request: Any) -> dict[str, Any]:
+        nonlocal completed
+        completed += 1
+        if completed == 4:
+            runtime.stop.set()
+        return {"termination": "finished", "policy_version": request.version}
+
+    runtime._evaluate_episode = evaluate_episode  # type: ignore[method-assign]
+    actor_evaluation.evaluate(runtime, object(), _Pipeline())  # type: ignore[arg-type]
+    assert completed == 4
+    assert events[-2:] == ["restore", "unstage"]
+    assert not runtime.requests
+
+
+def test_stop_during_restore_does_not_spool_completed_suite() -> None:
+    events: list[str] = []
+    runtime = _Runtime(events)
+    restore = runtime._multi_map_factory.restore_training
+
+    def stop_during_restore(training: Any) -> None:
+        runtime.stop.set()
+        restore(training)
+
+    runtime._multi_map_factory.restore_training = stop_during_restore  # type: ignore[method-assign]
+    actor_evaluation.evaluate(runtime, object(), _Pipeline())  # type: ignore[arg-type]
+    assert events[-2:] == ["restore", "unstage"]
+    assert not runtime.requests
+
+
+def test_stop_after_restore_before_spool_leaves_assignment_pending(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    runtime = _Runtime(events)
+    checks = 0
+
+    def verify(_runtime: Any) -> None:
+        nonlocal checks
+        checks += 1
+        if checks == 2:
+            runtime.stop.set()
+
+    monkeypatch.setattr(actor_evaluation, "_verify_assigned_assets", verify)
+    actor_evaluation.evaluate(runtime, object(), _Pipeline())  # type: ignore[arg-type]
+    assert checks == 2
+    assert events[-2:] == ["restore", "unstage"]
+    assert not runtime.requests
+
+
 def test_stop_during_unavailable_reset_aborts_without_restore() -> None:
     events: list[str] = []
     runtime = _Runtime(events)

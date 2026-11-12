@@ -46,8 +46,11 @@ class EvaluationPlan:
 
 def evaluate(runtime: CollectionRuntime, environment: Any, pipeline: Any) -> None:
     suite = runtime.spec.evaluation
+    multi_map = suite is not None and len(getattr(suite, "maps", ())) > 1
     trials = 1 if suite is None else suite.trials_per_map
     policy, version = runtime._evaluation_policy()
+    if multi_map and runtime.stop.is_set():
+        return
     _verify_assigned_assets(runtime)
     plan = EvaluationPlan(runtime, environment, pipeline, policy, version)
     if suite is not None and len(getattr(suite, "maps", ())) > 1:
@@ -84,6 +87,8 @@ def evaluate(runtime: CollectionRuntime, environment: Any, pipeline: Any) -> Non
                 except Exception as cleanup_error:
                     error.add_note(f"Failed to quarantine evaluation: {cleanup_error!r}")
         raise
+    if multi_map and runtime.stop.is_set():
+        return
     _verify_assigned_assets(runtime)
     assignment_id = getattr(runtime, "_active_evaluation_assignment_id", "")
     if assignment_id:
@@ -103,7 +108,9 @@ def evaluate(runtime: CollectionRuntime, environment: Any, pipeline: Any) -> Non
     )
     if not snapshot:
         raise RuntimeError("identified evaluation is missing its initial policy snapshot")
-    runtime._spool(SpoolRequest([], [], version, summaries, snapshot))
+    if multi_map and runtime.stop.is_set():
+        return
+    runtime._spool(SpoolRequest([], [], version, summaries, snapshot, cancel_on_stop=multi_map))
 
 
 def _multi_map_trials(plan: EvaluationPlan, suite: Any) -> list[dict[str, Any]]:

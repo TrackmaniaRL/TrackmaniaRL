@@ -263,6 +263,13 @@ If restoration itself fails, likewise stop without publishing a successful
 suite or resuming collection. A retry must use the same assigned policy and
 must not count partial trials twice.
 
+For an experimental multi-map assignment, a stop observed after restoration or
+while waiting for spool capacity leaves the assignment pending. The last stop
+check occurs immediately before entering the durable spool write. A stop racing
+that write may still produce a complete result: the stop event and filesystem
+commit are not atomic with each other. Training rollout shutdown behavior is
+unchanged.
+
 ## Verification gates
 
 - Protocol tests: parsed requests, invalid fields, permission refusal, duplicate
