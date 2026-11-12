@@ -225,11 +225,24 @@ string HandleSwitchCommand(Json::Value@ request) {
     return SwitchReply("ok");
 }
 
-string ReadJsonLine(Net::Socket@ sock, uint timeoutMs = 2000, bool requireSwitchEnabled = false) {
+bool BoundTelemetryCurrent(
+    const string &in instance, const string &in operation, const string &in uid
+) {
+    return g_enableMapSwitch && instance.Length > 0 && operation.Length > 0 && uid.Length > 0
+        && g_switchState == "ready" && g_switchInstanceEpoch == instance
+        && g_switchOperation == operation && g_switchUid == uid && ActiveMapUid() == uid
+        && IsReadyToDrive();
+}
+
+string ReadJsonLine(
+    Net::Socket@ sock, uint timeoutMs = 2000, bool requireSwitchEnabled = false,
+    const string &in instance = "", const string &in operation = "", const string &in uid = ""
+) {
     string request = "";
     uint started = Time::Now;
     while (Time::Now - started < timeoutMs) {
-        if (sock is null || (requireSwitchEnabled && !g_enableMapSwitch)) return "";
+        if (sock is null || (requireSwitchEnabled && !BoundTelemetryCurrent(instance, operation, uid)))
+            return "";
         int available = sock.Available();
         if (available <= 0) {
             // Openplanet can report hangup while unread bytes remain buffered.
@@ -350,8 +363,15 @@ void AttestedTelemetryServer() {
         }
         if (sock !is null) {
             MemoryBuffer@ buf = MemoryBuffer(0);
+            // A connection belongs to exactly one switch operation, including
+            // while waiting between frame requests.
+            string streamInstance = g_switchInstanceEpoch;
+            string streamOperation = g_switchOperation;
+            string streamUid = g_switchUid;
             while (g_enableMapSwitch) {
-                string request = ReadJsonLine(sock, 75000, true);
+                string request = ReadJsonLine(
+                    sock, 75000, true, streamInstance, streamOperation, streamUid
+                );
                 Json::Value@ parsed = null;
                 try { @parsed = Json::Parse(request); } catch { }
                 if (parsed is null || parsed.GetType() != Json::Type::Object

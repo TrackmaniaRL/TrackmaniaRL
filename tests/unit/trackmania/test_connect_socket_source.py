@@ -38,6 +38,9 @@ def test_experimental_telemetry_pairs_identity_with_legacy_payload() -> None:
         assert f'header["{field}"]' in server
     assert 'string(parsed["command"]) != "frame"' in server
     assert "if (!IsHexToken(requestId))" in server
+    assert "sock, 75000, true, streamInstance, streamOperation, streamUid" in server
+    reader = source.split("string ReadJsonLine(", 1)[1].split("void HandleSessionClient(", 1)[0]
+    assert "!BoundTelemetryCurrent(instance, operation, uid)" in reader
     assert 'header["payload_bytes"] = 132;' in server
     assert 'sock.WriteRaw(Json::Write(header) + "\\n") || !sock.Write(buf)' in server
     assert "if (!CollectTelemetry(buf)) { sock.Close(); break; }" in server
