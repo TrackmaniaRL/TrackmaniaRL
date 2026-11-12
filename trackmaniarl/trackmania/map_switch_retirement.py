@@ -171,7 +171,9 @@ def _reserve_game_ports() -> Iterator[None]:
         for port in _CONNECT_PORTS:
             server = stack.enter_context(socket.socket(socket.AF_INET, socket.SOCK_STREAM))
             if os.name == "nt":
-                server.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+                # This constant is exposed only by Windows socket stubs.
+                exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE")  # noqa: B009
+                server.setsockopt(socket.SOL_SOCKET, exclusive, 1)
             server.bind(("127.0.0.1", port))
         yield
 
