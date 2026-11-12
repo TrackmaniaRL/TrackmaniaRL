@@ -55,9 +55,20 @@ class FakePlugin:
         }
 
 
-@pytest.mark.parametrize("phase", ["accepted", "leaving", "loading", "ready"])
+@pytest.mark.parametrize(
+    ("phase", "expected"),
+    [
+        *(
+            (phase, f"switch did not reach a verified terminal state (phase: {phase})")
+            for phase in ("accepted", "leaving", "loading", "ready")
+        ),
+        (None, "switch did not reach a verified terminal state"),
+        ([], "switch did not reach a verified terminal state"),
+        ("unexpected plugin text", "switch did not reach a verified terminal state"),
+    ],
+)
 def test_indeterminate_phase_is_reported_without_clearing_quarantine(
-    tmp_path: Path, phase: str
+    tmp_path: Path, phase: object, expected: str
 ) -> None:
     path = tmp_path / "map.gbx"
     path.write_bytes(b"map")
@@ -67,13 +78,16 @@ def test_indeterminate_phase_is_reported_without_clearing_quarantine(
     def exchange(request: dict[str, str]) -> dict[str, Any]:
         response = plugin(request)
         if request["command"] in {"switch_map", "switch_status"}:
-            response.update(state="indeterminate", failure_phase=phase)
+            response["state"] = "indeterminate"
+            if phase is not None:  # Old protocol-3 implementations omit this field.
+                response["failure_phase"] = phase
         return response
 
     with MapSwitchController(journal, exchange) as controller:
         for operation in (lambda: controller.switch(path, "uid"), controller.recover):
-            with pytest.raises(MapSwitchIndeterminateError, match=f"phase: {phase}"):
+            with pytest.raises(MapSwitchIndeterminateError) as caught:
                 operation()
+            assert str(caught.value) == expected
             assert journal.pending() is not None
             assert controller._quarantine_path.exists()
     assert plugin.switch_count == 1
