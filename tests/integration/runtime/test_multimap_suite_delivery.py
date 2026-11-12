@@ -11,7 +11,8 @@ import os
 import socket
 import struct
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
+from multiprocessing.connection import Connection
 from pathlib import Path
 from threading import Event, Thread
 from typing import Any
@@ -481,23 +482,41 @@ def test_interrupted_suite_retries_same_assignment_and_recovers_wal(
         _close(restored)
 
 
-def _exit_before_spool_replace(path: str, payload: bytes) -> None:
-    # Persist the complete real payload through the file fsync, then model an
-    # abrupt process exit immediately before the atomic rename.
+def _evaluate_until_spool_crash(path: str, connection: Connection) -> None:
+    """Run a real actor suite with a fake backend, exiting before spool rename."""
+    evaluation_contract.validate_scheduled_evaluation = lambda *args: None  # type: ignore[assignment]
+    actor_evaluation._supports_multimap_policy = lambda _: True  # type: ignore[assignment]
+    actor_evaluation._validate_model_isolation = lambda *_: None  # type: ignore[assignment]
+    request = ActorProcessRequest(Path(path), "127.0.0.1:1", "actor", _DISTRIBUTED_TOKEN)
+    actor = ActorRuntime(request)
+    pipeline, factory = actor._components()
+    events: list[str] = []
+    actor._multi_map_factory = _SimulatedMapFactory(events, actor, interrupt=False)
+    connection.send((actor._request_base(), actor.fingerprint, str(actor.spool_dir)))
+    assignment = connection.recv()
+    _accept_evaluation_request(actor, assignment)
+    actor.sequence = 1
+
     def crash_before_replace(source: Any, destination: Any) -> None:
         os._exit(24)
 
-    os.replace = crash_before_replace  # type: ignore[assignment]
-    ActorRuntime._persist_spool_payload(Path(path), payload)
-    raise AssertionError("replace was not called")
+    def persist_until_crash(destination: Path, payload: bytes) -> None:
+        connection.send(events)
+        os.replace = crash_before_replace  # type: ignore[assignment]
+        ActorRuntime._persist_spool_payload(destination, payload)
+        raise AssertionError("replace was not called")
+
+    actor._persist_spool_payload = persist_until_crash  # type: ignore[method-assign]
+    actor._evaluate(factory.create(seed=0), pipeline)
+    raise AssertionError("evaluation did not reach spool")
 
 
 def test_complete_multimap_temporary_recovers_and_retries_same_assignment(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
 ) -> None:
-    """Crash the child spool writer, then simulate actor restart and a lost ACK.
+    """Kill the actor before rename; backend, policy and RPC transport are fakes.
 
-    The actor itself stays in the test process; policy and map backend are fakes.
+    Factory and policy admission are bypassed; this exercises recovery, not game support.
     """
     path = _config(tmp_path)
     config = json.loads(path.read_text(encoding="utf-8"))
@@ -515,42 +534,28 @@ def test_complete_multimap_temporary_recovers_and_retries_same_assignment(
     ]
     path.write_text(json.dumps(config), encoding="utf-8")
     monkeypatch.setattr(evaluation_contract, "validate_scheduled_evaluation", lambda *args: None)
-    monkeypatch.setattr(actor_evaluation, "_supports_multimap_policy", lambda _: True)
-    monkeypatch.setattr(actor_evaluation, "_validate_model_isolation", lambda *_: None)
-    request = ActorProcessRequest(path, "127.0.0.1:1", "actor", _DISTRIBUTED_TOKEN)
-    actor = ActorRuntime(request)
-    coordinator = _coordinator(path, actor.fingerprint)
-    events: list[str] = []
-
-    class SimulatedCrashError(Exception):
-        pass
-
-    def persist_until_crash(destination: Path, payload: bytes) -> None:
-        process = multiprocessing.get_context("spawn").Process(
-            target=_exit_before_spool_replace, args=(str(destination), payload)
-        )
-        process.start()
-        try:
-            process.join(20)
-            assert not process.is_alive()
-            assert process.exitcode == 24
-        finally:
-            if process.is_alive():
-                process.terminate()
-                process.join(5)
-        raise SimulatedCrashError
-
+    actor_request = ActorProcessRequest(path, "127.0.0.1:1", "actor", _DISTRIBUTED_TOKEN)
+    cleanup = ExitStack()
+    request.addfinalizer(cleanup.close)
+    parent, child = multiprocessing.get_context("spawn").Pipe()
+    process = multiprocessing.get_context("spawn").Process(
+        target=_evaluate_until_spool_crash, args=(str(path), child)
+    )
+    process.start()
+    child.close()
     try:
-        pipeline, factory = actor._components()
-        actor._multi_map_factory = _SimulatedMapFactory(events, actor, interrupt=False)
-        coordinator._evaluation_due.add(actor.actor_id)
+        assert parent.poll(30), "actor did not initialize"
+        base, fingerprint, spool_dir = parent.recv()
+        coordinator = _coordinator(path, fingerprint)
+        cleanup.callback(_close, coordinator)
+        coordinator._evaluation_due.add(base["actor_id"])
         coordinator.counters.policy_version = 1
         coordinator._policy_payload = coordinator.codec.encode({"value": 7})
         assignment = _submit(
             coordinator,
             coordinator.codec.encode(
                 {
-                    **actor._request_base(),
+                    **base,
                     "sequence": 0,
                     "policy_version": 1,
                     "transitions": [],
@@ -560,26 +565,34 @@ def test_complete_multimap_temporary_recovers_and_retries_same_assignment(
                 }
             ),
         )
-        _accept_evaluation_request(actor, assignment)
-        actor.sequence = 1
-        monkeypatch.setattr(actor, "_persist_spool_payload", persist_until_crash)
-        with pytest.raises(SimulatedCrashError):
-            actor._evaluate(factory.create(seed=0), pipeline)
-        assert events[-1] == "restore"
-        assert actor.queue.empty()
-        temporary = actor.spool_dir / "00000000000000000001.tmp"
+        parent.send(assignment)
+        assert parent.poll(30), "actor did not reach spool"
+        events = parent.recv()
+        assert events == ["switch:one", "verify:one", "switch:two", "verify:two", "restore"]
+        process.join(30)
+        assert not process.is_alive()
+        assert process.exitcode == 24
+        temporary = Path(spool_dir) / "00000000000000000001.tmp"
         assert temporary.is_file()
         original_payload = temporary.read_bytes()
-        assert not list(actor.spool_dir.glob("*.rollout"))
+        assert not list(Path(spool_dir).glob("*.rollout"))
     finally:
-        actor.client.close()
+        parent.close()
+        if process.is_alive():
+            process.terminate()
+            process.join(5)
 
-    resumed = ActorRuntime(request)
+    resumed = ActorRuntime(actor_request)
     resumed.client.close()
     recovered = resumed.spool_dir / "00000000000000000001.rollout"
     assert recovered.read_bytes() == original_payload
     assert not temporary.exists()
     result = resumed.codec.decode(original_payload)
+    assert result["session_id"] == base["session_id"]
+    assert result["sequence"] == 1
+    assert resumed.codec.decode(result["evaluation_snapshot"]) == resumed.codec.decode(
+        assignment["evaluation_snapshot"]
+    )
     assert [(item["map_id"], item["trial_index"]) for item in result["evaluations"]] == [
         ("one", 0),
         ("one", 1),
@@ -588,6 +601,9 @@ def test_complete_multimap_temporary_recovers_and_retries_same_assignment(
     ]
     assert {item["evaluation_assignment_id"] for item in result["evaluations"]} == {
         assignment["evaluation_assignment_id"]
+    }
+    assert {item["evaluation_assets_sha256"] for item in result["evaluations"]} == {
+        assignment["evaluation_assets_sha256"]
     }
 
     class LostFirstAck:
@@ -605,7 +621,10 @@ def test_complete_multimap_temporary_recovers_and_retries_same_assignment(
 
     fake_client = LostFirstAck()
     resumed.client = fake_client  # type: ignore[assignment]
-    resumed.queue.put(recovered)
+    monkeypatch.setattr(resumed, "_new_policy", lambda: object())
+    monkeypatch.setattr(resumed, "_refresh_policy", lambda: None)
+    resumed._initialize_policy({"epsilon": 0.0})
+    assert resumed.queue.qsize() == 1
     resumed.collection_done.set()
     try:
         resumed._send_spooled_rollouts()
@@ -628,7 +647,7 @@ def test_complete_multimap_temporary_recovers_and_retries_same_assignment(
             False,
         ]
     finally:
-        _close(coordinator)
+        cleanup.close()
 
     restored = _coordinator(path, resumed.fingerprint)
     try:
