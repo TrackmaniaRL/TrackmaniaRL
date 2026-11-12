@@ -45,8 +45,46 @@ def test_experimental_telemetry_pairs_identity_with_legacy_payload() -> None:
     assert "!BoundTelemetryIdentity(instance, operation, uid)" in reader
     assert 'header["payload_bytes"] = 132;' in server
     assert 'sock.WriteRaw(Json::Write(header) + "\\n") || !sock.Write(buf)' in server
-    assert "if (!CollectTelemetry(buf)) { sock.Close(); break; }" in server
+    failed_collect = server.split("if (!CollectTelemetry(buf)) {", 1)[1].split("}", 1)[0]
+    assert "BoundTelemetryIdentity(streamInstance, streamOperation, streamUid);" in failed_collect
+    assert "sock.Close(); break;" in failed_collect
     critical = server.split("string instance = g_switchInstanceEpoch;", 1)[1].split(
         "if (!sock.WriteRaw(", 1
     )[0]
     assert "yield(" not in critical
+
+
+def test_observed_map_mismatch_persists_across_telemetry_reconnects() -> None:
+    source = (
+        Path(__file__).resolve().parents[3]
+        / "trackmaniarl/project/openplanet/TrackmaniaRL_Connect.as"
+    ).read_text(encoding="utf-8")
+    identity = source.split("bool BoundTelemetryIdentity(", 1)[1].split("string ReadJsonLine(", 1)[
+        0
+    ]
+    # A mismatch poisons the current ready operation, so returning to the old
+    # UID cannot make a fresh connection accept that operation again.
+    mismatch = identity.split("if (ActiveMapUid() != uid) {", 1)[1].split("}", 1)[0]
+    assert 'g_switchState = "indeterminate";' in mismatch
+    assert "return false;" in mismatch
+    guard = identity.split("if (ActiveMapUid() != uid)", 1)[0]
+    for current in (
+        "!g_enableMapSwitch",
+        'g_switchState != "ready"',
+        "g_switchInstanceEpoch != instance",
+        "g_switchOperation != operation",
+        "g_switchUid != uid",
+    ):
+        assert current in guard
+    assert "return false;" in guard
+    server = source.split("void AttestedTelemetryServer()", 1)[1].split("void Main()", 1)[0]
+    # Observe the mismatch while idle, waiting for the player, and before and
+    # after collection. These source checks do not execute the game engine.
+    assert "sock, 75000, true, streamInstance, streamOperation, streamUid" in server
+    assert server.count("BoundTelemetryIdentity(streamInstance, streamOperation, streamUid)") >= 4
+
+    reply = source.split("string SwitchReply(", 1)[1].split("void SwitchMapWorker(", 1)[0]
+    observation = reply.index('status == "ok" && g_enableMapSwitch && g_switchState == "ready"')
+    mismatch = reply.index('uid != g_switchUid) g_switchState = "indeterminate";')
+    state_response = reply.index('response["state"] = g_switchState;')
+    assert observation < mismatch < state_response

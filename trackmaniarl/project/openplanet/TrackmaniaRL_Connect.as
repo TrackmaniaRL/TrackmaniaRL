@@ -93,6 +93,11 @@ bool HasString(Json::Value@ value, const string &in key) {
 }
 
 string SwitchReply(const string &in status, const string &in error = "") {
+    string uid = ActiveMapUid();
+    // A successful status or claim also observes the active UID. Retain a
+    // mismatch for this operation even if the expected map later returns.
+    if (status == "ok" && g_enableMapSwitch && g_switchState == "ready"
+        && uid != g_switchUid) g_switchState = "indeterminate";
     auto response = Json::Object();
     response["status"] = status;
     response["protocol_version"] = SWITCH_PROTOCOL_VERSION;
@@ -102,7 +107,6 @@ string SwitchReply(const string &in status, const string &in error = "") {
     response["operation_id"] = status == "ok" ? g_switchOperation : "";
     response["state"] = g_switchState;
     if (status == "ok") response["remaining_operations"] = 4096 - int(g_usedSwitchOperations.Length);
-    string uid = ActiveMapUid();
     response["map_uid"] = uid;
     response["ready"] = (uid.Length > 0 && IsReadyToDrive()) ? "true" : "false";
     if (error.Length > 0) response["error"] = error;
@@ -228,9 +232,16 @@ string HandleSwitchCommand(Json::Value@ request) {
 bool BoundTelemetryIdentity(
     const string &in instance, const string &in operation, const string &in uid
 ) {
-    return g_enableMapSwitch && instance.Length > 0 && operation.Length > 0 && uid.Length > 0
-        && g_switchState == "ready" && g_switchInstanceEpoch == instance
-        && g_switchOperation == operation && g_switchUid == uid && ActiveMapUid() == uid;
+    if (!g_enableMapSwitch || instance.Length == 0 || operation.Length == 0 || uid.Length == 0
+        || g_switchState != "ready" || g_switchInstanceEpoch != instance
+        || g_switchOperation != operation || g_switchUid != uid) return false;
+    // Persist an observed mismatch for this operation, including across socket
+    // closes and reconnects. Never poison a newer operation or an intentional stop.
+    if (ActiveMapUid() != uid) {
+        g_switchState = "indeterminate";
+        return false;
+    }
+    return true;
 }
 
 string ReadJsonLine(
@@ -401,17 +412,20 @@ void AttestedTelemetryServer() {
                 string instance = g_switchInstanceEpoch;
                 string operation = g_switchOperation;
                 string uid = ActiveMapUid();
-                if (instance.Length == 0 || operation.Length == 0 || uid.Length == 0
-                    || g_switchState != "ready" || uid != g_switchUid || !IsReadyToDrive()) {
+                if (!BoundTelemetryIdentity(streamInstance, streamOperation, streamUid)
+                    || instance.Length == 0 || operation.Length == 0 || uid.Length == 0
+                    || !IsReadyToDrive()) {
                     // Do not hide a map or session transition inside a live
                     // stream: the receiver must establish a new connection.
                     sock.Close(); break;
                 }
-                if (!CollectTelemetry(buf)) { sock.Close(); break; }
+                if (!CollectTelemetry(buf)) {
+                    BoundTelemetryIdentity(streamInstance, streamOperation, streamUid);
+                    sock.Close(); break;
+                }
                 // Do not emit a pair if our own switch identity changed while
                 // collecting it. This is not a byte-level attestation of a map.
-                if (!g_enableMapSwitch || g_switchState != "ready" || g_switchInstanceEpoch != instance
-                    || g_switchOperation != operation || g_switchUid != uid || ActiveMapUid() != uid
+                if (!BoundTelemetryIdentity(streamInstance, streamOperation, streamUid)
                     || !IsReadyToDrive()) {
                     sock.Close(); break;
                 }
