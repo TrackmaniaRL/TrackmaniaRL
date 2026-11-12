@@ -23,10 +23,14 @@ disclosure. Security fixes target the current `1.2` release line.
   only receive configurations and extension packages from trusted sources.
   `inspect-config` safely parses and lists every `class_path` without importing
   it, but it is an inspection aid rather than a sandbox or signature check.
-- Checkpoints are data, but should still come from a trusted run. The default
-  codec uses PyTorch `weights_only=True`; it rejects payloads requiring
-  executable pickle globals. A custom `CheckpointCodec` defines its own trust
-  boundary.
+- Checkpoints should come from a trusted run. The default codec uses PyTorch
+  `weights_only=True` to restrict pickle globals, but this is not a guarantee
+  against malicious checkpoints or vulnerabilities in PyTorch. The package
+  requires PyTorch 2.10 or later and excludes 2.14.x because of known
+  `weights_only` vulnerabilities. Existing environments and generated projects
+  should be updated too. The default codec also checks the installed PyTorch
+  version before loading and rejects unsupported or prerelease versions. A
+  custom `CheckpointCodec` defines its own trust boundary.
 - RunSpec 2.0 resume verifies a complete architecture fingerprint. Partial
   warm-start deliberately accepts selected compatible tensors and therefore
   requires review of its generated match report. Neither mechanism proves the

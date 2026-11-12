@@ -28,9 +28,12 @@ def test_distribution_rejects_private_or_unsafe_members(name: str) -> None:
 
 
 @pytest.mark.parametrize("kind", ["wheel", "sdist"])
-def test_archives_scan_metadata_and_nonpackage_files(tmp_path: Path, kind: str) -> None:
+@pytest.mark.parametrize("credential", ["github", "wandb"])
+def test_archives_scan_metadata_and_nonpackage_files(
+    tmp_path: Path, kind: str, credential: str
+) -> None:
     # Construct a fake value so the fixture itself never contains a complete credential.
-    value = b"ghp_" + b"a" * 36
+    value = b"ghp_" + b"a" * 36 if credential == "github" else b"wandb_" + b"v1_" + b"a" * 77
     archive = tmp_path / kind
     name = "package-1.0.dist-info/METADATA"
     if kind == "wheel":

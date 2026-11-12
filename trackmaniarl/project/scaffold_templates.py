@@ -41,7 +41,7 @@ def _pyproject(
     template: str = "starter",
 ) -> str:
     requirement = _trackmaniarl_requirement(trackmaniarl_extras)
-    dependencies = [f'"{requirement}"', '"torch>=2.4"']
+    dependencies = [f'"{requirement}"', '"torch>=2.10,!=2.14.*"']
     if template == "trackmania":
         dependencies.append(
             "\"vgamepad>=0.1.0; sys_platform == 'win32' or sys_platform == 'linux'\""
