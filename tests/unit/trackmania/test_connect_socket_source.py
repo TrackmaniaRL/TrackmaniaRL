@@ -88,3 +88,18 @@ def test_observed_map_mismatch_persists_across_telemetry_reconnects() -> None:
     mismatch = reply.index('uid != g_switchUid) g_switchState = "indeterminate";')
     state_response = reply.index('response["state"] = g_switchState;')
     assert observation < mismatch < state_response
+
+
+def test_protocol_two_observation_quarantines_only_opted_in_switching() -> None:
+    source = (
+        Path(__file__).resolve().parents[3]
+        / "trackmaniarl/project/openplanet/TrackmaniaRL_Connect.as"
+    ).read_text(encoding="utf-8")
+    handler = source.split("void HandleSessionClient(", 1)[1].split("void SessionServer(", 1)[0]
+    observation = handler.index("string uid = ActiveMapUid();")
+    guard = handler.index('g_enableMapSwitch && g_switchState == "ready" && uid != g_switchUid')
+    quarantine = handler.index('g_switchState = "indeterminate";', guard)
+    missing = handler.index('JsonError("no_local_map_loaded")', quarantine)
+    assert observation < guard < quarantine < missing
+    assert "sock.WriteRaw(JsonOk(uid, false)); return;" in handler
+    assert "sock.WriteRaw(JsonOk(uid, true)); return;" in handler

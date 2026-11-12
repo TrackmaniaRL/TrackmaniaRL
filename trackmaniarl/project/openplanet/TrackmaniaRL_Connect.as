@@ -296,6 +296,10 @@ void HandleSessionClient(Net::Socket@ sock) {
         sock.WriteRaw(JsonError("map_switch_unresolved")); return;
     }
     string uid = ActiveMapUid();
+    // Preserve this protocol-2 response while recording a mismatch observed
+    // by the experimental protocol-3 lease, including a missing active map.
+    if (g_enableMapSwitch && g_switchState == "ready" && uid != g_switchUid)
+        g_switchState = "indeterminate";
     if (uid.Length == 0) { sock.WriteRaw(JsonError("no_local_map_loaded")); return; }
     if (request.IndexOf("\"command\":\"verify_loaded_map\"") >= 0) {
         sock.WriteRaw(JsonOk(uid, false)); return;
