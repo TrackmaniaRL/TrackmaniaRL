@@ -297,6 +297,36 @@ def test_nonterminal_timeout_keeps_quarantine(tmp_path: Path, state: str) -> Non
     assert plugin.switch_count == 1
 
 
+def test_default_timeout_allows_both_plugin_switch_phases(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from trackmaniarl.trackmania import map_switch_controller
+
+    path = tmp_path / "map.gbx"
+    path.write_bytes(b"map")
+    journal = MapSwitchJournal(tmp_path / "switch.sqlite", "instance", create=True)
+    plugin = FakePlugin()
+    clock = [0.0]
+    monkeypatch.setattr(map_switch_controller, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        map_switch_controller, "sleep", lambda _: clock.__setitem__(0, clock[0] + 5)
+    )
+
+    def switch_over_two_phases(request: dict[str, str]) -> dict[str, Any]:
+        response = plugin(request)
+        if request["command"] in ("switch_map", "switch_status"):
+            response["state"] = "leaving" if clock[0] < 25 else "loading"
+            if clock[0] >= 45:
+                response["state"] = "ready"
+        return response
+
+    with MapSwitchController(journal, switch_over_two_phases) as controller:
+        controller.switch(path, "uid")
+    assert clock[0] == 45
+    assert journal.latest()[1] == "terminal"  # type: ignore[index]
+    assert plugin.switch_count == 1
+
+
 @pytest.mark.parametrize("fault", ["epoch", "uid", "missing", "file"])
 def test_recheck_after_initial_ready_fails_closed(tmp_path: Path, fault: str) -> None:
     path = tmp_path / "map.gbx"

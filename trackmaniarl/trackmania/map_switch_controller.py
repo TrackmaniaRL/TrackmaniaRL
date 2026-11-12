@@ -26,6 +26,12 @@ class MapSwitchIndeterminateError(RuntimeError):
     """The game may still execute a map load; do not resume collection."""
 
 
+# Connect gives both the return-to-menu and map-load phases up to 30 seconds.
+# Allow both phases to complete, plus time for status requests and scheduling.
+_DEFAULT_SWITCH_TIMEOUT_S = 75.0
+_MAX_SWITCH_TIMEOUT_S = 90.0
+
+
 def _registry_root() -> Path:
     """One fixed per-user namespace for all configured game instances."""
     return Path.home() / ".trackmaniarl-map-switch-registry-v1"
@@ -285,7 +291,7 @@ class MapSwitchController:
         map_path: Path,
         uid: str,
         *,
-        timeout_s: float = 30.0,
+        timeout_s: float = _DEFAULT_SWITCH_TIMEOUT_S,
         before_dispatch: Callable[[], None] | None = None,
     ) -> None:
         """Issue one switch; any uncertain outcome remains durably quarantined."""
@@ -333,7 +339,7 @@ class MapSwitchController:
                 "switch outcome unknown; session quarantined"
             ) from error
 
-    def recover(self, *, timeout_s: float = 30.0) -> None:
+    def recover(self, *, timeout_s: float = _DEFAULT_SWITCH_TIMEOUT_S) -> None:
         """Poll the same dispatched operation; never issue another switch."""
         self._require_owner()
         self._validate_timeout(timeout_s)
@@ -433,8 +439,8 @@ class MapSwitchController:
 
     @staticmethod
     def _validate_timeout(timeout_s: float) -> None:
-        if not 0 < timeout_s <= 60:
-            raise ValueError("switch timeout must be in (0, 60]")
+        if not 0 < timeout_s <= _MAX_SWITCH_TIMEOUT_S:
+            raise ValueError("switch timeout must be in (0, 90]")
 
     def _require_ready(  # noqa: PLR0913 -- response and independently bound epochs
         self,

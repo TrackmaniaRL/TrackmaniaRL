@@ -171,6 +171,12 @@ used by another process or person. The staged files are retained after shutdown;
 remove them only after ensuring the isolated game has stopped and no load can
 still be pending.
 
+Connect allows up to 30 seconds to leave the old map and another 30 seconds
+to load the new one. The controller's default 75-second polling budget covers
+both phases with some scheduling margin. A shorter explicitly supplied timeout
+may quarantine a switch that the plugin is still legitimately processing;
+it does not cancel the game's request.
+
 The coordinator assigns one immutable policy snapshot and suite identity. For
 every map the actor verifies the assets, switches and confirms readiness, then
 constructs a fresh environment and a separately attested feature pipeline.
