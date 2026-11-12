@@ -69,8 +69,12 @@ connection. This bound applies to protocol 2 and protocol 3.
 States
 are `idle`, `accepted`, `leaving`, `loading`, `ready`, and `indeterminate`.
 When experimental map switching is enabled, the separate TCP listener on
-`127.0.0.1:9002` accepts one JSONL request at a time with `command: "frame"`
-and a fresh lowercase 32-hex `request_id`. It returns a JSONL header followed
+`127.0.0.1:9002` accepts one JSONL request at a time with `command: "frame"`,
+a fresh lowercase 32-hex `request_id`, and boolean `wait_ready`. Only the first
+request on a connection may set `wait_ready` to true, allowing a bounded wait
+for the local player during reset while checking map and operation identity on
+the same socket. A disconnected or mismatched connection must not be retried as
+the same observation. It returns a JSONL header followed
 by exactly 132 bytes containing the same 33 float32 values as port 9000. The
 header identifies `protocol_version`, `request_id`, `instance_epoch`,
 `operation_id`, `map_uid`, `state` and `payload_bytes`. Clients must read the

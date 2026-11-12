@@ -225,13 +225,12 @@ string HandleSwitchCommand(Json::Value@ request) {
     return SwitchReply("ok");
 }
 
-bool BoundTelemetryCurrent(
+bool BoundTelemetryIdentity(
     const string &in instance, const string &in operation, const string &in uid
 ) {
     return g_enableMapSwitch && instance.Length > 0 && operation.Length > 0 && uid.Length > 0
         && g_switchState == "ready" && g_switchInstanceEpoch == instance
-        && g_switchOperation == operation && g_switchUid == uid && ActiveMapUid() == uid
-        && IsReadyToDrive();
+        && g_switchOperation == operation && g_switchUid == uid && ActiveMapUid() == uid;
 }
 
 string ReadJsonLine(
@@ -241,7 +240,7 @@ string ReadJsonLine(
     string request = "";
     uint started = Time::Now;
     while (Time::Now - started < timeoutMs) {
-        if (sock is null || (requireSwitchEnabled && !BoundTelemetryCurrent(instance, operation, uid)))
+        if (sock is null || (requireSwitchEnabled && !BoundTelemetryIdentity(instance, operation, uid)))
             return "";
         int available = sock.Available();
         if (available <= 0) {
@@ -368,6 +367,7 @@ void AttestedTelemetryServer() {
             string streamInstance = g_switchInstanceEpoch;
             string streamOperation = g_switchOperation;
             string streamUid = g_switchUid;
+            bool firstRequest = true;
             while (g_enableMapSwitch) {
                 string request = ReadJsonLine(
                     sock, 75000, true, streamInstance, streamOperation, streamUid
@@ -375,12 +375,29 @@ void AttestedTelemetryServer() {
                 Json::Value@ parsed = null;
                 try { @parsed = Json::Parse(request); } catch { }
                 if (parsed is null || parsed.GetType() != Json::Type::Object
-                    || parsed.GetKeys().Length != 2 || !HasString(parsed, "command")
-                    || string(parsed["command"]) != "frame" || !HasString(parsed, "request_id")) {
+                    || parsed.GetKeys().Length != 3 || !HasString(parsed, "command")
+                    || string(parsed["command"]) != "frame" || !HasString(parsed, "request_id")
+                    || !parsed.HasKey("wait_ready")
+                    || parsed["wait_ready"].GetType() != Json::Type::Boolean) {
                     sock.Close(); break;
                 }
                 string requestId = string(parsed["request_id"]);
-                if (!IsHexToken(requestId)) { sock.Close(); break; }
+                bool waitReady = bool(parsed["wait_ready"]);
+                if (!IsHexToken(requestId) || (waitReady && !firstRequest)) {
+                    sock.Close(); break;
+                }
+                // Only the first reset request may wait for the local player.
+                // The same socket and switch identity are retained throughout.
+                uint64 readyStarted = Time::Now;
+                while (waitReady && !IsReadyToDrive() && Time::Now - readyStarted < 75000) {
+                    if (!BoundTelemetryIdentity(streamInstance, streamOperation, streamUid)
+                        || sock.IsHungUp()) break;
+                    yield();
+                }
+                if (!BoundTelemetryIdentity(streamInstance, streamOperation, streamUid)
+                    || !IsReadyToDrive()) {
+                    sock.Close(); break;
+                }
                 string instance = g_switchInstanceEpoch;
                 string operation = g_switchOperation;
                 string uid = ActiveMapUid();
@@ -407,6 +424,7 @@ void AttestedTelemetryServer() {
                 header["state"] = "ready";
                 header["payload_bytes"] = 132;
                 if (!sock.WriteRaw(Json::Write(header) + "\n") || !sock.Write(buf)) break;
+                firstRequest = false;
                 yield();
             }
             sock.Close();
