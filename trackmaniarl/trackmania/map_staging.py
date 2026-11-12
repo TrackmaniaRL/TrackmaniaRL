@@ -7,6 +7,7 @@ behavior require independent attestation. Non-Windows platforms fail closed.
 from __future__ import annotations
 
 import ctypes
+import importlib
 import os
 import tempfile
 from ctypes import wintypes
@@ -15,6 +16,8 @@ from typing import Any, BinaryIO
 
 from trackmaniarl.distributed.evaluation_assets import evaluation_assets_digest
 from trackmaniarl.trackmania.map_switch_controller import _InstanceLock
+
+_windows_ctypes: Any = ctypes
 
 
 class StagedAssets:
@@ -61,7 +64,9 @@ class StagedAssets:
         if Path(name).name != name or name in ("", ".", ".."):
             raise ValueError("staged asset name must be a simple filename")
         target = self.directory / name
-        descriptor = os.open(target, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_BINARY, 0o600)
+        descriptor = os.open(
+            target, os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_BINARY", 0), 0o600
+        )
         try:
             with os.fdopen(descriptor, "wb") as output, source.open("rb") as original:
                 while chunk := original.read(1024 * 1024):
@@ -156,9 +161,9 @@ class StagedAssets:
 def _open_read_only_locked(path: Path) -> BinaryIO:
     if os.name != "nt":
         raise RuntimeError("read-locked staging currently requires Windows")
-    import msvcrt
+    msvcrt = importlib.import_module("msvcrt")
 
-    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel = _windows_ctypes.WinDLL("kernel32", use_last_error=True)
     kernel.CloseHandle.argtypes = [wintypes.HANDLE]
     kernel.CloseHandle.restype = wintypes.BOOL
     create = kernel.CreateFileW
@@ -174,9 +179,9 @@ def _open_read_only_locked(path: Path) -> BinaryIO:
     create.restype = wintypes.HANDLE
     handle = create(str(path), 0x80000000, 0x00000001, None, 3, 0x80, None)
     if handle == ctypes.c_void_p(-1).value:
-        raise ctypes.WinError(ctypes.get_last_error())
+        raise _windows_ctypes.WinError(_windows_ctypes.get_last_error())
     try:
-        descriptor = msvcrt.open_osfhandle(handle, os.O_RDONLY | os.O_BINARY)
+        descriptor = msvcrt.open_osfhandle(handle, os.O_RDONLY | getattr(os, "O_BINARY", 0))
     except BaseException:
         kernel.CloseHandle(handle)
         raise
@@ -184,16 +189,16 @@ def _open_read_only_locked(path: Path) -> BinaryIO:
 
 
 def _close_handle(handle: int) -> None:
-    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel = _windows_ctypes.WinDLL("kernel32", use_last_error=True)
     kernel.CloseHandle.argtypes = [wintypes.HANDLE]
     kernel.CloseHandle.restype = wintypes.BOOL
     if not kernel.CloseHandle(handle):
-        raise ctypes.WinError(ctypes.get_last_error())
+        raise _windows_ctypes.WinError(_windows_ctypes.get_last_error())
 
 
 def _lock_directory(path: Path) -> int:
     """Keep every path component stable and refuse a reparse-point directory."""
-    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel = _windows_ctypes.WinDLL("kernel32", use_last_error=True)
     create = kernel.CreateFileW
     create.argtypes = [
         wintypes.LPCWSTR,
@@ -209,7 +214,7 @@ def _lock_directory(path: Path) -> int:
     # rename. Open the final component itself instead of following a junction.
     handle = create(str(path), 0x80, 0x3, None, 3, 0x02200000, None)
     if handle == ctypes.c_void_p(-1).value:
-        raise ctypes.WinError(ctypes.get_last_error())
+        raise _windows_ctypes.WinError(_windows_ctypes.get_last_error())
 
     class AttributeTagInfo(ctypes.Structure):
         _fields_ = [("attributes", wintypes.DWORD), ("tag", wintypes.DWORD)]
@@ -219,9 +224,9 @@ def _lock_directory(path: Path) -> int:
     query.argtypes = [wintypes.HANDLE, ctypes.c_int, wintypes.LPVOID, wintypes.DWORD]
     query.restype = wintypes.BOOL
     if not query(handle, 9, ctypes.byref(info), ctypes.sizeof(info)):
-        error = ctypes.get_last_error()
+        error = _windows_ctypes.get_last_error()
         _close_handle(handle)
-        raise ctypes.WinError(error)
+        raise _windows_ctypes.WinError(error)
     if info.attributes & 0x400:
         _close_handle(handle)
         raise RuntimeError("staging path contains a reparse-point directory")
