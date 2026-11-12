@@ -1,5 +1,8 @@
 # Bounded distributed replay measurement
 
+A later [matched-budget measurement](2026-11-12-distributed-replay-matched.md)
+uses equal transition and update counts, with its own stated limitations.
+
 This is an exploratory game-free measurement, not a production throughput or
 performance claim. The driver uses actual `ActorRuntime`, local gRPC transport,
 the coordinator's SQLite journal, replay, sequence sampler and CPU IQN+GRU
