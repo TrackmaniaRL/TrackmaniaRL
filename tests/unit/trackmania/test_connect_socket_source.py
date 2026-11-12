@@ -19,6 +19,26 @@ def test_session_reader_drains_buffer_before_treating_hangup_as_end() -> None:
     assert "if (newline + 1 > int(MAX_COMMAND_BYTES))" in reader
 
 
+def test_experimental_listener_survives_sequential_clients() -> None:
+    source = (
+        Path(__file__).resolve().parents[3]
+        / "trackmaniarl/project/openplanet/TrackmaniaRL_Connect.as"
+    ).read_text(encoding="utf-8")
+    server = source.split("void AttestedTelemetryServer()", 1)[1].split("void Main()", 1)[0]
+    listen = server.index('Listen("127.0.0.1", ATTESTED_TELEMETRY_PORT)')
+    accept_loop = server.index("        while (g_enableMapSwitch) {", listen)
+    accept = server.index("g_attestedTelemetryServer.Accept();", accept_loop)
+    assert listen < accept_loop < accept
+    # The client is closed inside the accept loop; the listener is closed only
+    # after that loop exits. This is a source check, not an Openplanet run.
+    assert (
+        "                sock.Close();\n"
+        "            }\n"
+        "        }\n"
+        "        g_attestedTelemetryServer.Close();"
+    ) in server
+
+
 def test_experimental_telemetry_pairs_identity_with_legacy_payload() -> None:
     source = (
         Path(__file__).resolve().parents[3]

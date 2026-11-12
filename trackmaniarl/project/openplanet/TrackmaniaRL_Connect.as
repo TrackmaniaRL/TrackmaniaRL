@@ -371,81 +371,85 @@ void AttestedTelemetryServer() {
         if (!g_attestedTelemetryServer.Listen("127.0.0.1", ATTESTED_TELEMETRY_PORT)) {
             yield(120); continue;
         }
-        Net::Socket@ sock = null;
-        while (g_enableMapSwitch && sock is null) {
-            yield(); @sock = g_attestedTelemetryServer.Accept();
-        }
-        if (sock !is null) {
-            MemoryBuffer@ buf = MemoryBuffer(0);
-            // A connection belongs to exactly one switch operation, including
-            // while waiting between frame requests.
-            string streamInstance = g_switchInstanceEpoch;
-            string streamOperation = g_switchOperation;
-            string streamUid = g_switchUid;
-            bool firstRequest = true;
-            while (g_enableMapSwitch) {
-                string request = ReadJsonLine(
-                    sock, 75000, true, streamInstance, streamOperation, streamUid
-                );
-                Json::Value@ parsed = null;
-                try { @parsed = Json::Parse(request); } catch { }
-                if (parsed is null || parsed.GetType() != Json::Type::Object
-                    || parsed.GetKeys().Length != 3 || !HasString(parsed, "command")
-                    || string(parsed["command"]) != "frame" || !HasString(parsed, "request_id")
-                    || !parsed.HasKey("wait_ready")
-                    || parsed["wait_ready"].GetType() != Json::Type::Boolean) {
-                    sock.Close(); break;
-                }
-                string requestId = string(parsed["request_id"]);
-                bool waitReady = bool(parsed["wait_ready"]);
-                if (!IsHexToken(requestId) || (waitReady && !firstRequest)) {
-                    sock.Close(); break;
-                }
-                // Only the first reset request may wait for the local player.
-                // The same socket and switch identity are retained throughout.
-                uint64 readyStarted = Time::Now;
-                while (waitReady && !IsReadyToDrive() && Time::Now - readyStarted < 75000) {
+        // Keep the listener alive across clients: a reconnect can already be
+        // queued while the previous socket's hangup is being observed.
+        while (g_enableMapSwitch) {
+            Net::Socket@ sock = null;
+            while (g_enableMapSwitch && sock is null) {
+                yield(); @sock = g_attestedTelemetryServer.Accept();
+            }
+            if (sock !is null) {
+                MemoryBuffer@ buf = MemoryBuffer(0);
+                // A connection belongs to exactly one switch operation, including
+                // while waiting between frame requests.
+                string streamInstance = g_switchInstanceEpoch;
+                string streamOperation = g_switchOperation;
+                string streamUid = g_switchUid;
+                bool firstRequest = true;
+                while (g_enableMapSwitch) {
+                    string request = ReadJsonLine(
+                        sock, 75000, true, streamInstance, streamOperation, streamUid
+                    );
+                    Json::Value@ parsed = null;
+                    try { @parsed = Json::Parse(request); } catch { }
+                    if (parsed is null || parsed.GetType() != Json::Type::Object
+                        || parsed.GetKeys().Length != 3 || !HasString(parsed, "command")
+                        || string(parsed["command"]) != "frame" || !HasString(parsed, "request_id")
+                        || !parsed.HasKey("wait_ready")
+                        || parsed["wait_ready"].GetType() != Json::Type::Boolean) {
+                        sock.Close(); break;
+                    }
+                    string requestId = string(parsed["request_id"]);
+                    bool waitReady = bool(parsed["wait_ready"]);
+                    if (!IsHexToken(requestId) || (waitReady && !firstRequest)) {
+                        sock.Close(); break;
+                    }
+                    // Only the first reset request may wait for the local player.
+                    // The same socket and switch identity are retained throughout.
+                    uint64 readyStarted = Time::Now;
+                    while (waitReady && !IsReadyToDrive() && Time::Now - readyStarted < 75000) {
+                        if (!BoundTelemetryIdentity(streamInstance, streamOperation, streamUid)
+                            || sock.IsHungUp()) break;
+                        yield();
+                    }
                     if (!BoundTelemetryIdentity(streamInstance, streamOperation, streamUid)
-                        || sock.IsHungUp()) break;
+                        || !IsReadyToDrive()) {
+                        sock.Close(); break;
+                    }
+                    string instance = g_switchInstanceEpoch;
+                    string operation = g_switchOperation;
+                    string uid = ActiveMapUid();
+                    if (!BoundTelemetryIdentity(streamInstance, streamOperation, streamUid)
+                        || instance.Length == 0 || operation.Length == 0 || uid.Length == 0
+                        || !IsReadyToDrive()) {
+                        // Do not hide a map or session transition inside a live
+                        // stream: the receiver must establish a new connection.
+                        sock.Close(); break;
+                    }
+                    if (!CollectTelemetry(buf)) {
+                        BoundTelemetryIdentity(streamInstance, streamOperation, streamUid);
+                        sock.Close(); break;
+                    }
+                    // Do not emit a pair if our own switch identity changed while
+                    // collecting it. This is not a byte-level attestation of a map.
+                    if (!BoundTelemetryIdentity(streamInstance, streamOperation, streamUid)
+                        || !IsReadyToDrive()) {
+                        sock.Close(); break;
+                    }
+                    auto header = Json::Object();
+                    header["protocol_version"] = SWITCH_PROTOCOL_VERSION;
+                    header["request_id"] = requestId;
+                    header["instance_epoch"] = instance;
+                    header["operation_id"] = operation;
+                    header["map_uid"] = uid;
+                    header["state"] = "ready";
+                    header["payload_bytes"] = 132;
+                    if (!sock.WriteRaw(Json::Write(header) + "\n") || !sock.Write(buf)) break;
+                    firstRequest = false;
                     yield();
                 }
-                if (!BoundTelemetryIdentity(streamInstance, streamOperation, streamUid)
-                    || !IsReadyToDrive()) {
-                    sock.Close(); break;
-                }
-                string instance = g_switchInstanceEpoch;
-                string operation = g_switchOperation;
-                string uid = ActiveMapUid();
-                if (!BoundTelemetryIdentity(streamInstance, streamOperation, streamUid)
-                    || instance.Length == 0 || operation.Length == 0 || uid.Length == 0
-                    || !IsReadyToDrive()) {
-                    // Do not hide a map or session transition inside a live
-                    // stream: the receiver must establish a new connection.
-                    sock.Close(); break;
-                }
-                if (!CollectTelemetry(buf)) {
-                    BoundTelemetryIdentity(streamInstance, streamOperation, streamUid);
-                    sock.Close(); break;
-                }
-                // Do not emit a pair if our own switch identity changed while
-                // collecting it. This is not a byte-level attestation of a map.
-                if (!BoundTelemetryIdentity(streamInstance, streamOperation, streamUid)
-                    || !IsReadyToDrive()) {
-                    sock.Close(); break;
-                }
-                auto header = Json::Object();
-                header["protocol_version"] = SWITCH_PROTOCOL_VERSION;
-                header["request_id"] = requestId;
-                header["instance_epoch"] = instance;
-                header["operation_id"] = operation;
-                header["map_uid"] = uid;
-                header["state"] = "ready";
-                header["payload_bytes"] = 132;
-                if (!sock.WriteRaw(Json::Write(header) + "\n") || !sock.Write(buf)) break;
-                firstRequest = false;
-                yield();
+                sock.Close();
             }
-            sock.Close();
         }
         g_attestedTelemetryServer.Close();
     }
