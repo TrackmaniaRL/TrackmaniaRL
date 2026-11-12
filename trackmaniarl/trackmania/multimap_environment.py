@@ -43,10 +43,20 @@ class _TrainingSession:
         self.release_suite_cache = release_suite_cache
 
     def reset(self, *, seed: int | None = None) -> Any:
-        self.training_asset.validate_map(self.training_path)
-        # OpenPlanetEnvironment verifies the UID before reset and the player
-        # after reset. A finished race need not have a ready player yet.
-        return self.environment.reset(seed=seed)
+        try:
+            self.training_asset.validate_map(self.training_path)
+            # A plugin restart invalidates the switch lease even if protocol 2
+            # reports the same UID. Do not issue reset controls in that state.
+            # At a finish screen the player need not be ready until after reset;
+            # OpenPlanetEnvironment confirms readiness once reset has completed.
+            self.switch.verify_active_map(self.uid, require_player=False)
+            return self.environment.reset(seed=seed)
+        except BaseException as error:
+            try:
+                self.release_controls()
+            except Exception as release_error:
+                error.add_note(f"Failed to release reset controls: {release_error!r}")
+            raise
 
     def step(self, action: Any) -> Any:
         return self.environment.step(action)

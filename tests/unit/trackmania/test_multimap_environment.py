@@ -339,3 +339,103 @@ def test_lidar_guidance_from_training_map_is_rejected(tmp_path: Path) -> None:
     factory, _ = _factory(tmp_path)
     with pytest.raises(ValueError, match="expert guidance"):
         factory.evaluation_pipeline(pipeline, item)
+
+
+def test_training_reset_verifies_switch_lease_before_reset_controls() -> None:
+    from unittest.mock import Mock, call
+
+    events = Mock()
+    environment = SimpleNamespace(reset=events.reset)
+    switch = SimpleNamespace(verify_active_map=events.verify_active_map)
+    asset = SimpleNamespace(validate_map=events.validate_map)
+    training_path = Path("training.Map.Gbx")
+    training = module._TrainingSession(
+        environment, switch, "training-uid", SimpleNamespace(), training_path, asset, lambda: None
+    )
+
+    training.reset(seed=123)
+
+    assert events.mock_calls == [
+        call.validate_map(training_path),
+        call.verify_active_map("training-uid", require_player=False),
+        call.reset(seed=123),
+    ]
+
+
+def test_training_reset_rejects_restarted_plugin_before_reset_controls() -> None:
+    from unittest.mock import Mock
+
+    from trackmaniarl.trackmania.map_switch_controller import MapSwitchIndeterminateError
+
+    environment = SimpleNamespace(reset=Mock(), release_controls=Mock())
+    switch = SimpleNamespace(
+        verify_active_map=Mock(side_effect=MapSwitchIndeterminateError("plugin restarted"))
+    )
+    training = module._TrainingSession(
+        environment,
+        switch,
+        "training-uid",
+        SimpleNamespace(),
+        Path("training.Map.Gbx"),
+        SimpleNamespace(validate_map=Mock()),
+        lambda: None,
+    )
+
+    with pytest.raises(MapSwitchIndeterminateError, match="plugin restarted"):
+        training.reset(seed=123)
+
+    switch.verify_active_map.assert_called_once_with("training-uid", require_player=False)
+    environment.reset.assert_not_called()
+    environment.release_controls.assert_called_once_with()
+
+
+def test_training_reset_preserves_verification_error_if_release_fails() -> None:
+    from unittest.mock import Mock
+
+    from trackmaniarl.trackmania.map_switch_controller import MapSwitchIndeterminateError
+
+    environment = SimpleNamespace(
+        reset=Mock(), release_controls=Mock(side_effect=OSError("release"))
+    )
+    switch = SimpleNamespace(
+        verify_active_map=Mock(side_effect=MapSwitchIndeterminateError("plugin restarted"))
+    )
+    training = module._TrainingSession(
+        environment,
+        switch,
+        "training-uid",
+        SimpleNamespace(),
+        Path("training.Map.Gbx"),
+        SimpleNamespace(validate_map=Mock()),
+        lambda: None,
+    )
+
+    with pytest.raises(MapSwitchIndeterminateError, match="plugin restarted") as captured:
+        training.reset(seed=123)
+
+    assert any("release" in note for note in captured.value.__notes__)
+    environment.reset.assert_not_called()
+    environment.release_controls.assert_called_once_with()
+
+
+def test_training_reset_releases_controls_when_asset_validation_fails() -> None:
+    from unittest.mock import Mock
+
+    environment = SimpleNamespace(reset=Mock(), release_controls=Mock())
+    switch = SimpleNamespace(verify_active_map=Mock())
+    training = module._TrainingSession(
+        environment,
+        switch,
+        "training-uid",
+        SimpleNamespace(),
+        Path("training.Map.Gbx"),
+        SimpleNamespace(validate_map=Mock(side_effect=ValueError("asset changed"))),
+        lambda: None,
+    )
+
+    with pytest.raises(ValueError, match="asset changed"):
+        training.reset()
+
+    switch.verify_active_map.assert_not_called()
+    environment.reset.assert_not_called()
+    environment.release_controls.assert_called_once_with()
