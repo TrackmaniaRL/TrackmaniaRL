@@ -201,7 +201,7 @@ def _evaluation_trials(plan: EvaluationPlan, trials: int) -> list[dict[str, Any]
         )
         summary = plan.runtime._evaluate_episode(request)
         summaries.append(summary)
-        suite = plan.runtime.spec.evaluation
+        suite = getattr(plan.runtime.spec, "evaluation", None)
         if (
             summary.get("termination") == "capture_interruption"
             and suite is not None
