@@ -144,6 +144,7 @@ def policy_observation_snapshot(value: PyTree) -> PyTree:
     memo: dict[int, Any] = {}
     visited: set[int] = set()
     owned_arrays: list[tuple[np.ndarray[Any, Any], np.ndarray[Any, Any]]] = []
+    owned_records: list[tuple[np.void, np.void]] = []
 
     def visit_array_elements(array: np.ndarray[Any, Any]) -> None:
         if array.dtype.names:
@@ -170,6 +171,12 @@ def policy_observation_snapshot(value: PyTree) -> PyTree:
             memo[identity] = item.detach().clone()
         elif isinstance(item, np.void) and item.dtype.names:
             # Structured scalar records can be nested inside object arrays.
+            # Register the copy before visiting fields, since an object field
+            # can refer back to the same scalar.
+            if item.dtype.hasobject:
+                copied_record = item.copy()
+                memo[identity] = copied_record
+                owned_records.append((item, copied_record))
             for name in item.dtype.names:
                 visit(item[name])
         elif isinstance(item, np.ndarray):
@@ -221,6 +228,9 @@ def policy_observation_snapshot(value: PyTree) -> PyTree:
                         visit(nested)
 
     visit(value)
+    for source_record, target_record in owned_records:
+        for name in source_record.dtype.names or ():
+            target_record[name] = deepcopy(source_record[name], memo)
     for source, target in owned_arrays:
         copy_array_elements(source, target)
         if hasattr(source, "__dict__"):

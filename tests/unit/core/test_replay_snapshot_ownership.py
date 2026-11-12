@@ -202,6 +202,15 @@ def test_standalone_structured_scalar_survives_replay_snapshot_and_restore() -> 
         assert not actual.requires_grad
 
 
+@pytest.mark.parametrize("snapshot", [tree_snapshot, policy_observation_snapshot])
+def test_standalone_structured_scalar_can_reference_itself(snapshot: Callable[[Any], Any]) -> None:
+    record = np.empty(1, dtype=[("x", object)])[0]
+    record["x"] = record
+    copied = snapshot(record)
+    assert copied is not record
+    assert copied["x"] is copied
+
+
 def test_append_sample_snapshot_and_restore_interleave() -> None:
     store = InMemoryReplayStore(capacity=16)
 

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 from threading import RLock
+from time import monotonic, sleep
 from uuid import uuid4
 
 from trackmaniarl.distributed.journal_errors import (
@@ -115,21 +116,31 @@ class RolloutJournal(EvaluationJournalMixin):
 
     def _initialize_database(self) -> None:
         self._configure_connection()
-        if self._database_tables():
-            self._migrate_schema()
-            self._validate_schema()
-        else:
-            # sqlite3 does not implicitly begin transactions for DDL.  Keep
-            # every table and the initial metadata together so an interrupted
-            # first start can retry on the same empty database.
-            with self._connection:
-                self._connection.execute("BEGIN IMMEDIATE")
+        # Take the write reservation before inspecting the schema. Independent
+        # openers must not both decide that the same new database is empty or
+        # that the same legacy schema still needs migration.
+        with self._connection:
+            self._connection.execute("BEGIN IMMEDIATE")
+            if self._database_tables():
+                self._migrate_schema()
+                self._validate_schema()
+            else:
                 self._create_schema()
                 self._initialize_metadata()
-        self._connection.commit()
 
     def _configure_connection(self) -> None:
-        self._connection.execute("PRAGMA journal_mode=WAL")
+        # Switching a new database to WAL can report SQLITE_BUSY immediately
+        # when another connection is doing the same, even with busy_timeout.
+        deadline = monotonic() + 5.0
+        while True:
+            try:
+                self._connection.execute("PRAGMA journal_mode=WAL")
+                break
+            except sqlite3.OperationalError as error:
+                code = getattr(error, "sqlite_errorcode", None)
+                if code is None or code & 0xFF != sqlite3.SQLITE_BUSY or monotonic() >= deadline:
+                    raise
+                sleep(min(0.05, max(0.0, deadline - monotonic())))
         self._connection.execute("PRAGMA synchronous=FULL")
         self._connection.execute("PRAGMA foreign_keys=ON")
 
@@ -148,16 +159,14 @@ class RolloutJournal(EvaluationJournalMixin):
         # Schema and version move together; legacy evaluation JSON remains
         # untouched until its contents have been migrated transactionally.
         self._validate_receipts()
-        # sqlite3 does not implicitly begin a transaction for DDL; without
-        # this explicit BEGIN a failed migration can leave a partial schema.
-        with self._connection:
-            self._connection.execute("BEGIN IMMEDIATE")
-            for statement in _EVALUATION_SCHEMA:
-                self._connection.execute(statement)
-            self._connection.execute(
-                "UPDATE metadata SET value = ? WHERE key = 'schema_version'",
-                (_JOURNAL_SCHEMA_VERSION,),
-            )
+        # Called within the initialization transaction; DDL and version move
+        # together, and concurrent openers observe the completed migration.
+        for statement in _EVALUATION_SCHEMA:
+            self._connection.execute(statement)
+        self._connection.execute(
+            "UPDATE metadata SET value = ? WHERE key = 'schema_version'",
+            (_JOURNAL_SCHEMA_VERSION,),
+        )
 
     def _initialize_metadata(self) -> None:
         self._connection.executemany(

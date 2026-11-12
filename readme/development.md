@@ -123,6 +123,11 @@ instance. Evaluation delivery and promotion operations live in
 particular, claiming an evaluation result remains part of the rollout append
 transaction. Append acquires a SQLite write transaction before checking its
 receipt, so separate journal connections serialize the idempotency decision.
+Initial creation and supported schema migration also reserve the write
+transaction before inspecting the schema, allowing independent openers to
+observe one complete result. A transient busy response while switching a new
+database to WAL is retried for up to five seconds; persistent lock errors remain
+visible to the caller.
 Journal schema and supported checkpoint formats are unchanged by this split.
 
 ## Adding a public component
