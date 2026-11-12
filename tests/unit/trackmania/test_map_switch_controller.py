@@ -652,6 +652,52 @@ def test_plugin_restart_after_lost_ack_never_dispatches_or_resolves(tmp_path: Pa
     assert plugin.switch_count == 1
 
 
+def test_original_map_reappearing_during_failed_load_does_not_resolve_or_redispatch(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "target.gbx"
+    path.write_bytes(b"target")
+    journal = MapSwitchJournal(tmp_path / "switch.sqlite", "instance", create=True)
+    plugin = FakePlugin()
+    status_calls = 0
+    status_operations: list[str] = []
+
+    def exchange(request: dict[str, str]) -> dict[str, Any]:
+        nonlocal status_calls
+        response = plugin(request)
+        if request["command"] == "switch_map":
+            response.update(state="accepted", map_uid="original", ready="true")
+        if request["command"] == "switch_status":
+            status_calls += 1
+            status_operations.append(request["operation_id"])
+            if status_calls == 1:
+                response.update(state="loading", map_uid="", ready="false")
+            elif status_calls == 2:
+                response.update(state="loading", map_uid="original", ready="false")
+            else:
+                response.update(
+                    state="indeterminate",
+                    failure_phase="loading",
+                    map_uid="original",
+                    ready="true",
+                )
+        return response
+
+    with MapSwitchController(journal, exchange) as controller:
+        with pytest.raises(MapSwitchIndeterminateError, match="phase: loading"):
+            controller.switch(path, "target")
+        pending = journal.pending()
+        assert pending is not None
+        assert pending[1] == "dispatching"
+        assert controller._quarantine_path.exists()
+        with pytest.raises(MapSwitchIndeterminateError, match="phase: loading"):
+            controller.recover()
+        assert journal.pending() == pending
+        assert controller._quarantine_path.exists()
+    assert plugin.switch_count == 1
+    assert status_operations == [pending[0].operation_id] * 4
+
+
 def test_mismatched_active_map_never_resolves(tmp_path: Path) -> None:
     path = tmp_path / "map.gbx"
     path.write_bytes(b"map")
