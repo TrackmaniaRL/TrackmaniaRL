@@ -11,10 +11,13 @@ compatibility in a real game has not been verified with this plugin snapshot.
 The checked-in Connect source is a reference snapshot of the separately
 distributed signed plugin. Its protocol 2 exposes the active UID and player
 readiness, but has no map-load command. It uses substring matching for its two
-commands; a new protocol must parse JSON instead. A prior protocol-3 source
-revision compiled in an isolated game, but its first switch ended
-indeterminate. Automatic evaluation and training-map restoration remain
-unverified; later revisions need their own compilation and game tests.
+commands; a new protocol must parse JSON instead. Two protocol-3 source
+revisions compiled in isolated game tests, but both attempted switches ended
+indeterminate. In the second, the worker reported `loading`; the requested UID
+was not seen in status samples, and the original UID later reappeared. A retry
+of the same operation remained indeterminate. This does not establish the
+failure cause or a safe restoration. Automatic evaluation, successful switching
+and training-map restoration remain unverified.
 
 The [tm-control-mcp implementation at commit 04e713b](https://github.com/clankercode/tm-control-mcp/blob/04e713bb4c18cca8bd792d2f3185c6ac9688e767/src/McpTools.as)
 provides evidence that `ManiaTitleControlScriptAPI.PlayMap` is callable in a
@@ -91,6 +94,16 @@ endpoint and obtain independent review. A failed sentinel restoration can leave
 that ambiguous published state. The code cannot guarantee fail-closed behavior
 when both publication handling and the subsequent filesystem recovery fail.
 Windows directory-entry durability after power loss is unverified.
+
+One operator-supervised retirement completed in an isolated test after the
+operator made the required assertions. The old journal remained unchanged with
+its operation still `dispatching`, archived-copy hashes matched, and a fresh
+empty journal was bound. This is evidence of that execution, not proof that the
+external assertions were true or that the historical plugin epoch was bound to
+a particular process. It does not establish power-loss durability or resolve
+the documented compounded-I/O-failure ambiguity. A subsequent switch using the
+fresh binding failed in `loading` as described above; its new pending marker
+and journal were left unresolved after the failure.
 
 `trackmaniarl.trackmania.map_switch_journal` provides durable storage for the
 experimental controller. Its SQLite transactions
@@ -233,7 +246,8 @@ restriction must be resolved before enabling the backend for such runs.
 
 Use a separate, exclusively controlled Windows game instance, a development
 installation of the protocol-3 Connect source and local, checksum-bound map
-and reward assets. Its compilation and runtime have not yet been verified.
+and reward assets. A source revision compiled in an isolated game, but
+successful switching and the full multi-map runtime remain unverified.
 Create an empty local staging directory and a parent directory for the journal.
 For the CLI, relative paths in the example below are resolved relative to the
 directory containing the run configuration. From that same directory, and for

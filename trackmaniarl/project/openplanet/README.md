@@ -31,8 +31,8 @@ to the local GUI player. Protocol 2 retains the earlier behavior, which can mix
 local player data with a spectated vehicle's visual state. Real-game protocol-2
 compatibility of this reference has not been verified.
 
-Protocol 3 is not a supported multi-map backend yet. A prior source revision
-compiled in an isolated game, but its first attempted map switch ended
+Protocol 3 is not a supported multi-map backend yet. Two source revisions
+compiled in isolated game tests, but both attempted map switches ended
 indeterminate; automatic evaluation and training-map restoration remain
 unverified. Later source changes require their own compilation and game tests.
 Do not enable it in a game used for training.
