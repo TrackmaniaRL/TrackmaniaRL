@@ -3,8 +3,8 @@
 A later [matched-budget measurement](2026-11-12-distributed-replay-matched.md)
 uses equal transition and update counts, with its own stated limitations.
 
-This is an exploratory game-free measurement, not a production throughput or
-performance claim. The driver uses actual `ActorRuntime`, local gRPC transport,
+This exploratory measurement does not establish production throughput or
+performance. The driver uses `ActorRuntime`, local gRPC transport,
 the coordinator's SQLite journal, replay, sequence sampler and CPU IQN+GRU
 learner. It also writes periodic and final checkpoints. The test environment
 produces 8×8 synthetic observations and sleeps 10 ms per step. No Trackmania

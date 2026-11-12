@@ -109,8 +109,7 @@ def _generate(root: Path, output: Path) -> None:
         coordinator.journal.close()
 
     journal = run.run_dir / "distributed" / "rollouts.sqlite3"
-    # Synthesize a v1 layout from the baseline's v2 DB. This does not claim the
-    # file was emitted by a historical v1 release.
+    # Derive a v1 layout from the baseline's v2 database; no v1 writer is used.
     with closing(sqlite3.connect(journal)) as db, db:
         db.execute("DROP TABLE evaluation_assignments")
         db.execute("DROP TABLE evaluation_snapshots")

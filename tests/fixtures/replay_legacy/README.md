@@ -37,9 +37,9 @@ from a different revision even when its serialization format is readable.
 
 ## Historical v1.3.0 writer
 
-The two additional fixtures were generated on 2026-11-12 by the original
-TrackmaniaRL [v1.3.0 release](https://github.com/TrackmaniaRL/TrackmaniaRL/releases/tag/v1.3.0),
-commit `eb803a2153d472ebb16cd7150201c82058dd804a`. They contain synthetic
+The original TrackmaniaRL [v1.3.0 release](https://github.com/TrackmaniaRL/TrackmaniaRL/releases/tag/v1.3.0),
+commit `eb803a2153d472ebb16cd7150201c82058dd804a`, generated these two fixtures
+on 2026-11-12. They contain synthetic
 transitions created for this test; they are not files from a historical training
 run. Generation used Windows, Python 3.12.12, SQLite 3.50.4, NumPy 2.4.2 and
 Torch 2.11.0+cu128 with one CPU thread; no GPU was used. The release's own
