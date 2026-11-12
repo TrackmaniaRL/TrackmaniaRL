@@ -115,6 +115,15 @@ class MapSwitchJournal:
             return None
         return MapSwitchIntent(*rows[0][:5]), rows[0][5]
 
+    def latest(self) -> tuple[MapSwitchIntent, str] | None:
+        """Return the latest durable intent, including terminal operations."""
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT operation_id, plugin_epoch, target_uid, target_path, target_sha256, state "
+                "FROM operations ORDER BY rowid DESC LIMIT 1"
+            ).fetchone()
+        return None if row is None else (MapSwitchIntent(*row[:5]), row[5])
+
     def prepare(self, intent: MapSwitchIntent) -> None:
         """Reserve an operation before sending any command; existing IDs never repeat."""
         with self._connect() as db:

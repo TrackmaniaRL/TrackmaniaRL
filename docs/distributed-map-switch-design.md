@@ -91,6 +91,31 @@ game loaded nor detects a file replaced and restored between the two actor
 checks. It does not permit the current single-map-only admission guard to be
 removed. Older single-map assignments and journals retain their existing format.
 
+An experimental, currently disabled OpenPlanet path stages map and reward
+assets in a new Windows directory, denies writes and deletes while handles are
+open, and compares staged suite contents with the assigned digest. It retains
+the staged files after shutdown because an uncertain game load may outlive the
+actor. The fixed suite is reused within one actor session; a limit on retained
+directories and bytes stops further staging rather than deleting uncertain
+files. Explicit cleanup requires confirming that the associated isolated game
+instance has stopped and no pending load can still consume those files.
+
+The controller binds the fixed Connect endpoint to one journal path in a
+per-user registry and holds an OS lock across the game session. The
+experimental factory only accepts `127.0.0.1:9001`, matching the checked-in
+plugin. The plugin does not prove an operating-system game-process identity;
+other accounts, a modified plugin using another endpoint, or uncooperative local
+software can bypass the registry. The
+experimental path remains blocked in scheduled training until that ownership
+assumption and game behavior can be validated. Windows file locks, source
+hashes, and UID/readiness checks do not themselves prove the game loaded the
+expected bytes.
+
+The experimental multi-map actor currently refuses a configured
+`actor_stall_timeout_s`: staging and the game switch do not yet expose enough
+progress information to distinguish a slow valid operation from a hang. This
+restriction must be resolved before enabling the backend for such runs.
+
 The coordinator assigns one immutable policy snapshot and suite identity. For
 every map the actor verifies the assets, switches and confirms readiness, then
 constructs a fresh environment and a separately attested feature pipeline.

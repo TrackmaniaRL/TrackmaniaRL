@@ -288,7 +288,16 @@ class ActorRuntime:
         environment = self._environment_factory()
         from trackmaniarl.distributed.evaluation_contract import validate_scheduled_evaluation
 
+        suite = self.spec.evaluation
+        if (
+            suite is not None
+            and len(suite.maps) > 1
+            and self.spec.training.evaluate_every_episodes is not None
+            and getattr(self.spec.distributed, "actor_stall_timeout_s", None) is not None
+        ):
+            raise ValueError("multi-map evaluation cannot safely use actor_stall_timeout_s yet")
         validate_scheduled_evaluation(self.spec, environment, pipeline, self.base_dir)
+        self._multi_map_factory = environment if suite is not None and len(suite.maps) > 1 else None
         model_factory = self._model_factory()
         self._replica_learner = self._create_replica_learner(model_factory)
         self._replica_learner.setup(self._replica_context(model_factory))

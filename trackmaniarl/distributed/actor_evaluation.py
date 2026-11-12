@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass
 from time import monotonic
 from typing import Any, cast
@@ -46,7 +47,11 @@ def evaluate(runtime: CollectionRuntime, environment: Any, pipeline: Any) -> Non
     _verify_assigned_assets(runtime)
     plan = EvaluationPlan(runtime, environment, pipeline, policy, version)
     try:
-        summaries = _evaluation_trials(plan, trials)
+        summaries = (
+            _multi_map_trials(plan, suite)
+            if suite is not None and len(getattr(suite, "maps", ())) > 1
+            else _evaluation_trials(plan, trials)
+        )
     except _EvaluationStoppedError:
         logger.info(
             "Actor %s stopped during evaluation; leaving assignment pending", runtime.actor_id
@@ -74,11 +79,61 @@ def evaluate(runtime: CollectionRuntime, environment: Any, pipeline: Any) -> Non
     runtime._spool(SpoolRequest([], [], version, summaries, snapshot))
 
 
+def _multi_map_trials(plan: EvaluationPlan, suite: Any) -> list[dict[str, Any]]:
+    """Evaluate each map and restore collection before publishing any result.
+
+    The factory is responsible for refusing restoration after an indeterminate
+    switch and for confirming the training map before returning. Exceptions
+    propagate out of the actor; they must never permit collection to resume.
+    """
+    factory = getattr(plan.runtime, "_multi_map_factory", None)
+    if factory is None:
+        raise RuntimeError("multi-map evaluation requires a verified map-switching factory")
+    summaries: list[dict[str, Any]] = []
+    pipelines: list[Any] = []
+    restore_required = False
+    assets = plan.runtime._active_evaluation_assets_sha256
+    with factory.staged_suite(suite, plan.runtime.base_dir, assets) as staged:
+        try:
+            for map_spec in staged.maps:
+                if plan.runtime.stop.is_set():
+                    raise _EvaluationStoppedError
+                pipeline = factory.evaluation_pipeline(plan.pipeline, map_spec)
+                if pipeline is plan.pipeline or any(pipeline is previous for previous in pipelines):
+                    raise RuntimeError("multi-map evaluation requires an isolated pipeline per map")
+                pipelines.append(pipeline)
+                # Entering a context may dispatch a switch and then fail. Mark it
+                # before calling the factory so even that path invokes restoration.
+                restore_required = True
+                with factory.evaluation_map(plan.environment, map_spec) as environment:
+                    map_plan = EvaluationPlan(
+                        plan.runtime, environment, pipeline, plan.policy, plan.version
+                    )
+                    results = _evaluation_trials(map_plan, suite.trials_per_map)
+                    factory.verify_evaluation_map(plan.environment, map_spec)
+                    summaries.extend(
+                        {
+                            **result,
+                            "map_id": map_spec.id,
+                            "map_uid": map_spec.expected_map_uid,
+                            "trial_index": index,
+                        }
+                        for index, result in enumerate(results)
+                    )
+        finally:
+            if restore_required:
+                factory.restore_training(plan.environment)
+    return summaries
+
+
 def _verify_assigned_assets(runtime: CollectionRuntime) -> None:
     expected = getattr(runtime, "_active_evaluation_assets_sha256", "")
     suite = runtime.spec.evaluation
-    if suite is not None and len(getattr(suite, "maps", ())) > 1 and not expected:
-        raise RuntimeError("multi-map evaluation requires an assigned asset digest")
+    if suite is not None and len(getattr(suite, "maps", ())) > 1:
+        if not expected:
+            raise RuntimeError("multi-map evaluation requires an assigned asset digest")
+        if not getattr(runtime, "_active_evaluation_assignment_id", ""):
+            raise RuntimeError("multi-map evaluation requires an assignment ID")
     if expected:
         actual = evaluation_assets_digest(suite, runtime.base_dir)
         if actual != expected:
@@ -88,14 +143,20 @@ def _verify_assigned_assets(runtime: CollectionRuntime) -> None:
 def _evaluation_trials(plan: EvaluationPlan, trials: int) -> list[dict[str, Any]]:
     if plan.runtime.stop.is_set():
         raise _EvaluationStoppedError
-    if not _prewarm_evaluation_policy(plan):
+    # Prewarm and inference can mutate exported policy state. Reload the
+    # assigned snapshot for every trial instead of assuming reset_episode
+    # restores the policy's weights or other persistent state.
+    prewarm = EvaluationPlan(
+        plan.runtime, plan.environment, plan.pipeline, _trial_policy(plan), plan.version
+    )
+    if not _prewarm_evaluation_policy(prewarm):
         return _evaluation_failures(plan, trials)
     summaries: list[dict[str, Any]] = []
     for trial in range(trials):
         if plan.runtime.stop.is_set():
             raise _EvaluationStoppedError
         request = EvaluationEpisodeRequest(
-            plan.environment, plan.pipeline, plan.policy, plan.version
+            plan.environment, plan.pipeline, _trial_policy(plan), plan.version
         )
         summary = plan.runtime._evaluate_episode(request)
         summaries.append(summary)
@@ -103,6 +164,94 @@ def _evaluation_trials(plan: EvaluationPlan, trials: int) -> list[dict[str, Any]
             summaries.extend(_evaluation_failures(plan, trials - trial - 1))
             break
     return summaries
+
+
+def _trial_policy(plan: EvaluationPlan) -> ReplicablePolicy:
+    runtime = plan.runtime
+    suite = runtime.spec.evaluation
+    if (
+        not getattr(runtime, "_active_evaluation_assignment_id", "")
+        or suite is None
+        or len(getattr(suite, "maps", ())) <= 1
+    ):
+        return plan.policy
+    snapshot = runtime._active_evaluation_initial_snapshot
+    if not snapshot:
+        raise RuntimeError("identified evaluation is missing its initial policy snapshot")
+    state = runtime.codec.decode(snapshot)
+    if not isinstance(state, Mapping):
+        raise ValueError("evaluation policy snapshot must decode to a mapping")
+    policy = _isolated_policy(plan.policy)
+    policy.load_state(state)
+    return policy
+
+
+def _isolated_policy(policy: ReplicablePolicy) -> ReplicablePolicy:
+    if not _supports_multimap_policy(policy):
+        raise RuntimeError("multi-map evaluation policy or selector is not supported")
+    try:
+        copy = deepcopy(policy)
+    except Exception as error:
+        raise RuntimeError("assigned evaluation policy cannot be isolated") from error
+    selector = getattr(policy, "action_selector", None)
+    if copy is policy or (
+        selector is not None and getattr(copy, "action_selector", None) is selector
+    ):
+        raise RuntimeError("assigned evaluation policy cannot be isolated")
+    _validate_model_isolation(policy, copy)
+    return copy
+
+
+def _supports_multimap_policy(policy: ReplicablePolicy) -> bool:
+    """Only admit the reviewed, resettable first-party value-policy components."""
+    from trackmaniarl.algorithms.value_based.policy import DiscreteValuePolicy
+    from trackmaniarl.trackmania.actions import TrackmaniaActionSelector
+
+    if type(policy) is not DiscreteValuePolicy:
+        return False
+    selector = policy.action_selector
+    if selector is not None and type(selector) is not TrackmaniaActionSelector:
+        return False
+    return all(
+        type(module).__module__.startswith(("trackmaniarl.models.", "torch.nn."))
+        for module in policy.model.modules()
+    )
+
+
+def _validate_model_isolation(original: ReplicablePolicy, copied: ReplicablePolicy) -> None:
+    """Reject shared Torch modules and parameter/buffer storage after deepcopy."""
+    import torch
+
+    selector = getattr(original, "action_selector", None)
+    if selector is not None and hasattr(selector, "weights"):
+        before = selector.weights
+        after = copied.action_selector.weights  # type: ignore[attr-defined]
+        if (
+            not isinstance(before, torch.Tensor)
+            or not isinstance(after, torch.Tensor)
+            or (
+                before.numel()
+                and before.untyped_storage().data_ptr() == after.untyped_storage().data_ptr()
+            )
+        ):
+            raise RuntimeError("assigned evaluation policy cannot be isolated")
+    source = getattr(original, "model", None)
+    target = getattr(copied, "model", None)
+    if not isinstance(source, torch.nn.Module) or not isinstance(target, torch.nn.Module):
+        raise RuntimeError("assigned evaluation policy cannot be isolated")
+    if {id(module) for module in source.modules()} & {id(module) for module in target.modules()}:
+        raise RuntimeError("assigned evaluation policy cannot be isolated")
+
+    def storage_ids(model: Any) -> set[tuple[str, int]]:
+        tensors = (*model.parameters(), *model.buffers())
+        return {
+            (str(value.device), value.untyped_storage().data_ptr())
+            for value in tensors
+            if value.numel() and value.device.type != "meta"
+        }
+
+    if storage_ids(source) & storage_ids(target):
+        raise RuntimeError("assigned evaluation policy cannot be isolated")
 
 
 def _evaluation_failures(plan: EvaluationPlan, count: int) -> list[dict[str, Any]]:
@@ -160,6 +309,13 @@ def _policy_from_request(
     if not isinstance(state, Mapping):
         raise ValueError("evaluation policy snapshot must decode to a mapping")
     policy = runtime._new_policy()
+    suite = runtime.spec.evaluation
+    if (
+        getattr(runtime, "_active_evaluation_assignment_id", "")
+        and suite is not None
+        and len(getattr(suite, "maps", ())) > 1
+    ):
+        policy = _isolated_policy(policy)
     policy.load_state(state)
     if getattr(runtime, "_active_evaluation_assignment_id", ""):
         runtime._active_evaluation_initial_snapshot = runtime.codec.encode(

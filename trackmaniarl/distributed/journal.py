@@ -405,6 +405,11 @@ class RolloutJournal:
         evaluation: tuple[str, str, bool, int] | None = None,
         evaluation_assets: str | None = None,
     ) -> tuple[int, bool]:
+        if evaluation_assets is not None:
+            from trackmaniarl.distributed.evaluation_assets import is_sha256
+
+            if evaluation is None or not is_sha256(evaluation_assets):
+                raise ValueError("an evaluation asset digest requires an evaluation assignment")
         chunk = _JournalChunk(session_id, sequence, payload, sha256(payload).digest())
         with self._lock, self._connection:
             receipt = self._find_receipt(chunk)

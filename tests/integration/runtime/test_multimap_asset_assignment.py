@@ -117,6 +117,7 @@ def test_actor_rejects_changed_or_missing_assigned_asset(tmp_path: Path) -> None
     actor = SimpleNamespace(
         spec=SimpleNamespace(evaluation=suite),
         base_dir=tmp_path,
+        _active_evaluation_assignment_id="assignment",
         _active_evaluation_assets_sha256=evaluation_assets_digest(suite, tmp_path),
     )
     _verify_assigned_assets(actor)
@@ -182,19 +183,21 @@ def test_actor_submission_retry_and_recovery_bind_the_same_assets(
     # A fake backend only exercises assignment/transport/recovery. Production
     # admission still rejects multi-map until an attested backend exists.
     monkeypatch.setattr(evaluation_contract, "validate_scheduled_evaluation", lambda *args: None)
+    monkeypatch.setattr(actor_evaluation, "_supports_multimap_policy", lambda _: True)
+    monkeypatch.setattr(actor_evaluation, "_validate_model_isolation", lambda *_: None)
     original_trials = actor_evaluation._evaluation_trials
     change_during = False
 
-    def fake_maps(plan: Any, trials: int) -> list[dict[str, Any]]:
+    def fake_maps(plan: Any, suite: Any) -> list[dict[str, Any]]:
         results = []
         for name in ("one", "two"):
-            item = original_trials(plan, trials)[0]
+            item = original_trials(plan, suite.trials_per_map)[0]
             results.append({**item, "map_id": name, "map_uid": f"uid-{name}", "trial_index": 0})
         if change_during:
             (tmp_path / "one.gbx").write_bytes(b"changed during evaluation")
         return results
 
-    monkeypatch.setattr(actor_evaluation, "_evaluation_trials", fake_maps)
+    monkeypatch.setattr(actor_evaluation, "_multi_map_trials", fake_maps)
     actor = ActorRuntime(ActorProcessRequest(path, "127.0.0.1:1", "actor", _DISTRIBUTED_TOKEN))
     coordinator = _coordinator(path, actor.fingerprint)
     try:

@@ -211,8 +211,8 @@ def _accept_evaluation_request(runtime: BackgroundRuntime, response: Mapping[str
     if suite is not None and len(getattr(suite, "maps", ())) > 1:
         from trackmaniarl.distributed.evaluation_assets import is_sha256
 
-        if not is_sha256(assets):
-            raise ValueError("multi-map evaluation assignment requires an asset digest")
+        if not assignment_id or not is_sha256(assets):
+            raise ValueError("multi-map evaluation requires an assignment ID and asset digest")
     with runtime._evaluation_request_lock:
         runtime._evaluation_request = (
             (snapshot, version, assignment_id, assets)

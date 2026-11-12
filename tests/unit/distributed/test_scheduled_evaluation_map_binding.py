@@ -239,3 +239,24 @@ def test_factory_subclass_cannot_inherit_unrelated_map_attestation(
     factory = OtherMapFactory({"geometry_path": geometry, "expected_map_uid": "trackmaniarl-test"})
     with pytest.raises(ValueError, match="subclasses must explicitly attest"):
         validate_scheduled_evaluation(_spec((item,)), factory, VisionFeaturePipeline(), tmp_path)
+
+
+def test_multi_map_actor_refuses_watchdog_without_progress_contract(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    item = EvaluationMapSpec(
+        id="a", geometry_path="geometry.npz", map_path="map.gbx", expected_map_uid="test"
+    )
+    actor = object.__new__(ActorRuntime)
+    actor.spec = _spec((item, item))
+    actor.spec.distributed = SimpleNamespace(actor_execution=None, actor_stall_timeout_s=1.0)
+    actor.spec.components = SimpleNamespace(feature_pipeline=object())
+    actor.base_dir = tmp_path
+    actor._environment_factory = Mock(return_value=object())
+    actor._model_factory = Mock()
+    with (
+        patch("trackmaniarl.distributed.actor._instantiate", return_value=object()),
+        pytest.raises(ValueError, match="cannot safely use actor_stall_timeout_s"),
+    ):
+        actor._components()
+    actor._model_factory.assert_not_called()
