@@ -7,9 +7,12 @@ from __future__ import annotations
 
 import json
 import os
+import socket
+import struct
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from threading import Event, Thread
 from typing import Any
 
 import numpy as np
@@ -67,9 +70,13 @@ class _SimulatedMapFactory:
     def restore_training(self, training: Any) -> None:
         self.events.append("restore")
 
+    def abort_evaluation(self, training: Any, error: BaseException) -> None:
+        self.events.append("abort")
 
-def test_experimental_factory_integration_under_guard_override(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+
+@pytest.mark.parametrize("mismatch", [False, True])
+def test_experimental_factory_integration_with_explicit_consent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, mismatch: bool
 ) -> None:
     from tests.integration.runtime.distributed_runtime_support import _Logger
     from tests.integration.runtime.test_distributed_evaluation_integration import TestLearner
@@ -95,12 +102,18 @@ def test_experimental_factory_integration_under_guard_override(
             "trackmaniarl.trackmania.multimap_environment:OpenPlanetMultiMapEnvironmentFactory"
         ),
         "kwargs": {
-            "config": {"expected_map_uid": "training", "reward_points_path": "training.npz"},
+            "config": {
+                "expected_map_uid": "training",
+                "reward_points_path": "training.npz",
+                "action_repeat_frames": 1,
+                "minimum_finish_steps": 1,
+            },
             "training_map_path": "training.gbx",
             "journal_path": "new-switch.sqlite",
             "instance_id": "isolated-test",
             "staging_root": str(tmp_path),
             "enable_experimental_multimap": True,
+            "assume_exclusive_no_unobserved_map_changes": True,
         },
     }
     config["components"]["feature_pipeline"] = {
@@ -117,15 +130,6 @@ def test_experimental_factory_integration_under_guard_override(
     ]
     path.write_text(json.dumps(config), encoding="utf-8")
     actor = ActorRuntime(ActorProcessRequest(path, "127.0.0.1:1", "actor", _DISTRIBUTED_TOKEN))
-    # Production admission remains blocked: this override exercises only the
-    # experimental internals with a simulated game, not continuous map identity.
-    monkeypatch.setattr(
-        evaluation_contract,
-        "validate_scheduled_evaluation",
-        lambda spec, factory, pipeline, base: factory.validate_scheduled_evaluation_suite(
-            spec.evaluation, pipeline, base
-        ),
-    )
     # The simulated learner is deliberately not on the real policy allowlist.
     # Real first-party policy isolation is covered in the unit suite.
     monkeypatch.setattr(actor_evaluation, "_supports_multimap_policy", lambda _: True)
@@ -159,38 +163,132 @@ def test_experimental_factory_integration_under_guard_override(
         from tests.unit.trackmania.test_map_switch_controller import FakePlugin
         from trackmaniarl.distributed.actor_transport import Client
         from trackmaniarl.trackmania import map_switch_controller, multimap_environment
+        from trackmaniarl.trackmania.bound_telemetry import BoundTelemetryError
+        from trackmaniarl.trackmania.environment import OpenPlanetEnvironment
         from trackmaniarl.trackmania.map_switch_journal import MapSwitchJournal
 
-        class FakeClient:
-            def close(self) -> None:
+        class FakeController:
+            def __init__(self) -> None:
+                self.frames = 0
+
+            def reset(self) -> None:
+                self.frames = 0
+
+            def apply(self, action: Any) -> None:
                 pass
 
-        class FakeGame(AttestedEnvironment):
-            def __init__(self, *args: Any, controller: Any = None, **kwargs: Any) -> None:
-                self.controller = controller if controller is not None else object()
-                self.client = FakeClient()
+            def apply_discrete(self, action: Any) -> None:
+                pass
 
-            def release_controls(self) -> None:
+            def consume_collision(self) -> bool:
+                return False
+
+            def confirm_finish(self) -> None:
                 pass
 
             def close(self) -> None:
                 pass
 
         plugin = FakePlugin()
+        controller = FakeController()
+
+        class FakeSession:
+            def verify_loaded_map(self, uid: str) -> None:
+                assert plugin.uid == uid
+
+            def confirm_ready(self, uid: str) -> None:
+                assert plugin.uid == uid
+
+        # The only network listener is this test-owned, ephemeral P3 endpoint.
+        listener = socket.socket()
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        listener.settimeout(0.1)
+        stop_server = Event()
+        requests: list[tuple[str, str, bool]] = []
+        server_errors: list[BaseException] = []
+
+        def serve_p3() -> None:
+            try:
+                while not stop_server.is_set():
+                    try:
+                        connection, _ = listener.accept()
+                    except TimeoutError:
+                        continue
+                    with connection:
+                        connection.settimeout(0.1)
+                        stream = bytearray()
+                        while not stop_server.is_set():
+                            try:
+                                data = connection.recv(4096)
+                            except TimeoutError:
+                                continue
+                            except ConnectionResetError:
+                                break  # A rejected frame may close with unread payload bytes.
+                            if not data:
+                                break
+                            stream.extend(data)
+                            while b"\n" in stream:
+                                line, _, rest = stream.partition(b"\n")
+                                stream = bytearray(rest)
+                                request = json.loads(line)
+                                assert set(request) == {"command", "request_id", "wait_ready"}
+                                assert request["command"] == "frame"
+                                assert type(request["wait_ready"]) is bool
+                                controller.frames += 1
+                                requests.append(
+                                    (plugin.uid, plugin.operation, request["wait_ready"])
+                                )
+                                uid = plugin.uid
+                                if mismatch and uid == "one" and controller.frames == 3:
+                                    uid = "wrong-map"
+                                header = {
+                                    "protocol_version": "3",
+                                    "request_id": request["request_id"],
+                                    "instance_epoch": plugin.instance,
+                                    "operation_id": plugin.operation,
+                                    "map_uid": uid,
+                                    "state": "ready",
+                                    "payload_bytes": 132,
+                                }
+                                values = [0.0] * 33
+                                values[2] = float(controller.frames >= 3)
+                                values[3] = float(100 * controller.frames)
+                                values[4] = 20.0 if controller.frames >= 3 else 0.0
+                                connection.sendall(
+                                    json.dumps(header).encode()
+                                    + b"\n"
+                                    + struct.pack("<33f", *values)
+                                )
+            except BaseException as error:
+                server_errors.append(error)
+
+        server = Thread(target=serve_p3, daemon=True)
+        server.start()
+        monkeypatch.setattr(
+            multimap_environment, "_BOUND_TELEMETRY_PORT", listener.getsockname()[1]
+        )
         monkeypatch.setattr(map_switch_controller, "_registry_root", lambda: tmp_path / "registry")
         monkeypatch.setattr(multimap_environment, "OpenPlanetSwitchTransport", lambda *_: plugin)
         monkeypatch.setattr(
-            multimap_environment.OpenPlanetEnvironmentFactory, "create", lambda *a, **k: FakeGame()
+            OpenPlanetEnvironment, "_create_session", staticmethod(lambda _: FakeSession())
         )
         monkeypatch.setattr(
-            multimap_environment,
-            "OpenPlanetEnvironment",
-            lambda config, controller, **kwargs: FakeGame(controller=controller),
+            multimap_environment.OpenPlanetEnvironmentFactory,
+            "create",
+            lambda self, **kwargs: OpenPlanetEnvironment(self.config, controller),
         )
         # This learner uses a test policy; real first-party isolation is covered
         # separately. The suite loop, factory, staging, journal and RPC are real.
         MapSwitchJournal(tmp_path / "new-switch.sqlite", "isolated-test", create=True)
-        training = factory.create(seed=0)
+        try:
+            training = factory.create(seed=0)
+        except BaseException:
+            stop_server.set()
+            server.join(timeout=5)
+            listener.close()
+            _close(coordinator)
+            raise
         client = None
         try:
             coordinator._start_server()  # port 0 asks the OS for an unused port
@@ -210,6 +308,21 @@ def test_experimental_factory_integration_under_guard_override(
             assignment = client.call("Submit", submit)
             _accept_evaluation_request(actor, assignment)
             actor.sequence = 1
+            if mismatch:
+                with pytest.raises(BoundTelemetryError, match="identity differs"):
+                    actor._evaluate(training, pipeline)
+                assert actor.queue.empty()
+                assert plugin.uid == "one"
+                assert plugin.switch_count == 2  # initial training and first evaluation map
+                assert training.switch._telemetry_quarantine_path.exists()
+                assert [(uid, ready) for uid, _, ready in requests] == [
+                    ("one", True),
+                    ("one", False),
+                    ("one", True),
+                    ("one", False),
+                    ("one", False),
+                ]
+                return
             actor._evaluate(training, pipeline)
             payload = actor.queue.get_nowait().read_bytes()
             result = actor.codec.decode(payload)
@@ -222,10 +335,20 @@ def test_experimental_factory_integration_under_guard_override(
             assert plugin.uid == "training"  # restore happens before spool
             training.reset(seed=1)
             _, reward, terminated, truncated, _ = training.step(0)
-            assert reward == 1.0
+            assert np.isfinite(reward)
             assert terminated
             assert not truncated
             assert plugin.uid == "training"
+            assert [(uid, ready) for uid, _, ready in requests] == [
+                (uid, ready)
+                for uid, flags in (
+                    ("one", (True, False, True, False, False, True, False, False)),
+                    ("two", (True, False, True, False, False, True, False, False)),
+                    ("training", (True, False, False)),
+                )
+                for ready in flags
+            ]
+            assert all(operation for _, operation, _ in requests)
             assert actor.codec.decode(result["evaluation_snapshot"]) == {"value": 7}
             assert all(
                 item["evaluation_assets_sha256"] == assignment["evaluation_assets_sha256"]
@@ -236,6 +359,11 @@ def test_experimental_factory_integration_under_guard_override(
             assert client.call("Submit", result)["accepted"] is True
         finally:
             training.close()
+            stop_server.set()
+            server.join(timeout=5)
+            listener.close()
+            assert not server.is_alive()
+            assert not server_errors
             if client is not None:
                 client.close()
             if coordinator._server is not None:

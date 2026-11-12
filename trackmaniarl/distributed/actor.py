@@ -257,7 +257,19 @@ class ActorRuntime:
     def _collect_environment(self, environment: Any, pipeline: Any) -> None:
         try:
             self._collect(environment, pipeline)
-        finally:
+        except BaseException as error:
+            fail_closed = getattr(environment, "fail_closed", None)
+            if callable(fail_closed):
+                try:
+                    fail_closed(error)
+                except Exception as cleanup_error:
+                    error.add_note(f"Failed to quarantine environment: {cleanup_error!r}")
+            try:
+                self._close_environment(environment)
+            except Exception as cleanup_error:
+                error.add_note(f"Failed to close environment: {cleanup_error!r}")
+            raise
+        else:
             self._close_environment(environment)
 
     @staticmethod

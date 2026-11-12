@@ -1,7 +1,8 @@
 # Design: attested distributed map switching
 
-Status: experimental implementation; scheduled multi-map admission is blocked.
-Continuous map identity and real-game validation remain outstanding.
+Status: experimental opt-in; real-game validation remains outstanding.
+This path assumes exclusive control of a trusted game instance and no
+autonomous or unobserved map changes. Continuous map identity is not proven.
 The default protocol-2 and single-map paths retain their existing behavior.
 
 ## Evidence and constraints
@@ -86,6 +87,16 @@ it. Queue acknowledgements, matching map UID alone, timeouts and plugin epoch
 changes are not terminal evidence. Manual or third-party game controls do not
 use this journal and are outside its protection.
 
+Before consuming bound telemetry, the experimental actor also writes and
+flushes a separate session guard in the instance registry. The owning session
+retains it through evaluation, restoration and subsequent training. A clean
+shutdown releases controls, closes telemetry, verifies the training map and
+removes the guard; an observed error or process exit leaves it in place and
+blocks automatic restart or recovery. Explicit recovery requires first
+stopping the isolated game and determining the state; a ready status by itself
+does not clear this guard. As with the switch marker, Windows directory-entry
+durability after power loss is unverified.
+
 ## Evaluation and restoration
 
 At admission, resolve each local map and geometry/reward asset and bind their
@@ -121,7 +132,11 @@ plugin. The plugin does not prove an operating-system game-process identity;
 other accounts, a modified plugin using another endpoint, or uncooperative local
 software can bypass the registry. Any future use of the experimental path
 requires a separately owned game, the unverified protocol-3 plugin, and explicit
-`enable_experimental_multimap: true`; scheduled admission is currently blocked.
+both `enable_experimental_multimap: true` and
+`assume_exclusive_no_unobserved_map_changes: true`. The second option explicitly
+accepts the assumption that the trusted instance has no autonomous or
+unobserved map changes during the session. If that assumption is false, do not
+use this path: matching observations cannot establish continuity.
 Windows file locks, source
 hashes, and UID/readiness checks do not themselves prove the game loaded the
 expected bytes.
@@ -134,8 +149,9 @@ for player readiness on the same connection. An EOF is never retried: it may
 also signal an identity failure. Later frame requests do not wait for readiness.
 These sampled checks do not detect an A→B→A map change between observations,
 and collecting several engine fields without yielding is not proof of an atomic
-engine snapshot. Admission stays blocked until a reliable continuity signal or
-equivalent verified guarantee closes this gap, and the real plugin is validated.
+engine snapshot. Observed mismatches abort collection; the explicit assumption
+is necessary for changes that are never observed. This does not establish
+support in a real game, and the actual plugin remains to be validated.
 
 The following alternatives were examined but do not establish that guarantee:
 
@@ -156,7 +172,7 @@ The following alternatives were examined but do not establish that guarantee:
   and telemetry. Background loads and reuse also need investigation. A counter
   of these callbacks therefore cannot attest continuous map identity.
 
-Removing the guard requires evidence for a signal covering every relevant map
+Removing the experimental assumption requires evidence for a signal covering every relevant map
 activation, including reuse and A→B→A, with no lost events and an ordering that
 binds it to the sampled telemetry and instance; an equivalent verified guarantee
 would also suffice. Validate the mechanism and its failure behavior in an
@@ -174,7 +190,7 @@ The experimental multi-map actor currently refuses a configured
 progress information to distinguish a slow valid operation from a hang. This
 restriction must be resolved before enabling the backend for such runs.
 
-### Prototype setup (admission remains blocked)
+### Prototype setup (experimental assumptions required)
 
 Use a separate, exclusively controlled Windows game instance, a development
 installation of the protocol-3 Connect source and local, checksum-bound map
@@ -204,6 +220,7 @@ components:
       instance_id: isolated-game
       staging_root: isolated/staging
       enable_experimental_multimap: true
+      assume_exclusive_no_unobserved_map_changes: true
 ```
 
 Replace the example paths and UID with real assets. The rest of the run must

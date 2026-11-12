@@ -30,6 +30,10 @@ logger = logging.getLogger(__name__)
 class _EvaluationStoppedError(Exception):
     """An operator stopped the actor before the suite could finish."""
 
+    def __init__(self, *, safe_boundary: bool = False) -> None:
+        super().__init__("evaluation stopped")
+        self.safe_boundary = safe_boundary
+
 
 @dataclass(slots=True)
 class EvaluationPlan:
@@ -56,11 +60,30 @@ def evaluate(runtime: CollectionRuntime, environment: Any, pipeline: Any) -> Non
             if suite is not None and len(getattr(suite, "maps", ())) > 1
             else _evaluation_trials(plan, trials)
         )
-    except _EvaluationStoppedError:
+    except _EvaluationStoppedError as error:
+        if not error.safe_boundary and suite is not None and len(suite.maps) > 1:
+            factory = getattr(runtime, "_multi_map_factory", None)
+            abort = getattr(factory, "abort_evaluation", None)
+            if callable(abort):
+                abort(environment, error)
+            logger.error(
+                "Actor %s stopped during uncertain telemetry; manual recovery required",
+                runtime.actor_id,
+            )
         logger.info(
             "Actor %s stopped during evaluation; leaving assignment pending", runtime.actor_id
         )
         return
+    except BaseException as error:
+        if suite is not None and len(getattr(suite, "maps", ())) > 1:
+            factory = getattr(runtime, "_multi_map_factory", None)
+            abort = getattr(factory, "abort_evaluation", None)
+            if callable(abort):
+                try:
+                    abort(environment, error)
+                except Exception as cleanup_error:
+                    error.add_note(f"Failed to quarantine evaluation: {cleanup_error!r}")
+        raise
     _verify_assigned_assets(runtime)
     assignment_id = getattr(runtime, "_active_evaluation_assignment_id", "")
     if assignment_id:
@@ -104,7 +127,7 @@ def _multi_map_trials(plan: EvaluationPlan, suite: Any) -> list[dict[str, Any]]:
         try:
             for map_spec in staged.maps:
                 if plan.runtime.stop.is_set():
-                    raise _EvaluationStoppedError
+                    raise _EvaluationStoppedError(safe_boundary=True)
                 pipeline = factory.evaluation_pipeline(plan.pipeline, map_spec)
                 if pipeline is plan.pipeline or any(pipeline is previous for previous in pipelines):
                     raise RuntimeError("multi-map evaluation requires an isolated pipeline per map")
@@ -117,6 +140,11 @@ def _multi_map_trials(plan: EvaluationPlan, suite: Any) -> list[dict[str, Any]]:
                         plan.runtime, environment, pipeline, plan.policy, plan.version
                     )
                     results = _evaluation_trials(map_plan, suite.trials_per_map)
+                    if any(
+                        result.get("termination") in {"telemetry_error", "capture_interruption"}
+                        for result in results
+                    ):
+                        raise RuntimeError("multi-map evaluation telemetry was interrupted")
                     factory.verify_evaluation_map(plan.environment, map_spec)
                     summaries.extend(
                         {
@@ -127,7 +155,13 @@ def _multi_map_trials(plan: EvaluationPlan, suite: Any) -> list[dict[str, Any]]:
                         }
                         for index, result in enumerate(results)
                     )
-        finally:
+        except _EvaluationStoppedError as error:
+            # A deliberate stop may restore only while the switch remains
+            # unambiguous; a failed restore leaves the session guard armed.
+            if error.safe_boundary and restore_required:
+                factory.restore_training(plan.environment)
+            raise
+        else:
             if restore_required:
                 factory.restore_training(plan.environment)
     return summaries
@@ -149,7 +183,7 @@ def _verify_assigned_assets(runtime: CollectionRuntime) -> None:
 
 def _evaluation_trials(plan: EvaluationPlan, trials: int) -> list[dict[str, Any]]:
     if plan.runtime.stop.is_set():
-        raise _EvaluationStoppedError
+        raise _EvaluationStoppedError(safe_boundary=True)
     # Prewarm and inference can mutate exported policy state. Reload the
     # assigned snapshot for every trial instead of assuming reset_episode
     # restores the policy's weights or other persistent state.
@@ -161,12 +195,19 @@ def _evaluation_trials(plan: EvaluationPlan, trials: int) -> list[dict[str, Any]
     summaries: list[dict[str, Any]] = []
     for trial in range(trials):
         if plan.runtime.stop.is_set():
-            raise _EvaluationStoppedError
+            raise _EvaluationStoppedError(safe_boundary=True)
         request = EvaluationEpisodeRequest(
             plan.environment, plan.pipeline, _trial_policy(plan), plan.version
         )
         summary = plan.runtime._evaluate_episode(request)
         summaries.append(summary)
+        suite = plan.runtime.spec.evaluation
+        if (
+            summary.get("termination") == "capture_interruption"
+            and suite is not None
+            and len(getattr(suite, "maps", ())) > 1
+        ):
+            raise RuntimeError("multi-map evaluation telemetry was interrupted")
         if summary["termination"] == "telemetry_error":
             summaries.extend(_evaluation_failures(plan, trials - trial - 1))
             break
@@ -279,7 +320,7 @@ def _prewarm_evaluation_policy(plan: EvaluationPlan) -> bool:
             raise _EvaluationStoppedError
         return False
     if plan.runtime.stop.is_set():
-        raise _EvaluationStoppedError
+        raise _EvaluationStoppedError(safe_boundary=True)
     reset_pipeline(plan.pipeline)
     reset_policy(plan.policy)
     try:
@@ -439,10 +480,10 @@ def _take_evaluation_step(
     context: EvaluationContext, step_index: int
 ) -> tuple[dict[str, Any] | None, bool]:
     if context.runtime.stop.is_set():
-        raise _EvaluationStoppedError
+        raise _EvaluationStoppedError(safe_boundary=True)
     evaluated = _evaluation_action(context)
     if context.runtime.stop.is_set():
-        raise _EvaluationStoppedError
+        raise _EvaluationStoppedError(safe_boundary=True)
     try:
         step = _evaluation_step(context, step_index, evaluated)
     except EnvironmentPausedError as exc:
@@ -460,7 +501,7 @@ def _take_evaluation_step(
         return _evaluation_interruption(context, exc), True
     _record_evaluation_step(context, step)
     if step.interrupted:
-        raise _EvaluationStoppedError
+        raise _EvaluationStoppedError(safe_boundary=True)
     return None, step.stopped
 
 

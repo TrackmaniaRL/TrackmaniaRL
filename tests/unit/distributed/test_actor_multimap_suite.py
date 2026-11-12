@@ -100,6 +100,9 @@ class _Factory:
         if self.fail_restore:
             raise RuntimeError("training map unresolved")
 
+    def abort_evaluation(self, training: Any, error: BaseException) -> None:
+        self.events.append("abort")
+
     def verify_evaluation_map(self, training: Any, map_spec: Any) -> None:
         self.events.append(f"verify:{map_spec.id}")
         if self.fail_verify:
@@ -219,11 +222,11 @@ def test_insufficient_capacity_rejects_suite_before_staging_or_switch() -> None:
     with pytest.raises(RuntimeError, match="insufficient switch capacity"):
         actor_evaluation.evaluate(runtime, object(), _Pipeline())
 
-    assert events == []
+    assert events == ["abort"]
     assert not runtime.requests
 
 
-def test_wrong_map_frame_aborts_suite_and_never_spools_after_restore() -> None:
+def test_wrong_map_frame_aborts_suite_without_restore_or_spool() -> None:
     from tests.unit.trackmania.test_bound_telemetry import _IDENTITY, _sequential_server
     from trackmaniarl.trackmania.bound_telemetry import BoundOpenPlanetClient, BoundTelemetryError
     from trackmaniarl.trackmania.telemetry import OpenPlanetClientConfig
@@ -241,7 +244,7 @@ def test_wrong_map_frame_aborts_suite_and_never_spools_after_restore() -> None:
         runtime._evaluate_episode = evaluate_episode  # type: ignore[method-assign]
         with pytest.raises(BoundTelemetryError, match="identity differs"):
             actor_evaluation.evaluate(runtime, object(), _Pipeline())  # type: ignore[arg-type]
-    assert events[-3:] == ["close:a", "restore", "unstage"]
+    assert events[-3:] == ["close:a", "unstage", "abort"]
     assert runtime.requests == []
 
 
@@ -254,33 +257,78 @@ def test_stopped_suite_restores_and_never_spools_partial_results() -> None:
     assert not runtime.requests
 
 
-def test_telemetry_failure_still_accounts_for_every_assigned_trial() -> None:
+def test_stop_during_unavailable_reset_aborts_without_restore() -> None:
+    events: list[str] = []
+    runtime = _Runtime(events)
+
+    def reset(_request: Any) -> None:
+        runtime.stop.set()
+        return None
+
+    runtime._reset_environment = reset  # type: ignore[method-assign]
+    actor_evaluation.evaluate(runtime, object(), _Pipeline())  # type: ignore[arg-type]
+    assert events[-3:] == ["close:a", "unstage", "abort"]
+    assert "restore" not in events
+    assert not runtime.requests
+
+
+def test_stop_with_step_timeout_aborts_without_restore(monkeypatch: pytest.MonkeyPatch) -> None:
+    events: list[str] = []
+    runtime = _Runtime(events)
+    monkeypatch.setattr(actor_evaluation, "_evaluation_action", lambda _context: object())
+
+    def step(*_args: Any) -> None:
+        runtime.stop.set()
+        raise TimeoutError("lost telemetry")
+
+    monkeypatch.setattr(actor_evaluation, "_evaluation_step", step)
+
+    def episode(_request: Any) -> dict[str, Any]:
+        actor_evaluation._take_evaluation_step(SimpleNamespace(runtime=runtime), 0)
+        raise AssertionError("step should not return")
+
+    runtime._evaluate_episode = episode  # type: ignore[method-assign]
+    actor_evaluation.evaluate(runtime, object(), _Pipeline())  # type: ignore[arg-type]
+    assert events[-3:] == ["close:a", "unstage", "abort"]
+    assert "restore" not in events
+    assert not runtime.requests
+
+
+def test_telemetry_failure_aborts_without_spooling_or_restore() -> None:
     runtime = _Runtime([])
     runtime.fail_first = True
-    actor_evaluation.evaluate(runtime, object(), _Pipeline())  # type: ignore[arg-type]
-    results = runtime.requests[0].evaluations
-    assert [(item["map_id"], item["trial_index"]) for item in results] == [
-        ("a", 0),
-        ("a", 1),
-        ("b", 0),
-        ("b", 1),
-    ]
-    assert [item["termination"] for item in results] == [
-        "telemetry_error",
-        "telemetry_error",
-        "finished",
-        "finished",
-    ]
+    with pytest.raises(RuntimeError, match="telemetry was interrupted"):
+        actor_evaluation.evaluate(runtime, object(), _Pipeline())  # type: ignore[arg-type]
+    assert not runtime.requests
+    assert "restore" not in runtime.events
+    assert runtime.events[-1] == "abort"
 
 
-def test_failed_context_entry_still_attempts_restore_and_propagates_failure() -> None:
+def test_capture_interruption_aborts_before_the_next_trial() -> None:
+    events: list[str] = []
+    runtime = _Runtime(events)
+
+    def interrupted(request: Any) -> dict[str, Any]:
+        events.append(f"trial:{request.environment}")
+        return {"termination": "capture_interruption"}
+
+    runtime._evaluate_episode = interrupted  # type: ignore[method-assign]
+    with pytest.raises(RuntimeError, match="telemetry was interrupted"):
+        actor_evaluation.evaluate(runtime, object(), _Pipeline())  # type: ignore[arg-type]
+    assert events.count("trial:a") == 1
+    assert "restore" not in events
+    assert events[-1] == "abort"
+    assert not runtime.requests
+
+
+def test_failed_context_entry_aborts_without_restore_and_preserves_failure() -> None:
     events: list[str] = []
     runtime = _Runtime(events)
     runtime._multi_map_factory.fail_entry = True
     runtime._multi_map_factory.fail_restore = True
-    with pytest.raises(RuntimeError, match="training map unresolved"):
+    with pytest.raises(RuntimeError, match="ambiguous switch"):
         actor_evaluation.evaluate(runtime, object(), _Pipeline())  # type: ignore[arg-type]
-    assert events == ["stage", "pipeline:a", "switch:a", "restore", "unstage"]
+    assert events == ["stage", "pipeline:a", "switch:a", "unstage", "abort"]
     assert not runtime.requests
 
 
@@ -290,18 +338,34 @@ def test_shared_pipeline_is_rejected_before_switch() -> None:
     runtime._multi_map_factory.reuse_training = True
     with pytest.raises(RuntimeError, match="isolated pipeline"):
         actor_evaluation.evaluate(runtime, object(), _Pipeline())  # type: ignore[arg-type]
-    assert events == ["stage", "pipeline:a", "unstage"]
+    assert events == ["stage", "pipeline:a", "unstage", "abort"]
     assert not runtime.requests
 
 
-def test_map_mismatch_after_trials_restores_without_spooling() -> None:
+def test_map_mismatch_after_trials_aborts_without_restore_or_spooling() -> None:
     events: list[str] = []
     runtime = _Runtime(events)
     runtime._multi_map_factory.fail_verify = True
     with pytest.raises(RuntimeError, match="evaluation map changed"):
         actor_evaluation.evaluate(runtime, object(), _Pipeline())  # type: ignore[arg-type]
-    assert events[-3:] == ["close:a", "restore", "unstage"]
+    assert events[-3:] == ["close:a", "unstage", "abort"]
     assert not runtime.requests
+
+
+def test_actor_collection_error_marks_session_failed_before_close() -> None:
+    from unittest.mock import Mock, call
+
+    from trackmaniarl.distributed.actor import ActorRuntime
+
+    events = Mock()
+    error = RuntimeError("policy failed")
+    events.collect.side_effect = error
+    runtime = SimpleNamespace(_collect=events.collect, _close_environment=events.close)
+    environment = SimpleNamespace(fail_closed=events.fail_closed)
+    with pytest.raises(RuntimeError, match="policy failed") as captured:
+        ActorRuntime._collect_environment(runtime, environment, object())
+    assert captured.value is error
+    assert events.mock_calls[1:] == [call.fail_closed(error), call.close(environment)]
 
 
 def test_assigned_snapshot_does_not_mutate_a_shared_source_policy() -> None:

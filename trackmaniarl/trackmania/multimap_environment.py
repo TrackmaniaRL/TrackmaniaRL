@@ -45,8 +45,14 @@ class _TrainingSession:
         self.environment, self.switch, self.uid = environment, switch, uid
         self.staged, self.training_path, self.training_asset = staged, training_path, training_asset
         self.release_suite_cache = release_suite_cache
+        self._failed = False
+        self._closed = False
+        self._close_complete = False
+        self._evaluation_active = False
+        self._evaluation_open = False
 
     def reset(self, *, seed: int | None = None) -> Any:
+        self._require_training_ready()
         try:
             self.training_asset.validate_map(self.training_path)
             # A plugin restart invalidates the switch lease even if protocol 2
@@ -56,29 +62,129 @@ class _TrainingSession:
             self.switch.verify_active_map(self.uid, require_player=False)
             return self.environment.reset(seed=seed)
         except BaseException as error:
-            try:
-                self.release_controls()
-            except Exception as release_error:
-                error.add_note(f"Failed to release reset controls: {release_error!r}")
+            self.fail_closed(error)
             raise
 
     def step(self, action: Any) -> Any:
-        return self.environment.step(action)
+        self._require_training_ready()
+        try:
+            return self.environment.step(action)
+        except BaseException as error:
+            self.fail_closed(error)
+            raise
+
+    def _require_active(self) -> None:
+        if self._failed or self._closed:
+            raise RuntimeError("multi-map session is quarantined or closed")
+
+    def _require_training_ready(self) -> None:
+        self._require_active()
+        if self._evaluation_active:
+            raise RuntimeError("training is suspended until the training map is restored")
+
+    def fail_closed(self, error: BaseException) -> None:
+        """Neutralize control and keep the already armed session guard."""
+        self._failed = True
+        try:
+            self.release_controls()
+        except Exception as release_error:
+            error.add_note(f"Failed to release controls: {release_error!r}")
+        try:
+            self.switch.quarantine_uncertain_telemetry()
+        except Exception as quarantine_error:
+            error.add_note(f"Failed to quarantine telemetry: {quarantine_error!r}")
 
     def release_controls(self) -> None:
         self.environment.release_controls()
 
     def close(self) -> None:
-        try:
-            self.environment.close()
-        finally:
+        if self._close_complete:
+            return
+        self._closed = True
+        incomplete_evaluation = self._evaluation_active and not self._failed
+        if incomplete_evaluation:
+            self._failed = True
+        errors: list[BaseException] = []
+
+        def cleanup(action: Callable[[], Any]) -> None:
             try:
-                self.release_suite_cache()
-            finally:
-                try:
-                    self.switch.close()
-                finally:
-                    self.staged.close()
+                action()
+            except BaseException as error:
+                errors.append(error)
+
+        cleanup(self.release_controls)
+        cleanup(self.environment.close)
+        cleanup(self.release_suite_cache)
+        cleanup(self.staged.close)
+        if incomplete_evaluation:
+            errors.append(RuntimeError("evaluation closed before training map restoration"))
+        if not self._failed and not errors:
+            cleanup(lambda: self.training_asset.validate_map(self.training_path))
+            if not errors:
+                cleanup(lambda: self.switch.verify_active_map(self.uid, require_player=False))
+            if not errors:
+                cleanup(self.switch.finish_evaluation_guard)
+        cleanup(self.switch.close)
+        if errors:
+            self._failed = True
+            first, *remaining = errors
+            for additional in remaining:
+                first.add_note(f"Additional session cleanup failure: {additional!r}")
+            raise first
+        self._close_complete = True
+
+
+class _EvaluationSession:
+    """Guard evaluation calls even when a caller catches their errors."""
+
+    def __init__(self, environment: OpenPlanetEnvironment, training: _TrainingSession) -> None:
+        self._environment, self._training = environment, training
+        self._closed = False
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._environment, name)
+
+    def reset(self, *, seed: int | None = None) -> Any:
+        self._require_active()
+        try:
+            return self._environment.reset(seed=seed)
+        except BaseException as error:
+            self._training.fail_closed(error)
+            raise
+
+    def step(self, action: Any) -> Any:
+        self._require_active()
+        try:
+            return self._environment.step(action)
+        except BaseException as error:
+            self._training.fail_closed(error)
+            raise
+
+    def _require_active(self) -> None:
+        self._training._require_active()
+        if self._closed:
+            raise RuntimeError("evaluation session is closed")
+
+    def close(self) -> None:
+        """Close evaluation telemetry without closing the shared controller."""
+        if self._closed:
+            return
+        self._closed = True
+        error: BaseException | None = None
+        try:
+            self._training.release_controls()
+        except BaseException as release_error:
+            error = release_error
+        try:
+            self._environment.client.close()
+        except BaseException as close_error:
+            if error is None:
+                error = close_error
+            else:
+                error.add_note(f"Failed to close evaluation telemetry: {close_error!r}")
+        if error is not None:
+            self._training.fail_closed(error)
+            raise error
 
 
 class OpenPlanetMultiMapEnvironmentFactory:
@@ -97,6 +203,7 @@ class OpenPlanetMultiMapEnvironmentFactory:
         instance_id: str,
         staging_root: str | Path,
         enable_experimental_multimap: bool = False,
+        assume_exclusive_no_unobserved_map_changes: bool = False,
         base_dir: str | Path = ".",
     ) -> None:
         self.config = OpenPlanetEnvironmentFactory(config, base_dir=base_dir).config
@@ -113,7 +220,10 @@ class OpenPlanetMultiMapEnvironmentFactory:
         self.instance_id = instance_id
         if type(enable_experimental_multimap) is not bool:
             raise ValueError("enable_experimental_multimap must be a boolean")
+        if type(assume_exclusive_no_unobserved_map_changes) is not bool:
+            raise ValueError("assume_exclusive_no_unobserved_map_changes must be a boolean")
         self.enable_experimental_multimap = enable_experimental_multimap
+        self.assume_exclusive_no_unobserved_map_changes = assume_exclusive_no_unobserved_map_changes
         self._training_asset_sha256: str | None = None
         self._training_map_sha256: str | None = None
         self._suite_cache: dict[str, tuple[StagedAssets, Any]] = {}
@@ -154,8 +264,11 @@ class OpenPlanetMultiMapEnvironmentFactory:
     ) -> None:
         from trackmaniarl.trackmania.features import LidarFeaturePipeline
 
+        self._training_asset_sha256 = None
+        self._training_map_sha256 = None
         if type(self) is not OpenPlanetMultiMapEnvironmentFactory:
             raise ValueError("multi-map factory subclasses cannot inherit attestation")
+        self._require_experimental_consent()
         if self.config.pace_reference_path is not None:
             raise ValueError("multi-map evaluation requires map-specific pace references")
         training = load_reward_asset(
@@ -174,12 +287,13 @@ class OpenPlanetMultiMapEnvironmentFactory:
                 or geometry.map_sha256 != training.map_sha256
             ):
                 raise ValueError("training feature geometry differs from the attested map")
-        self._training_asset_sha256 = training.sha256
-        self._training_map_sha256 = training.map_sha256
         for item in suite.maps:
             self.evaluation_pipeline(pipeline, _resolve_evaluation_map(item, base_dir))
+        self._training_asset_sha256 = training.sha256
+        self._training_map_sha256 = training.map_sha256
 
     def create(self, *, seed: int, evaluation_map: Any | None = None) -> _TrainingSession:
+        self._require_experimental_consent()
         if evaluation_map is not None:
             raise ValueError(
                 "multi-map factory creates its evaluation environments through its session"
@@ -192,6 +306,16 @@ class OpenPlanetMultiMapEnvironmentFactory:
         except BaseException:
             staged.close()
             raise
+
+    def _require_experimental_consent(self) -> None:
+        if (
+            self.enable_experimental_multimap is not True
+            or self.assume_exclusive_no_unobserved_map_changes is not True
+        ):
+            raise ValueError(
+                "multi-map evaluation requires explicit experimental opt-in and acceptance "
+                "of exclusive control with no unobserved map changes"
+            )
 
     def _create_staged(self, seed: int, staged: StagedAssets) -> _TrainingSession:
         training_path = staged.stage(self.training_map_path, "training.Map.Gbx")
@@ -228,6 +352,9 @@ class OpenPlanetMultiMapEnvironmentFactory:
             )
             environment = holder[0]
             switch.verify_active_map(self.config.expected_map_uid or "")
+            # A process crash or failed telemetry read must leave a durable
+            # record before the first bound frame can be consumed.
+            switch.begin_evaluation_guard()
             self._bind_telemetry(environment, switch, self.config.expected_map_uid or "")
             session = _TrainingSession(
                 environment,
@@ -251,45 +378,102 @@ class OpenPlanetMultiMapEnvironmentFactory:
             raise
 
     @contextmanager
-    def evaluation_map(
-        self, training: _TrainingSession, item: Any
-    ) -> Iterator[OpenPlanetEnvironment]:
+    def evaluation_map(self, training: _TrainingSession, item: Any) -> Iterator[_EvaluationSession]:
         if not isinstance(training, _TrainingSession):
             raise TypeError("multi-map evaluation requires its owning training session")
-        self._asset(item)
-        training.switch.switch(
-            item.map_path, item.expected_map_uid, before_dispatch=lambda: self._quiesce(training)
-        )
-        evaluation = OpenPlanetEnvironment(
-            self.config, training.environment.controller, evaluation_map=item
-        )
+        training._require_active()
+        if training._evaluation_open:
+            raise RuntimeError("an evaluation map context is already open")
+        evaluation = None
+        training._evaluation_open = True
+        training._evaluation_active = True
         try:
+            self._asset(item)
+            training.switch.switch(
+                item.map_path,
+                item.expected_map_uid,
+                before_dispatch=lambda: self._quiesce(training),
+            )
+            evaluation = OpenPlanetEnvironment(
+                self.config, training.environment.controller, evaluation_map=item
+            )
             self._bind_telemetry(evaluation, training.switch, item.expected_map_uid)
-            yield evaluation
+        except BaseException as error:
+            training.fail_closed(error)
+            training._evaluation_open = False
+            if evaluation is not None:
+                try:
+                    evaluation.client.close()
+                except Exception as close_error:
+                    error.add_note(f"Failed to close evaluation telemetry: {close_error!r}")
+            raise
+        session = _EvaluationSession(evaluation, training)
+        try:
+            yield session
+        except BaseException as error:
+            from trackmaniarl.distributed.actor_evaluation import _EvaluationStoppedError
+
+            safe_stop = isinstance(error, _EvaluationStoppedError) and error.safe_boundary
+            if not safe_stop:
+                training.fail_closed(error)
+            try:
+                session.close()
+            except Exception as close_error:
+                error.add_note(f"Failed to close evaluation telemetry: {close_error!r}")
+                if isinstance(error, _EvaluationStoppedError):
+                    error.safe_boundary = False
+            raise
+        else:
+            session.close()
         finally:
-            # The training session owns the shared input device; only close the
-            # evaluation telemetry connection here.
-            evaluation.client.close()
+            training._evaluation_open = False
 
     def restore_training(self, training: _TrainingSession) -> None:
         if not isinstance(training, _TrainingSession):
             raise TypeError("multi-map evaluation requires its owning training session")
-        training.training_asset.validate_map(training.training_path)
-        training.switch.switch(
-            training.training_path, training.uid, before_dispatch=lambda: self._quiesce(training)
-        )
-        training.switch.verify_active_map(training.uid)
-        self._bind_telemetry(training.environment, training.switch, training.uid)
+        training._require_active()
+        if training._evaluation_open:
+            raise RuntimeError("close the evaluation map context before restoring training")
+        try:
+            training.training_asset.validate_map(training.training_path)
+            training.switch.switch(
+                training.training_path,
+                training.uid,
+                before_dispatch=lambda: self._quiesce(training),
+            )
+            training.switch.verify_active_map(training.uid)
+            self._bind_telemetry(training.environment, training.switch, training.uid)
+        except BaseException as error:
+            training.fail_closed(error)
+            raise
+        training._evaluation_active = False
 
     def verify_evaluation_map(self, training: _TrainingSession, item: Any) -> None:
-        self._asset(item)
-        training.switch.verify_active_map(item.expected_map_uid, require_player=False)
+        training._require_active()
+        try:
+            self._asset(item)
+            training.switch.verify_active_map(item.expected_map_uid, require_player=False)
+        except BaseException as error:
+            training.fail_closed(error)
+            raise
+
+    @staticmethod
+    def abort_evaluation(training: _TrainingSession, error: BaseException) -> None:
+        if not isinstance(training, _TrainingSession):
+            error.add_note("Cannot neutralize an unknown multi-map training session")
+            return
+        training.fail_closed(error)
 
     def require_switch_capacity(self, training: _TrainingSession, required: int) -> None:
         """Check available plugin operation IDs before leaving the training map."""
         if not isinstance(training, _TrainingSession):
             raise TypeError("multi-map evaluation requires its owning training session")
-        training.switch.require_capacity(training.uid, required)
+        training._require_training_ready()
+        try:
+            training.switch.require_capacity(training.uid, required)
+        except BaseException as error:
+            training.fail_closed(error)
+            raise
 
     def _bind_telemetry(
         self, environment: OpenPlanetEnvironment, switch: MapSwitchController, uid: str

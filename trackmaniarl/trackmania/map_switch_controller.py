@@ -160,6 +160,9 @@ class MapSwitchController:
         )
         key = hashlib.sha256(identity.encode("utf-8")).hexdigest()
         self._quarantine_path = root / (key + ".pending")
+        self._telemetry_quarantine_path = root / (key + ".telemetry-uncertain")
+        self._telemetry_uncertain = False
+        self._evaluation_guard_uid: str | None = None
         try:
             self._instance_lock = _InstanceLock(root / (key + ".lock"))
         except OSError as error:
@@ -218,6 +221,110 @@ class MapSwitchController:
     def _require_owner(self) -> None:
         if self._instance_lock.file.closed:
             raise MapSwitchIndeterminateError("game instance ownership was released")
+
+    def begin_evaluation_guard(self) -> None:
+        """Persist a guard before evaluation can read telemetry or switch maps."""
+        self._require_owner()
+        self._require_certain_telemetry()
+        if self._evaluation_guard_uid is not None:
+            raise MapSwitchIndeterminateError("evaluation guard is already active")
+        latest = self.journal.latest()
+        if (
+            latest is None
+            or latest[1] != "terminal"
+            or self.journal.pending() is not None
+            or self._read_quarantine() is not None
+        ):
+            raise MapSwitchIndeterminateError("evaluation requires a terminal training map")
+        # Block this controller even if creation or synchronization fails.
+        self._telemetry_uncertain = True
+        self._write_telemetry_marker(accept_existing=False)
+        self._evaluation_guard_uid = latest[0].target_uid
+        self._telemetry_uncertain = False
+
+    def finish_evaluation_guard(self) -> None:
+        """Disarm only after the same owner has restored and verified training."""
+        self._require_owner()
+        if self._evaluation_guard_uid is None:
+            raise MapSwitchIndeterminateError("evaluation guard is not owned by this controller")
+        self._require_certain_telemetry()
+        try:
+            self._active_map_status(self._evaluation_guard_uid, require_player=False)
+        except BaseException:
+            self._telemetry_uncertain = True
+            raise
+        self._telemetry_uncertain = True
+        self._telemetry_quarantine_path.unlink()
+        try:
+            _sync_registry_directory(self._telemetry_quarantine_path.parent)
+        except BaseException as error:
+            self._telemetry_uncertain = True
+            try:
+                self._write_telemetry_marker()
+            except BaseException as marker_error:
+                error.add_note(f"Could not restore telemetry quarantine marker: {marker_error!r}")
+            raise
+        self._evaluation_guard_uid = None
+        self._telemetry_uncertain = False
+
+    def quarantine_uncertain_telemetry(self) -> None:
+        """Permanently block this owner and persist any observation failure.
+
+        An armed evaluation guard already supplies the write-ahead marker.
+        If creating a new marker fails, this controller remains blocked but
+        persistence across restart cannot be guaranteed.
+        """
+        self._require_owner()
+        self._telemetry_uncertain = True
+        if self._evaluation_guard_uid is not None:
+            return
+        self._write_telemetry_marker()
+
+    def _write_telemetry_marker(self, *, accept_existing: bool = True) -> None:
+        path = self._telemetry_quarantine_path
+        try:
+            descriptor = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            if not accept_existing:
+                raise MapSwitchIndeterminateError(
+                    "uncertain telemetry requires manual recovery"
+                ) from None
+            entry = path.lstat()
+            if (
+                not stat.S_ISREG(entry.st_mode)
+                or entry.st_nlink != 1
+                or getattr(entry, "st_file_attributes", 0) & 0x400
+            ):
+                raise MapSwitchIndeterminateError("unsafe telemetry quarantine marker") from None
+            with path.open("r+b") as stream:
+                opened = os.fstat(stream.fileno())
+                if (entry.st_dev, entry.st_ino) != (opened.st_dev, opened.st_ino):
+                    raise MapSwitchIndeterminateError(
+                        "telemetry quarantine marker changed"
+                    ) from None
+                os.fsync(stream.fileno())
+        else:
+            with os.fdopen(descriptor, "wb") as stream:
+                data = b"uncertain telemetry\n"
+                if stream.write(data) != len(data):
+                    raise OSError("short write to telemetry quarantine marker")
+                stream.flush()
+                os.fsync(stream.fileno())
+        _sync_registry_directory(path.parent)
+
+    def _require_certain_telemetry(self) -> None:
+        if self._telemetry_uncertain:
+            raise MapSwitchIndeterminateError("uncertain telemetry requires manual recovery")
+        try:
+            self._telemetry_quarantine_path.lstat()
+        except FileNotFoundError:
+            if self._evaluation_guard_uid is not None:
+                self._telemetry_uncertain = True
+                raise MapSwitchIndeterminateError("evaluation guard marker disappeared") from None
+            return
+        if self._evaluation_guard_uid is not None:
+            return
+        raise MapSwitchIndeterminateError("uncertain telemetry requires manual recovery")
 
     def _read_quarantine(self) -> str | None:
         try:
@@ -299,6 +406,7 @@ class MapSwitchController:
     ) -> None:
         """Issue one switch; any uncertain outcome remains durably quarantined."""
         self._require_owner()
+        self._require_certain_telemetry()
         self._validate_timeout(timeout_s)
         if self._read_quarantine() is not None or self.journal.pending() is not None:
             raise MapSwitchIndeterminateError("a previous switch is unresolved")
@@ -345,6 +453,7 @@ class MapSwitchController:
     def recover(self, *, timeout_s: float = _DEFAULT_SWITCH_TIMEOUT_S) -> None:
         """Poll the same dispatched operation; never issue another switch."""
         self._require_owner()
+        self._require_certain_telemetry()
         self._validate_timeout(timeout_s)
         marker = self._read_quarantine()
         pending = self.journal.pending()
@@ -436,6 +545,7 @@ class MapSwitchController:
 
     def _active_map_status(self, expected_uid: str, *, require_player: bool) -> Mapping[str, Any]:
         self._require_owner()
+        self._require_certain_telemetry()
         if self._read_quarantine() is not None or self.journal.pending() is not None:
             raise MapSwitchIndeterminateError("a previous switch is unresolved")
         latest = self.journal.latest()
