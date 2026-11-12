@@ -97,13 +97,13 @@ def _lock_path_directories(paths: tuple[Path, ...]) -> Iterator[None]:
 
 
 def _checked_path(path: Path) -> Path:
-    """Reject links and reparse points in every existing path component."""
+    """Reject reparse points, then match MapSwitchJournal's canonical paths."""
     absolute = Path(os.path.abspath(path))
     for component in reversed((absolute, *absolute.parents)):
         entry = component.lstat()
         if stat.S_ISLNK(entry.st_mode) or getattr(entry, "st_file_attributes", 0) & 0x400:
             raise ValueError(f"linked path component: {component}")
-    return absolute
+    return absolute.resolve(strict=True)
 
 
 def _regular_bytes(path: Path, limit: int) -> bytes:

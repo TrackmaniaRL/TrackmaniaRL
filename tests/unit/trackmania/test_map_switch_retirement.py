@@ -113,6 +113,43 @@ def test_retirement_preserves_dispatch_and_archives_exact_evidence(
     assert isolated["endpoint"].switch_count == 1
 
 
+@pytest.mark.parametrize("alias_target", ["old", "new"])
+def test_windows_short_alias_publishes_canonical_fresh_journal(
+    isolated: dict[str, Any], alias_target: str
+) -> None:
+    import ctypes
+    from ctypes import wintypes
+
+    path = isolated["root"].parent / "a-very-long-fresh-switch-journal-name.sqlite"
+    journal = MapSwitchJournal(path, "new", create=True)
+    alias_path = isolated["old"].path if alias_target == "old" else path
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    short_name = kernel.GetShortPathNameW
+    short_name.argtypes = [wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD]
+    short_name.restype = wintypes.DWORD
+    length = short_name(str(alias_path), None, 0)
+    if not length:
+        pytest.skip("the volume does not provide a short-name alias")
+    buffer = ctypes.create_unicode_buffer(length)
+    if not short_name(str(alias_path), buffer, length):
+        pytest.skip("the volume does not provide a short-name alias")
+    alias = Path(buffer.value)
+    if os.path.normcase(str(alias)) == os.path.normcase(str(alias_path.resolve())):
+        pytest.skip("the volume has no distinct 8.3 alias for this path")
+    assert os.path.samefile(alias, alias_path)
+    map_switch_retirement.retire_quarantined_endpoint(
+        old_journal=alias if alias_target == "old" else isolated["old"].path,
+        old_instance_id="old",
+        new_journal=alias if alias_target == "new" else path,
+        new_instance_id="new",
+        attestation=isolated["attestation"],
+    )
+    # Constructors use MapSwitchJournal.path (Path.resolve), not the input alias.
+    with MapSwitchController(journal, isolated["endpoint"]):
+        pass
+    assert isolated["old"].pending()[1] == "dispatching"
+
+
 @pytest.mark.parametrize("phase", [*_BEFORE_SENTINEL, *_AFTER_SENTINEL])
 def test_failure_at_each_precommit_boundary_cannot_dispatch(
     isolated: dict[str, Any], monkeypatch: pytest.MonkeyPatch, phase: str
