@@ -308,6 +308,16 @@ class ActorRuntime:
         model_factory = self._model_factory()
         self._replica_learner = self._create_replica_learner(model_factory)
         self._replica_learner.setup(self._replica_context(model_factory))
+        if (
+            suite is not None
+            and len(suite.maps) > 1
+            and self.spec.training.evaluate_every_episodes is not None
+        ):
+            # Refuse unsupported or non-isolatable policies before factory.create
+            # can take control of the game or dispatch the initial map switch.
+            from trackmaniarl.distributed.actor_evaluation import _isolated_policy
+
+            _isolated_policy(self._new_policy())
         self._log_replica_execution()
         return pipeline, environment
 

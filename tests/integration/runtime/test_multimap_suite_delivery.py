@@ -1,11 +1,12 @@
 """End-to-end suite delivery with a simulated map backend and real WAL.
 
-This does not attest a real game or bypass production's multi-map guard.
+The game and plugin are simulated; these tests cannot attest a real game.
 """
 
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -64,7 +65,9 @@ class _SimulatedMapFactory:
         self.events.append("restore")
 
 
-def test_real_experimental_factory_admitted_by_actor_and_coordinator(tmp_path: Path) -> None:
+def test_real_experimental_factory_admitted_by_actor_and_coordinator(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from tests.integration.runtime.distributed_runtime_support import _Logger
     from tests.integration.runtime.test_distributed_evaluation_integration import TestLearner
     from trackmaniarl.core.builtins import IdentityFeaturePipeline, TorchCheckpointCodec
@@ -111,6 +114,10 @@ def test_real_experimental_factory_admitted_by_actor_and_coordinator(tmp_path: P
     ]
     path.write_text(json.dumps(config), encoding="utf-8")
     actor = ActorRuntime(ActorProcessRequest(path, "127.0.0.1:1", "actor", _DISTRIBUTED_TOKEN))
+    # The simulated learner is deliberately not on the real policy allowlist.
+    # Real first-party policy isolation is covered in the unit suite.
+    monkeypatch.setattr(actor_evaluation, "_supports_multimap_policy", lambda _: True)
+    monkeypatch.setattr(actor_evaluation, "_validate_model_isolation", lambda *_: None)
     try:
         pipeline, factory = actor._components()
         run = ResolvedRun(
@@ -130,10 +137,108 @@ def test_real_experimental_factory_admitted_by_actor_and_coordinator(tmp_path: P
         coordinator = Coordinator(
             run, CoordinatorConfig("127.0.0.1:0", _DISTRIBUTED_TOKEN, actor.fingerprint)
         )
-        _close(coordinator)
         # Admission does not contact the game or create a switch journal.
         assert isinstance(pipeline, IdentityFeaturePipeline)
         assert not (tmp_path / "new-switch.sqlite").exists()
+        if os.name != "nt":
+            _close(coordinator)
+            return  # The staging backend is Windows-only.
+
+        from tests.unit.trackmania.test_map_switch_controller import FakePlugin
+        from trackmaniarl.distributed.actor_transport import Client
+        from trackmaniarl.trackmania import map_switch_controller, multimap_environment
+        from trackmaniarl.trackmania.map_switch_journal import MapSwitchJournal
+
+        class FakeClient:
+            def close(self) -> None:
+                pass
+
+        class FakeGame(AttestedEnvironment):
+            def __init__(self, *args: Any, controller: Any = None, **kwargs: Any) -> None:
+                self.controller = controller if controller is not None else object()
+                self.client = FakeClient()
+
+            def release_controls(self) -> None:
+                pass
+
+            def close(self) -> None:
+                pass
+
+        plugin = FakePlugin()
+        monkeypatch.setattr(map_switch_controller, "_registry_root", lambda: tmp_path / "registry")
+        monkeypatch.setattr(multimap_environment, "OpenPlanetSwitchTransport", lambda *_: plugin)
+        monkeypatch.setattr(
+            multimap_environment.OpenPlanetEnvironmentFactory, "create", lambda *a, **k: FakeGame()
+        )
+        monkeypatch.setattr(
+            multimap_environment,
+            "OpenPlanetEnvironment",
+            lambda config, controller, **kwargs: FakeGame(controller=controller),
+        )
+        # This learner uses a test policy; real first-party isolation is covered
+        # separately. The suite loop, factory, staging, journal and RPC are real.
+        MapSwitchJournal(tmp_path / "new-switch.sqlite", "isolated-test", create=True)
+        training = factory.create(seed=0)
+        client = None
+        try:
+            coordinator._start_server()  # port 0 asks the OS for an unused port
+            client = Client(f"127.0.0.1:{coordinator.bound_port}", _DISTRIBUTED_TOKEN, actor.codec)
+            coordinator._evaluation_due.add(actor.actor_id)
+            coordinator.counters.policy_version = 1
+            coordinator._policy_payload = coordinator.codec.encode({"value": 7})
+            submit = {
+                **actor._request_base(),
+                "sequence": 0,
+                "policy_version": 1,
+                "transitions": [],
+                "episodes": [],
+                "evaluations": [],
+                "evaluation_snapshot": b"",
+            }
+            assignment = client.call("Submit", submit)
+            _accept_evaluation_request(actor, assignment)
+            actor.sequence = 1
+            actor._evaluate(training, pipeline)
+            payload = actor.queue.get_nowait().read_bytes()
+            result = actor.codec.decode(payload)
+            assert [(item["map_id"], item["trial_index"]) for item in result["evaluations"]] == [
+                ("one", 0),
+                ("one", 1),
+                ("two", 0),
+                ("two", 1),
+            ]
+            assert plugin.uid == "training"  # restore happens before spool
+            training.reset(seed=1)
+            _, reward, terminated, truncated, _ = training.step(0)
+            assert reward == 1.0
+            assert terminated
+            assert not truncated
+            assert plugin.uid == "training"
+            assert actor.codec.decode(result["evaluation_snapshot"]) == {"value": 7}
+            assert all(
+                item["evaluation_assets_sha256"] == assignment["evaluation_assets_sha256"]
+                and item["evaluation_assignment_id"] == assignment["evaluation_assignment_id"]
+                for item in result["evaluations"]
+            )
+            assert client.call("Submit", result)["accepted"] is True
+            assert client.call("Submit", result)["accepted"] is True
+        finally:
+            training.close()
+            if client is not None:
+                client.close()
+            if coordinator._server is not None:
+                coordinator._server.stop(0).wait()
+                coordinator._rpc_executor.shutdown(wait=True)
+            _close(coordinator)
+        restored = Coordinator(
+            run, CoordinatorConfig("127.0.0.1:0", _DISTRIBUTED_TOKEN, actor.fingerprint)
+        )
+        try:
+            restored._recover_journal(0)
+            assert restored.counters.evaluations == 4
+            assert restored.counters.evaluation_finishes == 4
+        finally:
+            _close(restored)
     finally:
         actor.client.close()
 

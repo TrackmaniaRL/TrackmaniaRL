@@ -134,6 +134,35 @@ def test_coordinator_rejects_fingerprint_change_before_creating_journal(
     assert not run.run_dir.exists()
 
 
+def test_actor_rejects_unsupported_multi_map_policy_before_environment_creation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from trackmaniarl.distributed import actor as actor_module
+    from trackmaniarl.distributed import evaluation_contract
+
+    item = EvaluationMapSpec(
+        id="a", geometry_path="geometry.npz", map_path="map.gbx", expected_map_uid="test"
+    )
+    actor = object.__new__(ActorRuntime)
+    actor.spec = _spec((item, item))
+    actor.spec.distributed = SimpleNamespace(actor_execution=None, actor_stall_timeout_s=None)
+    actor.spec.components = SimpleNamespace(feature_pipeline=object())
+    actor.base_dir = tmp_path
+    actor.fingerprint = "original"
+    factory = Mock()
+    actor._environment_factory = Mock(return_value=factory)
+    actor._model_factory = Mock(return_value=None)
+    actor._create_replica_learner = Mock(return_value=Mock())
+    actor._replica_context = Mock(return_value={})
+    actor._new_policy = Mock(return_value=object())
+    monkeypatch.setattr(actor_module, "_instantiate", lambda *args, **kwargs: object())
+    monkeypatch.setattr(evaluation_contract, "validate_scheduled_evaluation", lambda *args: None)
+    monkeypatch.setattr(actor_module, "run_fingerprint", lambda *args: "original")
+    with pytest.raises(RuntimeError, match="policy or selector is not supported"):
+        actor._components()
+    factory.create.assert_not_called()
+
+
 def test_no_scheduled_suite_leaves_custom_game_free_runtime_unchanged(tmp_path: Path) -> None:
     spec = SimpleNamespace(training=SimpleNamespace(evaluate_every_episodes=1), evaluation=None)
     validate_scheduled_evaluation(spec, object(), object(), tmp_path)

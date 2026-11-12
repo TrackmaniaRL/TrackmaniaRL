@@ -193,6 +193,18 @@ def test_suite_restores_before_spool_and_labels_all_trials() -> None:
     )
 
 
+def test_unsupported_policy_is_rejected_before_staging_or_switch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+    runtime = _Runtime(events)
+    monkeypatch.setattr(actor_evaluation, "_supports_multimap_policy", lambda _: False)
+    with pytest.raises(RuntimeError, match="policy or selector is not supported"):
+        actor_evaluation.evaluate(runtime, object(), _Pipeline())  # type: ignore[arg-type]
+    assert events == []
+    assert not runtime.requests
+
+
 def test_stopped_suite_restores_and_never_spools_partial_results() -> None:
     events: list[str] = []
     runtime = _Runtime(events)

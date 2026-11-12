@@ -46,6 +46,10 @@ def evaluate(runtime: CollectionRuntime, environment: Any, pipeline: Any) -> Non
     policy, version = runtime._evaluation_policy()
     _verify_assigned_assets(runtime)
     plan = EvaluationPlan(runtime, environment, pipeline, policy, version)
+    if suite is not None and len(getattr(suite, "maps", ())) > 1:
+        # Check again at the actual evaluation boundary: custom runtimes may
+        # supply a policy by another path. Never switch before it is isolated.
+        _isolated_policy(policy)
     try:
         summaries = (
             _multi_map_trials(plan, suite)
