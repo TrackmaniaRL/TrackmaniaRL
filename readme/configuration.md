@@ -143,7 +143,7 @@ or real-game support: the plugin has not been compiled or validated in a game.
 Use a separate instance and profile, never the one used by active training. See the
 [design and remaining verification](../docs/distributed-map-switch-design.md).
 
-Custom environment factories used with a scheduled suite must implement
+Custom environment factories used with a scheduled single-map suite must implement
 `validate_scheduled_evaluation_map(map_spec, pipeline)`. The map paths are
 resolved relative to the project; the method must raise if it cannot establish
 that the environment and pipeline use the declared map. Returning without an
