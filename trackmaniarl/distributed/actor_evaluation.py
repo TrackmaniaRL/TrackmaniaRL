@@ -168,7 +168,7 @@ def _evaluation_trials(plan: EvaluationPlan, trials: int) -> list[dict[str, Any]
 
 def _trial_policy(plan: EvaluationPlan) -> ReplicablePolicy:
     runtime = plan.runtime
-    suite = runtime.spec.evaluation
+    suite = getattr(runtime.spec, "evaluation", None)
     if (
         not getattr(runtime, "_active_evaluation_assignment_id", "")
         or suite is None
