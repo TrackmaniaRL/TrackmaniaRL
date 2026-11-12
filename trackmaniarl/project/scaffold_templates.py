@@ -4,7 +4,7 @@ from importlib.metadata import version
 from pathlib import Path
 
 _PYPROJECT_TEMPLATE = (
-    '[build-system]\nrequires = ["setuptools==83.0.0"]\n'
+    '[build-system]\nrequires = ["setuptools==84.1.0"]\n'
     'build-backend = "setuptools.build_meta"\n\n'
     '[project]\nname = "{name}"\nversion = "0.1.0"\n'
     'requires-python = ">=3.12,<3.13"\ndependencies = [{dependencies}]\n\n'

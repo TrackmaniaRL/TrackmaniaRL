@@ -66,3 +66,48 @@ def test_distribution_rejects_archive_links(tmp_path: Path) -> None:
         sdist.addfile(member)
     with pytest.raises(RuntimeError, match="links"):
         validate_archive_privacy(archive)
+
+
+@pytest.mark.parametrize("kind", ["wheel", "sdist"])
+@pytest.mark.parametrize("alias", ["root/./setup.cfg", "root//setup.cfg"])
+def test_archives_reject_noncanonical_paths(tmp_path: Path, kind: str, alias: str) -> None:
+    archive = tmp_path / kind
+    if kind == "wheel":
+        with zipfile.ZipFile(archive, "w") as package:
+            package.writestr("root/setup.cfg", b"")
+            package.writestr(alias, b"")
+    else:
+        with tarfile.open(archive, "w:gz") as package:
+            for name in ("root/setup.cfg", alias):
+                package.addfile(tarfile.TarInfo(name), io.BytesIO())
+    with pytest.raises(RuntimeError, match="Noncanonical"):
+        validate_archive_privacy(archive)
+
+
+@pytest.mark.parametrize("kind", ["wheel", "sdist"])
+def test_archives_reject_file_directory_collision(tmp_path: Path, kind: str) -> None:
+    archive = tmp_path / kind
+    if kind == "wheel":
+        with zipfile.ZipFile(archive, "w") as package:
+            package.writestr("root/name", b"")
+            package.writestr("root/name/", b"")
+    else:
+        with tarfile.open(archive, "w:gz") as package:
+            package.addfile(tarfile.TarInfo("root/name"), io.BytesIO())
+            directory = tarfile.TarInfo("root/name")
+            directory.type = tarfile.DIRTYPE
+            package.addfile(directory)
+    with pytest.raises(RuntimeError, match="Duplicate"):
+        validate_archive_privacy(archive)
+
+
+@pytest.mark.parametrize("names", [("root/a", "root/a/b"), ("root/a/b", "root/a")])
+def test_archives_reject_implicit_file_directory_collision(
+    tmp_path: Path, names: tuple[str, str]
+) -> None:
+    archive = tmp_path / "collision.tar.gz"
+    with tarfile.open(archive, "w:gz") as package:
+        for name in names:
+            package.addfile(tarfile.TarInfo(name), io.BytesIO())
+    with pytest.raises(RuntimeError, match="collide"):
+        validate_archive_privacy(archive)

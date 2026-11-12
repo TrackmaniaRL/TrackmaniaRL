@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Mapping
 from math import isfinite
-from pathlib import Path
 from typing import Any
 
 from trackmaniarl.observability._wandb_metric_catalog import (
@@ -151,38 +149,3 @@ def _checkpoint_metrics(payload: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "performance/checkpoint_snapshot_s": payload.get("timing/checkpoint_snapshot_s", 0.0),
     }
-
-
-def _load_wandb_key_from_dotenv(run_dir: str | None) -> Path | None:
-    if os.environ.get("WANDB_API_KEY"):
-        return None
-    starts = [Path.cwd()]
-    if run_dir:
-        starts.append(Path(run_dir))
-    checked: set[Path] = set()
-    for start in starts:
-        for directory in (start, *start.parents):
-            candidate = directory / ".env"
-            if candidate in checked:
-                continue
-            checked.add(candidate)
-            value = _dotenv_value(candidate, "WANDB_API_KEY")
-            if value:
-                os.environ["WANDB_API_KEY"] = value
-                return candidate
-    return None
-
-
-def _dotenv_value(path: Path, requested_key: str) -> str | None:
-    if not path.is_file():
-        return None
-    for line in path.read_text(encoding="utf-8").splitlines():
-        text = line.strip()
-        if not text or text.startswith("#"):
-            continue
-        if text.startswith("export "):
-            text = text[7:].lstrip()
-        key, separator, value = text.partition("=")
-        if separator and key.strip() == requested_key:
-            return value.strip().strip('"').strip("'") or None
-    return None

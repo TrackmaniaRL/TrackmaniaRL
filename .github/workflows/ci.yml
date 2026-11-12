@@ -115,7 +115,7 @@ jobs:
         run: uv build
 
       - name: Verify distribution contents
-        run: uv run --isolated --no-project python scripts/check_distribution.py
+        run: uv run --isolated --no-project python scripts/check_distribution.py --release-commit "${{ github.sha }}"
 
       - name: Verify wheel import and CLI
         run: uv run --isolated --no-project --no-config --index "$TORCH_CPU_INDEX" --with "torch==$TORCH_CPU_VERSION" --with ./dist/*.whl python scripts/smoke_installed.py

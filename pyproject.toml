@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==83.0.0"]
+requires = ["setuptools==84.1.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -48,15 +48,19 @@ native-vision = ["numba>=0.64,<0.69"]
 orchestrator = [
     "google-genai>=2.2.0",
     "optuna>=3.0",
+    "certifi>=2026.10.19",
+    "urllib3>=2.8.0",
 ]
 trackmania = [
     "libevdev>=0.13; sys_platform == 'linux'",
 ]
 wandb = [
     "wandb>=0.15.8",
+    "certifi>=2026.10.19",
+    "urllib3>=2.8.0",
 ]
 distributed = [
-    "grpcio>=1.66",
+    "grpcio>=1.84.1",
     "protobuf>=5.27",
     "safetensors>=0.4.5",
 ]
@@ -71,7 +75,9 @@ all = [
     "optuna>=3.0",
     "libevdev>=0.13; sys_platform == 'linux'",
     "wandb>=0.15.8",
-    "grpcio>=1.66",
+    "certifi>=2026.10.19",
+    "urllib3>=2.8.0",
+    "grpcio>=1.84.1",
     "protobuf>=5.27",
     "safetensors>=0.4.5",
     "causal-conv1d>=1.4; sys_platform == 'linux'",
@@ -115,12 +121,14 @@ dev = [
     "ruff>=0.4",
     "pytest>=7.0",
     "types-PyYAML",
-    "grpcio>=1.66",
+    "grpcio>=1.84.1",
     "protobuf>=5.27",
     "safetensors>=0.4.5",
     "libevdev>=0.13; sys_platform == 'linux'",
     "vgamepad>=0.1.0; sys_platform == 'win32' or sys_platform == 'linux'",
     "wandb>=0.15.8",
+    "certifi>=2026.10.19",
+    "urllib3>=2.8.0",
     "matplotlib>=3.10.8",
     "plotly>=7.0.0",
 ]

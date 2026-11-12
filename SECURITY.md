@@ -63,8 +63,15 @@ Deleting a file or replacing a local path in the current tree does not remove
 earlier copies. Coordinate any history rewrite and credential rotation separately;
 never force-push a rewritten history without maintainer agreement.
 
+Build release archives from a clean export of the intended commit; a build from
+a working directory can include untracked files before any validation runs.
 Run `uv run python scripts/check_distribution.py --dist-dir dist` against the
-actual source archive and wheel. It rejects private file types, environment
+actual source archive and wheel. In a Git checkout, the validator compares the
+source members of both archives with committed `HEAD`; release jobs specify the
+exact commit. It also rebuilds from a clean export of that commit to verify
+generated metadata, so this check requires Git and `uv`. Outside a Git checkout,
+the ordinary check warns that the source commit cannot be verified; release-tag
+and checksum modes require one. The validator rejects private file types, environment
 files, cache directories, archive links, duplicate members, oversized members,
 personal home paths and common credential signatures, including in metadata.
 This is a regression guard, not proof that all secrets or identifying data are
@@ -73,21 +80,23 @@ pixels, account/session identifiers and private URLs manually. Public license
 attribution and repository identity are intentional publication metadata.
 
 Use environment variables for credentials; `.env-example` contains empty values.
-The library does not automatically load `.env`. Export only the variables needed
-by the selected integration and keep tokens out of command-line arguments,
-component kwargs, screenshots and shared run directories. Local manifests and
-recording sidecars may contain paths and timestamps even when tokens are redacted.
+The distributed CLI also reads its configured token from `.env` beside `run.yaml`
+when the variable is absent; W&B credentials must be set in the environment or
+managed using W&B's own authentication. Export only the variables needed by the
+selected integration and keep tokens out of command-line arguments, component
+kwargs, screenshots and shared run directories. Local manifests and recording
+sidecars may contain paths and timestamps even when tokens are redacted.
 
 ## Dependency advisory disposition for 1.2.0
 
 `PYSEC-2026-3447` affects source-distribution exclusion matching in setuptools
 before 83.0.0. PyTorch 2.11.0 requires runtime `setuptools<82`, so that runtime
 dependency still appears in the raw audit. It must not be used to build release
-archives. Both this package and generated projects pin `setuptools==83.0.0`
+archives. Both this package and generated projects pin `setuptools==84.1.0`
 in their isolated build requirements and CI builds with isolation enabled.
 
 For 1.2.0, the disposition is **accepted for the Torch runtime only, mitigated
-for package building by isolated setuptools 83.0.0**. This is not a claim that
+for package building by isolated setuptools 84.1.0**. This is not a claim that
 the installed runtime dependency is patched or that the raw audit passes.
 Do not use `--no-build-isolation` for distribution builds. Reassess this narrow
 disposition when changing Torch, setuptools, or the build workflow; unrelated

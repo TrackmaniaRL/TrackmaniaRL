@@ -78,28 +78,38 @@ def validate_member(name: str, data: bytes) -> None:
 
 def validate_archive_privacy(archive: Path) -> None:
     """Inspect every member, including metadata and files outside the Python package."""
-    seen: set[str] = set()
+    seen: dict[str, bool] = {}
     if zipfile.is_zipfile(archive):
         with zipfile.ZipFile(archive) as package:
             for member in package.infolist():
-                _validate_entry(member.filename, member.file_size, seen)
+                _validate_entry(member.filename, member.file_size, seen, directory=member.is_dir())
                 if stat.S_ISLNK(member.external_attr >> 16):
                     raise RuntimeError("Archive links are not permitted")
                 validate_member(member.filename, package.read(member))
     else:
         with tarfile.open(archive) as source:
             for entry in source:
-                _validate_entry(entry.name, entry.size, seen)
+                _validate_entry(entry.name, entry.size, seen, directory=entry.isdir())
                 if not (entry.isfile() or entry.isdir()):
                     raise RuntimeError("Archive links and special files are not permitted")
                 file = source.extractfile(entry) if entry.isfile() else None
                 validate_member(entry.name, file.read() if file is not None else b"")
 
 
-def _validate_entry(name: str, size: int, seen: set[str]) -> None:
-    normalized = name.replace("\\", "/").rstrip("/").casefold()
+def _validate_entry(  # noqa: PLR0913
+    name: str, size: int, seen: dict[str, bool], *, directory: bool
+) -> None:
+    path = name.rstrip("/")
+    if "\\" in path or name.endswith("//") or not path or PurePosixPath(path).as_posix() != path:
+        raise RuntimeError("Noncanonical archive member path [redacted]")
+    normalized = path.casefold()
     if normalized in seen:
         raise RuntimeError("Duplicate archive member [redacted]")
-    seen.add(normalized)
+    parts = normalized.split("/")
+    if any(seen.get("/".join(parts[:index])) is False for index in range(1, len(parts))):
+        raise RuntimeError("Archive file and directory collide [redacted]")
+    if not directory and any(name.startswith(normalized + "/") for name in seen):
+        raise RuntimeError("Archive file and directory collide [redacted]")
+    seen[normalized] = directory
     if size > MAX_MEMBER_BYTES:
         raise RuntimeError("Archive member exceeds the reviewed 16 MiB limit [redacted]")
