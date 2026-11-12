@@ -18,6 +18,8 @@ recursive-include docs/reviews *.md
 include docs/reviews/2026-11-12-replay-game-free-results.csv
 include docs/reviews/2026-11-12-replay-game-free-corrected-results.csv
 include docs/reviews/2026-11-12-distributed-replay-results.csv
+include docs/reviews/2026-11-12-distributed-replay-matched.csv
+include docs/reviews/2026-11-12-distributed-replay-c77-matched.csv
 recursive-include tests *.py
 recursive-include tests *.json *.bin
 include tests/fixtures/full_qr/README.md

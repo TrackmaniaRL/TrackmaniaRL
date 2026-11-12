@@ -1,5 +1,8 @@
 # Matched-budget synthetic distributed replay measurement
 
+A later [matched run at c77a6507](2026-11-12-distributed-replay-c77-matched.md)
+includes the subsequent object-column ownership change.
+
 On 2026-11-12 a bounded game-free run compared baseline `536b42b5` with
 replay change `048de845`. This measures the actor, local gRPC transport,
 SQLite journal, replay, sequence sampling, CPU IQN+GRU learner and checkpoint
