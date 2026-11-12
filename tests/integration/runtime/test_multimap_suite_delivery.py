@@ -6,6 +6,7 @@ The game and plugin are simulated; these tests cannot attest a real game.
 from __future__ import annotations
 
 import json
+import multiprocessing
 import os
 import socket
 import struct
@@ -15,11 +16,12 @@ from pathlib import Path
 from threading import Event, Thread
 from typing import Any
 
+import grpc
 import numpy as np
 import pytest
 
 from tests.integration.runtime.distributed_evaluation_support import _DISTRIBUTED_TOKEN
-from tests.integration.runtime.distributed_runtime_support import _Pipeline
+from tests.integration.runtime.distributed_runtime_support import _Pipeline, _RpcFailure
 from tests.integration.runtime.test_distributed_evaluation_integration import (
     AttestedEnvironment,
     _close,
@@ -468,6 +470,164 @@ def test_interrupted_suite_retries_same_assignment_and_recovers_wal(
         assert _submit(coordinator, payload)["accepted"] is True
     finally:
         resumed.client.close()
+        _close(coordinator)
+
+    restored = _coordinator(path, resumed.fingerprint)
+    try:
+        restored._recover_journal(0)
+        assert restored.counters.evaluations == 4
+        assert restored.counters.evaluation_finishes == 4
+    finally:
+        _close(restored)
+
+
+def _exit_before_spool_replace(path: str, payload: bytes) -> None:
+    # Persist the complete real payload through the file fsync, then model an
+    # abrupt process exit immediately before the atomic rename.
+    def crash_before_replace(source: Any, destination: Any) -> None:
+        os._exit(24)
+
+    os.replace = crash_before_replace  # type: ignore[assignment]
+    ActorRuntime._persist_spool_payload(Path(path), payload)
+    raise AssertionError("replace was not called")
+
+
+def test_complete_multimap_temporary_recovers_and_retries_same_assignment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Crash the child spool writer, then simulate actor restart and a lost ACK.
+
+    The actor itself stays in the test process; policy and map backend are fakes.
+    """
+    path = _config(tmp_path)
+    config = json.loads(path.read_text(encoding="utf-8"))
+    for name in ("one", "two"):
+        (tmp_path / f"{name}.gbx").write_bytes(name.encode())
+        (tmp_path / f"{name}.txt").write_bytes((name + "-reward").encode())
+    config["evaluation"]["maps"] = [
+        {
+            "id": name,
+            "expected_map_uid": f"uid-{name}",
+            "map_path": f"{name}.gbx",
+            "reward_points_path": f"{name}.txt",
+        }
+        for name in ("one", "two")
+    ]
+    path.write_text(json.dumps(config), encoding="utf-8")
+    monkeypatch.setattr(evaluation_contract, "validate_scheduled_evaluation", lambda *args: None)
+    monkeypatch.setattr(actor_evaluation, "_supports_multimap_policy", lambda _: True)
+    monkeypatch.setattr(actor_evaluation, "_validate_model_isolation", lambda *_: None)
+    request = ActorProcessRequest(path, "127.0.0.1:1", "actor", _DISTRIBUTED_TOKEN)
+    actor = ActorRuntime(request)
+    coordinator = _coordinator(path, actor.fingerprint)
+    events: list[str] = []
+
+    class SimulatedCrashError(Exception):
+        pass
+
+    def persist_until_crash(destination: Path, payload: bytes) -> None:
+        process = multiprocessing.get_context("spawn").Process(
+            target=_exit_before_spool_replace, args=(str(destination), payload)
+        )
+        process.start()
+        try:
+            process.join(20)
+            assert not process.is_alive()
+            assert process.exitcode == 24
+        finally:
+            if process.is_alive():
+                process.terminate()
+                process.join(5)
+        raise SimulatedCrashError
+
+    try:
+        pipeline, factory = actor._components()
+        actor._multi_map_factory = _SimulatedMapFactory(events, actor, interrupt=False)
+        coordinator._evaluation_due.add(actor.actor_id)
+        coordinator.counters.policy_version = 1
+        coordinator._policy_payload = coordinator.codec.encode({"value": 7})
+        assignment = _submit(
+            coordinator,
+            coordinator.codec.encode(
+                {
+                    **actor._request_base(),
+                    "sequence": 0,
+                    "policy_version": 1,
+                    "transitions": [],
+                    "episodes": [],
+                    "evaluations": [],
+                    "evaluation_snapshot": b"",
+                }
+            ),
+        )
+        _accept_evaluation_request(actor, assignment)
+        actor.sequence = 1
+        monkeypatch.setattr(actor, "_persist_spool_payload", persist_until_crash)
+        with pytest.raises(SimulatedCrashError):
+            actor._evaluate(factory.create(seed=0), pipeline)
+        assert events[-1] == "restore"
+        assert actor.queue.empty()
+        temporary = actor.spool_dir / "00000000000000000001.tmp"
+        assert temporary.is_file()
+        original_payload = temporary.read_bytes()
+        assert not list(actor.spool_dir.glob("*.rollout"))
+    finally:
+        actor.client.close()
+
+    resumed = ActorRuntime(request)
+    resumed.client.close()
+    recovered = resumed.spool_dir / "00000000000000000001.rollout"
+    assert recovered.read_bytes() == original_payload
+    assert not temporary.exists()
+    result = resumed.codec.decode(original_payload)
+    assert [(item["map_id"], item["trial_index"]) for item in result["evaluations"]] == [
+        ("one", 0),
+        ("one", 1),
+        ("two", 0),
+        ("two", 1),
+    ]
+    assert {item["evaluation_assignment_id"] for item in result["evaluations"]} == {
+        assignment["evaluation_assignment_id"]
+    }
+
+    class LostFirstAck:
+        def __init__(self) -> None:
+            self.payloads: list[dict[str, Any]] = []
+
+        def call(self, method: str, value: dict[str, Any]) -> dict[str, Any]:
+            assert method == "Submit"
+            self.payloads.append(value)
+            response = _submit(coordinator, resumed.codec.encode(value))
+            assert response["accepted"] is True
+            if len(self.payloads) == 1:
+                raise _RpcFailure(grpc.StatusCode.UNAVAILABLE)
+            return response
+
+    fake_client = LostFirstAck()
+    resumed.client = fake_client  # type: ignore[assignment]
+    resumed.queue.put(recovered)
+    resumed.collection_done.set()
+    try:
+        resumed._send_spooled_rollouts()
+        assert len(fake_client.payloads) == 2
+        assert fake_client.payloads[0] == fake_client.payloads[1] == result
+        assert not recovered.exists()
+        assert resumed.queue.empty()
+        # A distinct delivery identity carrying the same assignment must not
+        # create a second canonical evaluation either.
+        duplicate = {**result, "session_id": "second-delivery", "sequence": 2}
+        assert _submit(coordinator, resumed.codec.encode(duplicate))["accepted"] is True
+        evaluation_rows = [
+            (row_id, coordinator.codec.decode(payload))
+            for row_id, payload in coordinator.journal.rows_after(0)
+            if coordinator.codec.decode(payload).get("evaluations")
+        ]
+        assert [value for _, value in evaluation_rows] == [result, duplicate]
+        assert [coordinator.journal.evaluation_row_accepted(row) for row, _ in evaluation_rows] == [
+            True,
+            False,
+        ]
+    finally:
         _close(coordinator)
 
     restored = _coordinator(path, resumed.fingerprint)
