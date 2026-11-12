@@ -23,6 +23,7 @@ include docs/reviews/2026-11-12-distributed-replay-c77-matched.csv
 recursive-include tests *.py
 recursive-include tests *.json *.bin
 include tests/fixtures/full_qr/README.md
+include tests/fixtures/replay_legacy/README.md
 recursive-include trackmaniarl/project/openplanet *.as *.md *.toml
 include .env-example
 global-exclude .env .env.* *.pem *.key *.pt *.pth *.ckpt *.safetensors
