@@ -81,6 +81,99 @@ def test_object_array_elements_are_owned_on_append_snapshot_and_restore() -> Non
     assert restored.get([0])[0].info["objects"][0]["values"] == [3]
 
 
+def test_object_array_observation_is_owned_on_append_get_snapshot_and_restore() -> None:
+    observation = np.empty(1, dtype=object)
+    observation[0] = {"values": [1]}
+    action = np.empty(1, dtype=object)
+    action[0] = {"values": [2]}
+    store = InMemoryReplayStore(capacity=2)
+    store.append(
+        Transition(
+            observation,
+            action,
+            1.0,
+            np.array([0.0]),
+            True,
+            False,
+            episode_id="episode",
+            step=0,
+        )
+    )
+    observation[0]["values"].append(10)
+    action[0]["values"].append(20)
+    state = store.state_dict()
+    restored = InMemoryReplayStore(capacity=2)
+    restored.load_state_dict(state)
+
+    state["observations"]["arrays"][0][0, 0]["values"].append(11)
+    state["actions"]["arrays"][0][0, 0]["values"].append(21)
+    for replay in (store, restored):
+        item = replay.get([0])[0]
+        assert item.observation[0]["values"] == [1]
+        assert item.action[0]["values"] == [2]
+        item.observation[0]["values"].append(12)
+        item.action[0]["values"].append(22)
+        fresh = replay.get([0])[0]
+        assert fresh.observation[0]["values"] == [1]
+        assert fresh.action[0]["values"] == [2]
+
+
+def test_structured_object_observation_snapshot_detaches_nonleaf_tensor() -> None:
+    tensor = torch.tensor([1.0], requires_grad=True) * 2
+    observation = np.empty(1, dtype=[("value", object), ("count", "i4")])
+    observation["value"][0] = {"tensor": tensor}
+    observation["count"][0] = 4
+    store = InMemoryReplayStore(capacity=2)
+    store.append(Transition(observation, 0, 1.0, 0, True, False, episode_id="e", step=0))
+    state = store.state_dict()
+    restored = InMemoryReplayStore(capacity=2)
+    restored.load_state_dict(state)
+    tensor.detach().fill_(9)
+    state["observations"]["arrays"][0]["value"][0, 0]["tensor"].fill_(8)
+    for replay in (store, restored):
+        observed = replay.get([0])[0].observation
+        assert observed["value"][0]["tensor"].item() == 2.0
+        assert not observed["value"][0]["tensor"].requires_grad
+        assert observed["count"][0] == 4
+
+
+def test_zero_dimensional_object_observation_is_owned() -> None:
+    observation = np.empty((), dtype=object)
+    observation[()] = {"values": [1]}
+    store = InMemoryReplayStore(capacity=2)
+    store.append(Transition(observation, 0, 1.0, 0, True, False, episode_id="e", step=0))
+    state = store.state_dict()
+    restored = InMemoryReplayStore(capacity=2)
+    restored.load_state_dict(state)
+    observation.item()["values"].append(2)
+    state["observations"]["arrays"][0][0].item()["values"].append(3)
+    for replay in (store, restored):
+        result = replay.get([0])[0].observation
+        assert result.shape == ()
+        assert result.item()["values"] == [1]
+        result.item()["values"].append(4)
+        assert replay.get([0])[0].observation.item()["values"] == [1]
+
+
+def test_zero_dimensional_structured_object_observation_keeps_array_shape() -> None:
+    observation = np.empty((), dtype=[("value", object), ("count", "i4")])
+    observation["value"][()] = {"values": [1]}
+    observation["count"][()] = 3
+    store = InMemoryReplayStore(capacity=2)
+    store.append(Transition(observation, 0, 1.0, 0, True, False, episode_id="e", step=0))
+    state = store.state_dict()
+    restored = InMemoryReplayStore(capacity=2)
+    restored.load_state_dict(state)
+    for replay in (store, restored):
+        result = replay.get([0])[0].observation
+        assert isinstance(result, np.ndarray)
+        assert result.shape == ()
+        assert result["value"].item()["values"] == [1]
+        assert result["count"].item() == 3
+        result["value"].item()["values"].append(2)
+        assert replay.get([0])[0].observation["value"].item()["values"] == [1]
+
+
 @pytest.mark.parametrize("structured", [False, True])
 def test_object_array_with_non_leaf_tensor_survives_replay_roundtrip(*, structured: bool) -> None:
     tensor = torch.tensor([1.0], requires_grad=True) * 2

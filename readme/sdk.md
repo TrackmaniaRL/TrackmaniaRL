@@ -310,7 +310,12 @@ The built-in in-memory replay takes its checkpoint snapshot while holding its
 store lock. Column arrays and nested transition metadata and next-observation
 overrides belong to that snapshot; subsequent mutations of the replay or the
 returned state do not alter each other. Loading also copies these values, so the
-caller may retain the input state independently. Custom mutable objects must
+caller may retain the input state independently. For object-dtype NumPy columns,
+mutable elements are copied on append, owned reads, snapshot and restore;
+training pipelines must still support their chosen observation and action dtypes.
+Column storage does not promise preservation of cyclic references to an
+observation or action array itself.
+Custom mutable objects must
 honor the same copying contract described above. Snapshot copying has a cost;
 measure complete training runs before drawing throughput conclusions.
 
