@@ -133,11 +133,14 @@ load the map; its session verifies the UID on reset. A multi-map suite is also
 available to the local `benchmark` evaluator, which evaluates each map separately.
 Scheduled evaluation without an `evaluation` suite is unchanged.
 
-Scheduled distributed multi-map suites are currently blocked even with
-`enable_experimental_multimap: true`. A prototype OpenPlanet backend and
-per-frame identity checks are retained for isolated development, but they do
-not prove continuous map identity between observations or which bytes the game
-loaded. The plugin has not been compiled or validated in a real game. See the
+Scheduled distributed multi-map suites are available only through the
+experimental OpenPlanet factory with both `enable_experimental_multimap: true`
+and `assume_exclusive_no_unobserved_map_changes: true`. The latter explicitly
+accepts a trusted, exclusively controlled game instance with no autonomous or
+unobserved map changes. The checks reject observed mismatches but do not prove
+continuous map identity or which bytes the game loaded. This is not production
+or real-game support: the plugin has not been compiled or validated in a game.
+Use a separate instance and profile, never the one used by active training. See the
 [design and remaining verification](../docs/distributed-map-switch-design.md).
 
 Custom environment factories used with a scheduled suite must implement

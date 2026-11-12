@@ -39,6 +39,11 @@ does not authenticate local processes; the epoch is an identity, not a security
 boundary. Its ports are fixed by the reference source, and the experimental
 Python factory currently requires session endpoint `127.0.0.1:9001`. It cannot
 run alongside another Connect instance using those ports on the same host.
+The Python factory additionally requires both `enable_experimental_multimap: true`
+and `assume_exclusive_no_unobserved_map_changes: true`. The second option accepts
+the assumption that this trusted instance makes no autonomous or unobserved map
+changes. Sampled checks cannot establish that assumption; do not enable the path
+if it does not hold. See the [experimental setup](../../../docs/distributed-map-switch-design.md).
 
 The reference was inspected using `openplanet-lsp` 0.8.2 with the local
 Openplanet 1.29.14 type database and the school signature profile. The check
