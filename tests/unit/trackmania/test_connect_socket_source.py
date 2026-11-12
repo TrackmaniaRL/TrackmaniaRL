@@ -59,19 +59,41 @@ def test_experimental_telemetry_pairs_identity_with_legacy_payload() -> None:
     assert 'string(parsed["command"]) != "frame"' in server
     assert "if (!IsHexToken(requestId) || (waitReady && !firstRequest))" in server
     assert 'parsed["wait_ready"].GetType() != Json::Type::Boolean' in server
-    assert "while (waitReady && !IsReadyToDrive()" in server
+    assert "while (waitReady && !IsReadyToDrive(true)" in server
     assert "sock, 75000, true, streamInstance, streamOperation, streamUid" in server
     reader = source.split("string ReadJsonLine(", 1)[1].split("void HandleSessionClient(", 1)[0]
     assert "!BoundTelemetryIdentity(instance, operation, uid)" in reader
     assert 'header["payload_bytes"] = 132;' in server
     assert 'sock.WriteRaw(Json::Write(header) + "\\n") || !sock.Write(buf)' in server
-    failed_collect = server.split("if (!CollectTelemetry(buf)) {", 1)[1].split("}", 1)[0]
+    failed_collect = server.split("if (!CollectTelemetry(buf, true)) {", 1)[1].split("}", 1)[0]
     assert "BoundTelemetryIdentity(streamInstance, streamOperation, streamUid);" in failed_collect
     assert "sock.Close(); break;" in failed_collect
     critical = server.split("string instance = g_switchInstanceEpoch;", 1)[1].split(
         "if (!sock.WriteRaw(", 1
     )[0]
     assert "yield(" not in critical
+
+
+def test_local_view_requirement_is_scoped_to_protocol_three() -> None:
+    source = (
+        Path(__file__).resolve().parents[3]
+        / "trackmaniarl/project/openplanet/TrackmaniaRL_Connect.as"
+    ).read_text(encoding="utf-8")
+    readiness = source.split("bool IsReadyToDrive(", 1)[1].split("string JsonError(", 1)[0]
+    assert "bool requireLocalView = false" in readiness
+    assert "!requireLocalView || VehicleState::GetViewingPlayer() is player" in readiness
+    collect = source.split("bool CollectTelemetry(", 1)[1].split(
+        "void AttestedTelemetryServer()", 1
+    )[0]
+    assert "bool requireLocalView = false" in collect
+    assert "requireLocalView && VehicleState::GetViewingPlayer() !is player" in collect
+    session = source.split("void HandleSessionClient(", 1)[1].split("void SessionServer()", 1)[0]
+    assert "if (!IsReadyToDrive())" in session
+    server = source.split("void AttestedTelemetryServer()", 1)[1].split("void Main()", 1)[0]
+    assert "CollectTelemetry(buf, true)" in server
+    assert server.count("IsReadyToDrive(true)") >= 4
+    legacy = source.split("void Main()", 1)[1]
+    assert "CollectTelemetry(buf)" in legacy
 
 
 def test_observed_map_mismatch_persists_across_telemetry_reconnects() -> None:

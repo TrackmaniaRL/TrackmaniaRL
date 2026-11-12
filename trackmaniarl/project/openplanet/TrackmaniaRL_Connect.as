@@ -58,14 +58,14 @@ string ActiveMapUid() {
     return playground.Map.MapInfo.MapUid;
 }
 
-bool IsReadyToDrive() {
+bool IsReadyToDrive(bool requireLocalView = false) {
     CTrackMania@ app = cast<CTrackMania>(GetApp());
     if (app is null) return false;
     CSmArenaClient@ playground = cast<CSmArenaClient>(app.CurrentPlayground);
     if (playground is null || playground.GameTerminals.Length == 0) return false;
     auto player = cast<CSmPlayer>(playground.GameTerminals[0].GUIPlayer);
     return player !is null && cast<CSmScriptPlayer>(player.ScriptAPI) !is null
-        && VehicleState::GetViewingPlayer() is player
+        && (!requireLocalView || VehicleState::GetViewingPlayer() is player)
         && VehicleState::ViewingPlayerState() !is null;
 }
 
@@ -108,7 +108,7 @@ string SwitchReply(const string &in status, const string &in error = "") {
     response["state"] = g_switchState;
     if (status == "ok") response["remaining_operations"] = 4096 - int(g_usedSwitchOperations.Length);
     response["map_uid"] = uid;
-    response["ready"] = (uid.Length > 0 && IsReadyToDrive()) ? "true" : "false";
+    response["ready"] = (uid.Length > 0 && IsReadyToDrive(true)) ? "true" : "false";
     if (error.Length > 0) response["error"] = error;
     return Json::Write(response) + "\n";
 }
@@ -142,7 +142,7 @@ void SwitchMapWorker() {
         while (Time::Now - started < SWITCH_TIMEOUT_MS) {
             auto playground = cast<CSmArenaClient>(app.CurrentPlayground);
             if (playground !is null && playground is lastPlayground
-                && ActiveMapUid() == g_switchUid && IsReadyToDrive()) {
+                && ActiveMapUid() == g_switchUid && IsReadyToDrive(true)) {
                 stableFrames++;
             } else {
                 @lastPlayground = playground;
@@ -327,7 +327,7 @@ void SessionServer() {
 
 // Collect one legacy 33-float payload without yielding. This does not claim
 // the game engine's fields form an atomic snapshot.
-bool CollectTelemetry(MemoryBuffer@ buf) {
+bool CollectTelemetry(MemoryBuffer@ buf, bool requireLocalView = false) {
     CTrackMania@ app = cast<CTrackMania>(GetApp());
     CSmArenaClient@ playground = app is null ? null : cast<CSmArenaClient>(app.CurrentPlayground);
     if (playground is null || playground.GameTerminals.Length == 0) return false;
@@ -335,8 +335,10 @@ bool CollectTelemetry(MemoryBuffer@ buf) {
     auto player = cast<CSmPlayer>(terminal.GUIPlayer);
     CSmScriptPlayer@ api = player is null ? null : cast<CSmScriptPlayer>(player.ScriptAPI);
     CSceneVehicleVisState@ vis = VehicleState::ViewingPlayerState();
-    // Do not combine a spectated vehicle with the local player's telemetry.
-    if (api is null || VehicleState::GetViewingPlayer() !is player || vis is null) return false;
+    // Protocol 3 must not combine a spectated vehicle with local telemetry.
+    // Keep the legacy protocol-2 behavior for existing clients.
+    if (api is null || vis is null
+        || (requireLocalView && VehicleState::GetViewingPlayer() !is player)) return false;
 
     auto raceData = PlayerState::GetRaceData();
     float raceTime = RaceTimeMs(api);
@@ -407,13 +409,13 @@ void AttestedTelemetryServer() {
                     // Only the first reset request may wait for the local player.
                     // The same socket and switch identity are retained throughout.
                     uint64 readyStarted = Time::Now;
-                    while (waitReady && !IsReadyToDrive() && Time::Now - readyStarted < 75000) {
+                    while (waitReady && !IsReadyToDrive(true) && Time::Now - readyStarted < 75000) {
                         if (!BoundTelemetryIdentity(streamInstance, streamOperation, streamUid)
                             || sock.IsHungUp()) break;
                         yield();
                     }
                     if (!BoundTelemetryIdentity(streamInstance, streamOperation, streamUid)
-                        || !IsReadyToDrive()) {
+                        || !IsReadyToDrive(true)) {
                         sock.Close(); break;
                     }
                     string instance = g_switchInstanceEpoch;
@@ -421,19 +423,19 @@ void AttestedTelemetryServer() {
                     string uid = ActiveMapUid();
                     if (!BoundTelemetryIdentity(streamInstance, streamOperation, streamUid)
                         || instance.Length == 0 || operation.Length == 0 || uid.Length == 0
-                        || !IsReadyToDrive()) {
+                        || !IsReadyToDrive(true)) {
                         // Do not hide a map or session transition inside a live
                         // stream: the receiver must establish a new connection.
                         sock.Close(); break;
                     }
-                    if (!CollectTelemetry(buf)) {
+                    if (!CollectTelemetry(buf, true)) {
                         BoundTelemetryIdentity(streamInstance, streamOperation, streamUid);
                         sock.Close(); break;
                     }
                     // Do not emit a pair if our own switch identity changed while
                     // collecting it. This is not a byte-level attestation of a map.
                     if (!BoundTelemetryIdentity(streamInstance, streamOperation, streamUid)
-                        || !IsReadyToDrive()) {
+                        || !IsReadyToDrive(true)) {
                         sock.Close(); break;
                     }
                     auto header = Json::Object();

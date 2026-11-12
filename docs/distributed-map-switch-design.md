@@ -3,7 +3,8 @@
 Status: experimental opt-in; real-game validation remains outstanding.
 This path assumes exclusive control of a trusted game instance and no
 autonomous or unobserved map changes. Continuous map identity is not proven.
-The default protocol-2 and single-map paths retain their existing behavior.
+The protocol-2 reference retains its earlier viewed-player behavior, but its
+compatibility in a real game has not been verified with this plugin snapshot.
 
 ## Evidence and constraints
 

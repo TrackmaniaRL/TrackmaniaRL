@@ -25,9 +25,11 @@ The bundled `.as` source is a developer reference derived from 2.4.0; it also
 contains an **experimental, disabled-by-default** protocol 3 map switcher. The
 signed 2.4.0 plugin does not contain it. Do not install the loose script alongside
 the managed plugin. The reference waits until both player and vehicle-visual state
-exist and the viewed vehicle belongs to the local GUI player; it never fabricates
-missing orientation, wheel-slip or contact-material values with zeroes. A
-spectated vehicle is not accepted as evidence of local-player readiness.
+exist; it never fabricates missing orientation, wheel-slip or contact-material
+values with zeroes. Protocol 3 additionally requires the viewed vehicle to belong
+to the local GUI player. Protocol 2 retains the earlier behavior, which can mix
+local player data with a spectated vehicle's visual state. Real-game protocol-2
+compatibility of this reference has not been verified.
 
 Protocol 3 is not a supported multi-map backend yet. It has not been compiled
 or exercised in an isolated game. Do not enable it in a game used for training.
