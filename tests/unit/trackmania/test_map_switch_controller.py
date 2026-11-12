@@ -54,6 +54,158 @@ class FakePlugin:
         }
 
 
+@pytest.mark.parametrize("replacement", ["in_place", "rename"])
+def test_rolled_back_journal_cannot_erase_pending_switch(tmp_path: Path, replacement: str) -> None:
+    import shutil
+
+    map_path = tmp_path / "map.gbx"
+    map_path.write_bytes(b"map")
+    db = tmp_path / "switch.sqlite"
+    journal = MapSwitchJournal(db, "instance", create=True)
+    old = tmp_path / "old.sqlite"
+    shutil.copyfile(db, old)
+    plugin = FakePlugin()
+    plugin.fail_ack = True
+    controller = MapSwitchController(journal, plugin)
+    with pytest.raises(MapSwitchIndeterminateError):
+        controller.switch(map_path, "uid")
+    assert journal.pending() is not None
+    if replacement == "in_place":
+        shutil.copyfile(old, db)
+    else:
+        old.replace(db)
+    assert journal.pending() is None
+    plugin.instance = "restarted"
+    with pytest.raises(MapSwitchIndeterminateError, match="unresolved"):
+        controller.switch(map_path, "uid")
+    with pytest.raises(MapSwitchIndeterminateError, match="disagree"):
+        controller.recover()
+    controller.close()
+    with (
+        MapSwitchController(MapSwitchJournal(db, "instance"), plugin) as reopened,
+        pytest.raises(MapSwitchIndeterminateError, match="unresolved"),
+    ):
+        reopened.switch(map_path, "uid")
+    assert plugin.switch_count == 1
+
+
+def test_missing_or_corrupt_quarantine_marker_never_recovers_pending(tmp_path: Path) -> None:
+    path = tmp_path / "map.gbx"
+    path.write_bytes(b"map")
+    journal = MapSwitchJournal(tmp_path / "switch.sqlite", "instance", create=True)
+    plugin = FakePlugin()
+    plugin.fail_ack = True
+    controller = MapSwitchController(journal, plugin)
+    with pytest.raises(MapSwitchIndeterminateError):
+        controller.switch(path, "uid")
+    marker = controller._quarantine_path
+    marker.unlink()
+    with pytest.raises(MapSwitchIndeterminateError, match="disagree"):
+        controller.recover()
+    marker.write_bytes(b"invalid")
+    with pytest.raises(MapSwitchIndeterminateError, match="invalid"):
+        controller.recover()
+    controller.close()
+    assert plugin.switch_count == 1
+
+
+def test_terminal_marker_survives_failed_cleanup_and_is_rechecked(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "map.gbx"
+    path.write_bytes(b"map")
+    db = tmp_path / "switch.sqlite"
+    journal = MapSwitchJournal(db, "instance", create=True)
+    plugin = FakePlugin()
+    controller = MapSwitchController(journal, plugin)
+    clear = controller._clear_quarantine
+    monkeypatch.setattr(controller, "_clear_quarantine", lambda _: (_ for _ in ()).throw(OSError()))
+    with pytest.raises(MapSwitchIndeterminateError):
+        controller.switch(path, "uid")
+    assert journal.latest()[1] == "terminal"  # type: ignore[index]
+    assert controller._read_quarantine() is not None
+    monkeypatch.setattr(controller, "_clear_quarantine", clear)
+    controller.close()
+    with MapSwitchController(MapSwitchJournal(db, "instance"), plugin) as reopened:
+        reopened.recover()
+        assert reopened._read_quarantine() is None
+    assert plugin.switch_count == 1
+
+
+def test_failure_after_marker_before_journal_prepare_stays_quarantined(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = tmp_path / "map.gbx"
+    path.write_bytes(b"map")
+    journal = MapSwitchJournal(tmp_path / "switch.sqlite", "instance", create=True)
+    plugin = FakePlugin()
+    controller = MapSwitchController(journal, plugin)
+    monkeypatch.setattr(journal, "prepare", lambda _: (_ for _ in ()).throw(OSError("crash")))
+    with pytest.raises(OSError, match="crash"):
+        controller.switch(path, "uid")
+    assert controller._read_quarantine() is not None
+    assert journal.pending() is None
+    with pytest.raises(MapSwitchIndeterminateError, match="disagree"):
+        controller.recover()
+    with pytest.raises(MapSwitchIndeterminateError, match="unresolved"):
+        controller.switch(path, "uid")
+    controller.close()
+    assert plugin.switch_count == 0
+
+
+def test_failure_syncing_marker_prevents_any_dispatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from trackmaniarl.trackmania import map_switch_controller as module
+
+    path = tmp_path / "map.gbx"
+    path.write_bytes(b"map")
+    journal = MapSwitchJournal(tmp_path / "switch.sqlite", "instance", create=True)
+    plugin = FakePlugin()
+    controller = MapSwitchController(journal, plugin)
+    monkeypatch.setattr(
+        module, "_sync_registry_directory", lambda _: (_ for _ in ()).throw(OSError("sync failed"))
+    )
+    with pytest.raises(OSError, match="sync failed"):
+        controller.switch(path, "uid")
+    assert controller._read_quarantine() is not None
+    assert journal.pending() is None
+    assert plugin.switch_count == 0
+    controller.close()
+
+
+def test_failure_after_terminal_marker_removal_does_not_repeat_switch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from trackmaniarl.trackmania import map_switch_controller as module
+
+    path = tmp_path / "map.gbx"
+    path.write_bytes(b"map")
+    journal = MapSwitchJournal(tmp_path / "switch.sqlite", "instance", create=True)
+    plugin = FakePlugin()
+    controller = MapSwitchController(journal, plugin)
+    sync = module._sync_registry_directory
+    calls = 0
+
+    def fail_second_sync(root: Path) -> None:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("directory sync failed")
+        sync(root)
+
+    monkeypatch.setattr(module, "_sync_registry_directory", fail_second_sync)
+    with pytest.raises(MapSwitchIndeterminateError):
+        controller.switch(path, "uid")
+    assert controller._read_quarantine() is None
+    latest = journal.latest()
+    assert latest is not None
+    assert latest[1] == "terminal"
+    controller.verify_active_map("uid")
+    controller.close()
+    assert plugin.switch_count == 1
+
+
 def test_switch_saves_terminal_and_reuses_lease_after_controller_restart(tmp_path: Path) -> None:
     path = tmp_path / "map.gbx"
     path.write_bytes(b"map")

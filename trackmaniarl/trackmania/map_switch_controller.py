@@ -1,4 +1,4 @@
-"""Opt-in protocol-3 switch controller; not wired to distributed evaluation.
+"""Opt-in protocol-3 switch controller for experimental distributed evaluation.
 
 A terminal UID/readiness acknowledgement is not proof of loaded map bytes.
 Use only with an exclusively owned, separately qualified game instance.
@@ -29,6 +29,17 @@ class MapSwitchIndeterminateError(RuntimeError):
 def _registry_root() -> Path:
     """One fixed per-user namespace for all configured game instances."""
     return Path.home() / ".trackmaniarl-map-switch-registry-v1"
+
+
+def _sync_registry_directory(root: Path) -> None:
+    """Sync directory entries on POSIX; Windows durability is not established."""
+    if os.name == "nt":
+        return
+    descriptor = os.open(root, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
 
 
 class _InstanceLock:
@@ -139,6 +150,7 @@ class MapSwitchController:
             else f"instance:{journal.instance_id}"
         )
         key = hashlib.sha256(identity.encode("utf-8")).hexdigest()
+        self._quarantine_path = root / (key + ".pending")
         try:
             self._instance_lock = _InstanceLock(root / (key + ".lock"))
         except OSError as error:
@@ -198,6 +210,49 @@ class MapSwitchController:
         if self._instance_lock.file.closed:
             raise MapSwitchIndeterminateError("game instance ownership was released")
 
+    def _read_quarantine(self) -> str | None:
+        try:
+            entry = self._quarantine_path.lstat()
+        except FileNotFoundError:
+            return None
+        if (
+            not stat.S_ISREG(entry.st_mode)
+            or entry.st_nlink != 1
+            or getattr(entry, "st_file_attributes", 0) & 0x400
+        ):
+            raise MapSwitchIndeterminateError("unsafe switch quarantine marker")
+        with self._quarantine_path.open("rb") as stream:
+            opened = os.fstat(stream.fileno())
+            if (entry.st_dev, entry.st_ino) != (opened.st_dev, opened.st_ino):
+                raise MapSwitchIndeterminateError("switch quarantine marker changed")
+            raw = stream.read(33)
+        try:
+            operation = raw.decode("ascii")
+        except UnicodeDecodeError as error:
+            raise MapSwitchIndeterminateError("invalid switch quarantine marker") from error
+        if len(operation) != 32 or any(char not in "0123456789abcdef" for char in operation):
+            raise MapSwitchIndeterminateError("invalid switch quarantine marker")
+        return operation
+
+    def _mark_quarantine(self, operation_id: str) -> None:
+        try:
+            descriptor = os.open(self._quarantine_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError as error:
+            raise MapSwitchIndeterminateError("a previous switch is quarantined") from error
+        with os.fdopen(descriptor, "wb") as stream:
+            data = operation_id.encode("ascii")
+            if stream.write(data) != len(data):
+                raise OSError("short write to switch quarantine marker")
+            stream.flush()
+            os.fsync(stream.fileno())
+        _sync_registry_directory(self._quarantine_path.parent)
+
+    def _clear_quarantine(self, operation_id: str) -> None:
+        if self._read_quarantine() != operation_id:
+            raise MapSwitchIndeterminateError("switch quarantine marker differs from operation")
+        self._quarantine_path.unlink()
+        _sync_registry_directory(self._quarantine_path.parent)
+
     def _send(self, command: str, **fields: str) -> Mapping[str, Any]:
         response = self.exchange({"protocol_version": "3", "command": command, **fields})
         if response.get("status") != "ok" or response.get("protocol_version") != "3":
@@ -236,7 +291,7 @@ class MapSwitchController:
         """Issue one switch; any uncertain outcome remains durably quarantined."""
         self._require_owner()
         self._validate_timeout(timeout_s)
-        if self.journal.pending() is not None:
+        if self._read_quarantine() is not None or self.journal.pending() is not None:
             raise MapSwitchIndeterminateError("a previous switch is unresolved")
         path = map_path.resolve(strict=True)
         if not path.is_file() or not uid.strip():
@@ -252,6 +307,9 @@ class MapSwitchController:
             if previous_instance != instance:
                 raise MapSwitchIndeterminateError("plugin restarted; instance needs recovery")
         intent = MapSwitchIntent(uuid4().hex, json.dumps([instance, lease]), uid, str(path), digest)
+        # The independent marker must exist before any database mutation or
+        # game request. A rolled-back or replaced database cannot erase it.
+        self._mark_quarantine(intent.operation_id)
         self.journal.prepare(intent)
         try:
             response = self._send("claim", instance_epoch=instance, epoch=lease)
@@ -279,10 +337,18 @@ class MapSwitchController:
         """Poll the same dispatched operation; never issue another switch."""
         self._require_owner()
         self._validate_timeout(timeout_s)
+        marker = self._read_quarantine()
         pending = self.journal.pending()
         if pending is None:
+            if marker is not None:
+                latest = self.journal.latest()
+                if latest is None or latest[1] != "terminal" or latest[0].operation_id != marker:
+                    raise MapSwitchIndeterminateError("journal and quarantine marker disagree")
+                self._recover_terminal_marker(latest[0])
             return
         intent, state = pending
+        if marker != intent.operation_id:
+            raise MapSwitchIndeterminateError("journal and quarantine marker disagree")
         if state != "dispatching":
             raise MapSwitchIndeterminateError("prepared operation requires explicit recovery")
         instance, lease = self._epochs(intent)
@@ -305,13 +371,36 @@ class MapSwitchController:
                 "switch recovery failed; session quarantined"
             ) from error
 
+    def _recover_terminal_marker(self, intent: MapSwitchIntent) -> None:
+        """Recheck a terminal operation after a crash before marker removal."""
+        instance, lease = self._epochs(intent)
+        try:
+            if self._instance() != instance:
+                raise MapSwitchIndeterminateError("plugin epoch changed before marker cleanup")
+            with Path(intent.target_path).open("rb") as stream:
+                digest = hashlib.file_digest(stream, "sha256").hexdigest()
+            if digest != intent.target_sha256:
+                raise MapSwitchIndeterminateError("map file changed before marker cleanup")
+            response = self._send(
+                "switch_status",
+                instance_epoch=instance,
+                epoch=lease,
+                operation_id=intent.operation_id,
+            )
+            self._require_ready(response, intent, instance, lease)
+            self._clear_quarantine(intent.operation_id)
+        except MapSwitchIndeterminateError:
+            raise
+        except Exception as error:
+            raise MapSwitchIndeterminateError("terminal marker recovery failed") from error
+
     def verify_active_map(self, expected_uid: str, *, require_player: bool = True) -> None:
         """Reconfirm the terminal training map immediately before collection.
 
         The caller must retain exclusive control between this check and use.
         """
         self._require_owner()
-        if self.journal.pending() is not None:
+        if self._read_quarantine() is not None or self.journal.pending() is not None:
             raise MapSwitchIndeterminateError("a previous switch is unresolved")
         latest = self.journal.latest()
         if latest is None or latest[1] != "terminal" or latest[0].target_uid != expected_uid:
@@ -389,6 +478,7 @@ class MapSwitchController:
                 )
                 self._require_ready(response, intent, instance, lease)
                 self.journal.resolve_terminal(intent.operation_id, intent.plugin_epoch, "ready")
+                self._clear_quarantine(intent.operation_id)
                 return
             if state not in ("accepted", "leaving", "loading") or monotonic() >= deadline:
                 raise MapSwitchIndeterminateError("switch did not reach a verified terminal state")

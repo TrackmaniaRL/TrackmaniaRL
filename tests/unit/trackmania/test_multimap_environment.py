@@ -26,6 +26,8 @@ def _assets(tmp_path: Path, name: str) -> tuple[Path, Path]:
 
 def _factory(
     tmp_path: Path,
+    *,
+    enabled: bool = False,
 ) -> tuple[module.OpenPlanetMultiMapEnvironmentFactory, EvaluationMapSpec]:
     track, reward = _assets(tmp_path, "training")
     other_track, other_reward = _assets(tmp_path, "other")
@@ -35,10 +37,47 @@ def _factory(
         journal_path=tmp_path / "journal.sqlite",
         instance_id="instance",
         staging_root=tmp_path,
+        enable_experimental_multimap=enabled,
     )
     return factory, EvaluationMapSpec(
         id="other", expected_map_uid="other", map_path=other_track, reward_points_path=other_reward
     )
+
+
+def test_multi_map_admission_requires_explicit_factory_opt_in(tmp_path: Path) -> None:
+    from trackmaniarl.distributed.evaluation_contract import validate_scheduled_evaluation
+
+    factory, other = _factory(tmp_path)
+    # Distinct IDs and the same valid file are sufficient to exercise the
+    # admission contract; the backend itself still validates every asset.
+    second = other.model_copy(update={"id": "second"})
+    spec = SimpleNamespace(
+        training=SimpleNamespace(evaluate_every_episodes=1),
+        evaluation=SimpleNamespace(maps=(other, second)),
+    )
+    with pytest.raises(ValueError, match="explicitly enabled"):
+        validate_scheduled_evaluation(spec, factory, IdentityFeaturePipeline(), tmp_path)
+
+    factory.enable_experimental_multimap = True
+    validate_scheduled_evaluation(spec, factory, IdentityFeaturePipeline(), tmp_path)
+    assert factory._training_map_sha256 is not None
+
+    other.map_path.write_bytes(b"changed")
+    with pytest.raises(ValueError, match="checksum"):
+        validate_scheduled_evaluation(spec, factory, IdentityFeaturePipeline(), tmp_path)
+
+
+def test_multi_map_opt_in_rejects_non_boolean(tmp_path: Path) -> None:
+    track, reward = _assets(tmp_path, "training")
+    with pytest.raises(ValueError, match="must be a boolean"):
+        module.OpenPlanetMultiMapEnvironmentFactory(
+            {"reward_points_path": reward, "expected_map_uid": "training"},
+            training_map_path=track,
+            journal_path=tmp_path / "journal.sqlite",
+            instance_id="instance",
+            staging_root=tmp_path,
+            enable_experimental_multimap=1,  # type: ignore[arg-type]
+        )
 
 
 def test_validates_each_map_and_isolates_pipeline(tmp_path: Path) -> None:
@@ -50,6 +89,56 @@ def test_validates_each_map_and_isolates_pipeline(tmp_path: Path) -> None:
     other.map_path.write_bytes(b"changed")
     with pytest.raises(ValueError, match="checksum"):
         factory.validate_scheduled_evaluation_suite(suite, source, tmp_path)
+
+
+def test_training_pipeline_must_match_current_geometry_bytes(tmp_path: Path) -> None:
+    from tests.unit.trackmania._lidar_fixtures import _asset
+    from trackmaniarl.trackmania.features import LidarFeaturePipeline
+
+    geometry = _asset(tmp_path)
+    map_path = tmp_path / "trackmaniarl-test.Map.Gbx"
+    pipeline = LidarFeaturePipeline(
+        {"geometry_path": geometry, "expected_map_uid": "trackmaniarl-test"}
+    )
+    factory = module.OpenPlanetMultiMapEnvironmentFactory(
+        {"geometry_path": geometry, "expected_map_uid": "trackmaniarl-test"},
+        training_map_path=map_path,
+        journal_path=tmp_path / "journal.sqlite",
+        instance_id="instance",
+        staging_root=tmp_path,
+    )
+    item = EvaluationMapSpec(
+        id="a", expected_map_uid="trackmaniarl-test", map_path=map_path, geometry_path=geometry
+    )
+    suite = SimpleNamespace(maps=(item,))
+    factory.validate_scheduled_evaluation_suite(suite, pipeline, tmp_path)
+    # npz remains readable, but the already loaded pipeline is now stale.
+    with geometry.open("ab") as stream:
+        stream.write(b"changed")
+    with pytest.raises(ValueError, match="training feature geometry"):
+        factory.validate_scheduled_evaluation_suite(suite, pipeline, tmp_path)
+
+
+def test_training_pace_reference_is_rejected_before_any_switch(tmp_path: Path) -> None:
+    from tests.unit.trackmania._lidar_fixtures import _asset
+
+    geometry = _asset(tmp_path)
+    track = tmp_path / "trackmaniarl-test.Map.Gbx"
+    factory = module.OpenPlanetMultiMapEnvironmentFactory(
+        {
+            "geometry_path": geometry,
+            "expected_map_uid": "trackmaniarl-test",
+            "pace_reference_path": tmp_path / "training-pace.npz",
+        },
+        training_map_path=track,
+        journal_path=tmp_path / "journal.sqlite",
+        instance_id="instance",
+        staging_root=tmp_path,
+    )
+    with pytest.raises(ValueError, match="map-specific pace"):
+        factory.validate_scheduled_evaluation_suite(
+            SimpleNamespace(maps=()), IdentityFeaturePipeline(), tmp_path
+        )
 
 
 @pytest.mark.skipif(os.name != "nt", reason="staging requires Windows")

@@ -6,6 +6,7 @@ control of the game instance. It has not yet been validated against a real game.
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from copy import deepcopy
@@ -81,6 +82,7 @@ class OpenPlanetMultiMapEnvironmentFactory:
         journal_path: str | Path,
         instance_id: str,
         staging_root: str | Path,
+        enable_experimental_multimap: bool = False,
         base_dir: str | Path = ".",
     ) -> None:
         self.config = OpenPlanetEnvironmentFactory(config, base_dir=base_dir).config
@@ -95,6 +97,9 @@ class OpenPlanetMultiMapEnvironmentFactory:
         if not instance_id.strip() or not self.config.expected_map_uid:
             raise ValueError("explicit game instance and training map UID are required")
         self.instance_id = instance_id
+        if type(enable_experimental_multimap) is not bool:
+            raise ValueError("enable_experimental_multimap must be a boolean")
+        self.enable_experimental_multimap = enable_experimental_multimap
         self._training_asset_sha256: str | None = None
         self._training_map_sha256: str | None = None
         self._suite_cache: dict[str, tuple[StagedAssets, Any]] = {}
@@ -133,14 +138,28 @@ class OpenPlanetMultiMapEnvironmentFactory:
     def validate_scheduled_evaluation_suite(
         self, suite: Any, pipeline: Any, base_dir: Path
     ) -> None:
+        from trackmaniarl.trackmania.features import LidarFeaturePipeline
+
         if type(self) is not OpenPlanetMultiMapEnvironmentFactory:
             raise ValueError("multi-map factory subclasses cannot inherit attestation")
+        if self.config.pace_reference_path is not None:
+            raise ValueError("multi-map evaluation requires map-specific pace references")
         training = load_reward_asset(
             self.config.geometry_path, self.config.reward_points_path, self.config.expected_map_uid
         )
         if not training.map_sha256:
             raise ValueError("training reward asset requires a map checksum")
         training.validate_map(self.training_map_path)
+        if type(pipeline) is LidarFeaturePipeline:
+            geometry = pipeline.geometry
+            with geometry.path.open("rb") as stream:
+                digest = hashlib.file_digest(stream, "sha256").hexdigest()
+            if (
+                digest != geometry.sha256
+                or geometry.map_uid != self.config.expected_map_uid
+                or geometry.map_sha256 != training.map_sha256
+            ):
+                raise ValueError("training feature geometry differs from the attested map")
         self._training_asset_sha256 = training.sha256
         self._training_map_sha256 = training.map_sha256
         for item in suite.maps:

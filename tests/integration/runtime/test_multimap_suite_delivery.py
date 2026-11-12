@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pytest
 
 from tests.integration.runtime.distributed_evaluation_support import _DISTRIBUTED_TOKEN
@@ -26,6 +27,7 @@ from trackmaniarl.distributed import actor_evaluation, evaluation_contract
 from trackmaniarl.distributed.actor import ActorRuntime
 from trackmaniarl.distributed.actor_background import _accept_evaluation_request
 from trackmaniarl.distributed.actor_requests import ActorProcessRequest
+from trackmaniarl.trackmania.reward_points import save_reward_points
 
 
 class _SimulatedMapFactory:
@@ -60,6 +62,80 @@ class _SimulatedMapFactory:
 
     def restore_training(self, training: Any) -> None:
         self.events.append("restore")
+
+
+def test_real_experimental_factory_admitted_by_actor_and_coordinator(tmp_path: Path) -> None:
+    from tests.integration.runtime.distributed_runtime_support import _Logger
+    from tests.integration.runtime.test_distributed_evaluation_integration import TestLearner
+    from trackmaniarl.core.builtins import IdentityFeaturePipeline, TorchCheckpointCodec
+    from trackmaniarl.core.replay import InMemoryReplayStore, UniformSampler
+    from trackmaniarl.core.runtime import ResolvedRun
+    from trackmaniarl.distributed.coordinator import Coordinator
+    from trackmaniarl.distributed.coordinator_types import CoordinatorConfig
+
+    path = _config(tmp_path)
+    config = json.loads(path.read_text(encoding="utf-8"))
+    for name in ("training", "one", "two"):
+        track = tmp_path / f"{name}.gbx"
+        track.write_bytes(name.encode())
+        save_reward_points(
+            tmp_path / f"{name}.npz",
+            np.asarray([[0, 0, 0], [20, 0, 0]], dtype=np.float32),
+            map_uid=name,
+            map_path=track,
+        )
+    config["components"]["environment"] = {
+        "class_path": (
+            "trackmaniarl.trackmania.multimap_environment:OpenPlanetMultiMapEnvironmentFactory"
+        ),
+        "kwargs": {
+            "config": {"expected_map_uid": "training", "reward_points_path": "training.npz"},
+            "training_map_path": "training.gbx",
+            "journal_path": "new-switch.sqlite",
+            "instance_id": "isolated-test",
+            "staging_root": str(tmp_path),
+            "enable_experimental_multimap": True,
+        },
+    }
+    config["components"]["feature_pipeline"] = {
+        "class_path": "trackmaniarl.core.builtins:IdentityFeaturePipeline"
+    }
+    config["evaluation"]["maps"] = [
+        {
+            "id": name,
+            "expected_map_uid": name,
+            "map_path": f"{name}.gbx",
+            "reward_points_path": f"{name}.npz",
+        }
+        for name in ("one", "two")
+    ]
+    path.write_text(json.dumps(config), encoding="utf-8")
+    actor = ActorRuntime(ActorProcessRequest(path, "127.0.0.1:1", "actor", _DISTRIBUTED_TOKEN))
+    try:
+        pipeline, factory = actor._components()
+        run = ResolvedRun(
+            spec=actor.spec,
+            run_dir=tmp_path / "coordinator",
+            learner=TestLearner(),
+            environment_factory=factory,
+            model_factory=None,
+            replay_store=InMemoryReplayStore(),
+            sampler=UniformSampler(pipeline, seed=0),
+            feature_pipeline=pipeline,
+            logger=_Logger(),
+            checkpoint_codec=TorchCheckpointCodec(),
+            evaluator=None,
+            base_dir=tmp_path,
+        )
+        coordinator = Coordinator(
+            run, CoordinatorConfig("127.0.0.1:0", _DISTRIBUTED_TOKEN, actor.fingerprint)
+        )
+        _close(coordinator)
+        # Admission does not contact the game or create a switch journal.
+        assert isinstance(pipeline, IdentityFeaturePipeline)
+        assert not (tmp_path / "new-switch.sqlite").exists()
+    finally:
+        actor.client.close()
 
 
 def test_interrupted_suite_retries_same_assignment_and_recovers_wal(

@@ -86,6 +86,54 @@ def test_actor_rejects_multi_map_before_registering_or_creating_environment(tmp_
     actor._model_factory.assert_not_called()
 
 
+def test_actor_rejects_fingerprint_change_during_multi_map_admission(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from trackmaniarl.distributed import actor as actor_module
+    from trackmaniarl.distributed import evaluation_contract
+
+    item = EvaluationMapSpec(
+        id="a", geometry_path="geometry.npz", map_path="map.gbx", expected_map_uid="test"
+    )
+    actor = object.__new__(ActorRuntime)
+    actor.spec = _spec((item, item))
+    actor.spec.distributed = SimpleNamespace(actor_execution=None, actor_stall_timeout_s=None)
+    actor.spec.components = SimpleNamespace(feature_pipeline=object())
+    actor.base_dir = tmp_path
+    actor.fingerprint = "original"
+    actor._environment_factory = Mock(return_value=object())
+    actor._model_factory = Mock()
+    monkeypatch.setattr(actor_module, "_instantiate", lambda *args, **kwargs: object())
+    monkeypatch.setattr(evaluation_contract, "validate_scheduled_evaluation", lambda *args: None)
+    monkeypatch.setattr(actor_module, "run_fingerprint", lambda *args: "changed")
+    with pytest.raises(RuntimeError, match="assets changed"):
+        actor._components()
+    actor._model_factory.assert_not_called()
+
+
+def test_coordinator_rejects_fingerprint_change_before_creating_journal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from trackmaniarl.distributed import evaluation_contract, protocol
+
+    item = EvaluationMapSpec(
+        id="a", geometry_path="geometry.npz", map_path="map.gbx", expected_map_uid="test"
+    )
+    run = SimpleNamespace(
+        spec=_spec((item, item)),
+        learner=object(),
+        environment_factory=object(),
+        feature_pipeline=object(),
+        base_dir=tmp_path,
+        run_dir=tmp_path / "run",
+    )
+    monkeypatch.setattr(evaluation_contract, "validate_scheduled_evaluation", lambda *args: None)
+    monkeypatch.setattr(protocol, "run_fingerprint", lambda *args: "changed")
+    with pytest.raises(RuntimeError, match="assets changed"):
+        Coordinator(run, CoordinatorConfig("127.0.0.1:0", "x" * 32, "original"))
+    assert not run.run_dir.exists()
+
+
 def test_no_scheduled_suite_leaves_custom_game_free_runtime_unchanged(tmp_path: Path) -> None:
     spec = SimpleNamespace(training=SimpleNamespace(evaluate_every_episodes=1), evaluation=None)
     validate_scheduled_evaluation(spec, object(), object(), tmp_path)

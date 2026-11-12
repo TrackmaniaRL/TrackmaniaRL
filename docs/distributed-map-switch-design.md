@@ -1,7 +1,7 @@
 # Design: attested distributed map switching
 
-Status: proposed; protocol 2 and scheduled evaluation remain single-map. This
-document does not claim that a game backend can already switch maps.
+Status: experimental implementation; real-game validation remains outstanding.
+The default protocol-2 and single-map paths retain their existing behavior.
 
 ## Evidence and constraints
 
@@ -52,25 +52,38 @@ not share files or ports with another training session. This protocol assumes
 exclusive control of the game instance; manual map changes and other plugins
 that launch maps invalidate the lease and must not be treated as verified.
 
-`trackmaniarl.trackmania.map_switch_journal` is a game-free foundation for this
-protocol; **it is not wired into an actor or plugin**. Its SQLite transactions
+`trackmaniarl.trackmania.map_switch_journal` provides durable storage for the
+experimental controller. Its SQLite transactions
 serialize intents and persist `dispatching` before a caller sends a command.
 Open a previously created journal without `create=True`; a missing or existing
 file cannot be silently replaced. The caller must keep its path and instance
 identity stable across restarts and must not recreate a missing file for a
 possibly active instance. Every controller of one game instance must use the
 same database: two different files can each accept an operation, and this
-module does not discover or prevent that misconfiguration. SQLite EXTRA
+controller additionally binds its fixed endpoint to a journal in a per-user
+registry; this is not a physical game-process identity. SQLite EXTRA
 synchronous mode requires a local filesystem with working locking and sync.
 Process-exit tests do not prove
 resilience to power loss or faulty storage.
 
+Before recording a switch intent, the controller creates and flushes a separate
+operation marker in the per-user registry. It refuses a new switch if either the
+marker or journal is unresolved, and requires matching operation IDs to recover.
+This prevents restoring an older journal alone from silently erasing an uncertain
+dispatch. A crash after the terminal journal write but before marker removal can
+be recovered only by rechecking that operation, instance, UID, player and file.
+A corrupt marker, a missing marker with a pending row, or conflicting state stops
+the controller. POSIX also syncs the registry directory; Windows currently flushes
+the marker file but directory-entry durability after power loss is unverified.
+Changing user profile, deleting or jointly rolling back the registry and journal,
+or uncooperative local software lies outside this protection.
+
 `resolve_terminal` records evidence supplied by the caller but does not verify
-its authenticity or meaning. Only a future backend that verifies the exact
+its authenticity or meaning. Only a backend that verifies the exact
 operation and epoch and proves its worker cannot issue a later load may call
 it. Queue acknowledgements, matching map UID alone, timeouts and plugin epoch
-changes are not terminal evidence. The journal is not yet an operational guard;
-it becomes one only when every command path and recovery path use it.
+changes are not terminal evidence. Manual or third-party game controls do not
+use this journal and are outside its protection.
 
 ## Evaluation and restoration
 
@@ -88,10 +101,10 @@ assignment. The actor compares its local files before and after the suite;
 accepted WAL rows retain the coordinator's assigned digest for recovery. This
 is only file-content binding. In particular, it neither proves which bytes the
 game loaded nor detects a file replaced and restored between the two actor
-checks. It does not permit the current single-map-only admission guard to be
-removed. Older single-map assignments and journals retain their existing format.
+checks. The experimental opt-in described below has these limitations. Older
+single-map assignments and journals retain their existing format.
 
-An experimental, currently disabled OpenPlanet path stages map and reward
+An experimental, explicitly enabled OpenPlanet path stages map and reward
 assets in a new Windows directory, denies writes and deletes while handles are
 open, and compares staged suite contents with the assigned digest. It retains
 the staged files after shutdown because an uncertain game load may outlive the
@@ -106,8 +119,9 @@ experimental factory only accepts `127.0.0.1:9001`, matching the checked-in
 plugin. The plugin does not prove an operating-system game-process identity;
 other accounts, a modified plugin using another endpoint, or uncooperative local
 software can bypass the registry. The
-experimental path remains blocked in scheduled training until that ownership
-assumption and game behavior can be validated. Windows file locks, source
+experimental path requires a separately owned game, the unverified protocol-3
+plugin, and explicit `enable_experimental_multimap: true`; it is not validated
+against a real game. Windows file locks, source
 hashes, and UID/readiness checks do not themselves prove the game loaded the
 expected bytes.
 
@@ -115,6 +129,47 @@ The experimental multi-map actor currently refuses a configured
 `actor_stall_timeout_s`: staging and the game switch do not yet expose enough
 progress information to distinguish a slow valid operation from a hang. This
 restriction must be resolved before enabling the backend for such runs.
+
+### Experimental setup
+
+Use a separate, exclusively controlled Windows game instance, a development
+installation of the protocol-3 Connect source and local, checksum-bound map
+and reward assets. Its compilation and runtime have not yet been verified.
+Create an empty local staging directory and a parent directory for the journal.
+For a genuinely new, isolated game instance only, initialize the journal once:
+
+```powershell
+python -c "from pathlib import Path; from trackmaniarl.trackmania.map_switch_journal import MapSwitchJournal; MapSwitchJournal(Path('isolated/switch.sqlite'), 'isolated-game', create=True)"
+```
+
+Creation fails if the path already exists. Never recreate or replace a journal
+after an uncertain operation: its pending record is the quarantine. Keep the
+same absolute-resolving path, endpoint and `instance_id` across actor restarts.
+An example environment component is:
+
+```yaml
+components:
+  environment:
+    class_path: trackmaniarl.trackmania.multimap_environment:OpenPlanetMultiMapEnvironmentFactory
+    kwargs:
+      config:
+        expected_map_uid: TRAINING_MAP_UID
+        reward_points_path: assets/training-reward.npz
+      training_map_path: assets/training.Map.Gbx
+      journal_path: isolated/switch.sqlite
+      instance_id: isolated-game
+      staging_root: isolated/staging
+      enable_experimental_multimap: true
+```
+
+Replace the example paths and UID with real assets. The rest of the run must
+configure the supported value policy, a reviewed telemetry pipeline and an
+evaluation suite with explicit map files, UIDs and per-map reward or geometry
+assets. `actor_stall_timeout_s` must remain unset. Switching also starts on
+initialization to verify the training map, so do not point this at any game
+used by another process or person. The staged files are retained after shutdown;
+remove them only after ensuring the isolated game has stopped and no load can
+still be pending.
 
 The coordinator assigns one immutable policy snapshot and suite identity. For
 every map the actor verifies the assets, switches and confirms readiness, then

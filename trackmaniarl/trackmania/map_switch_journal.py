@@ -1,8 +1,8 @@
-"""Durable, fail-closed intent records for a future attested map backend.
+"""Durable, fail-closed intent records for experimental map switching.
 
 This module does not launch maps or authenticate backend evidence. A backend
 must verify operation identity, terminality and readiness before resolving a
-record; scheduled multi-map evaluation remains disabled.
+record. The experimental scheduled backend is not validated in a real game.
 """
 
 from __future__ import annotations

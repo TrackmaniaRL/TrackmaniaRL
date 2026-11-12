@@ -62,6 +62,11 @@ class Coordinator:
             validate_scheduled_evaluation(
                 run.spec, run.environment_factory, run.feature_pipeline, run.base_dir
             )
+            if len(run.spec.evaluation.maps) > 1:
+                from trackmaniarl.distributed.protocol import run_fingerprint
+
+                if run_fingerprint(run.spec, run.base_dir) != config.fingerprint:
+                    raise RuntimeError("run assets changed while initializing multi-map evaluation")
         self._configure(run, config)
         self._initialize_transport()
         self._initialize_metrics()

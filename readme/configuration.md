@@ -123,15 +123,26 @@ pass the reliability threshold. When one batch improves both leaders, each
 family writes its own exact-policy checkpoint. Promotion durability and
 checkpoint retention are independent for the two families.
 
-Scheduled **distributed** evaluation currently uses the actor's training
-environment; it cannot switch maps. When an `evaluation` suite is configured,
-it must contain exactly one map, and the environment factory must attest that
+Scheduled **distributed** evaluation normally uses the actor's training
+environment. When an `evaluation` suite is configured, it normally contains
+one map, and the environment factory must attest that
 the training environment and feature pipeline use that map. The built-in
 OpenPlanet and full QR factories check the configured UID, reward/geometry
 assets and map checksum where available. OpenPlanet still requires the user to
-load the map; its session verifies the UID on reset. A multi-map suite remains
+load the map; its session verifies the UID on reset. A multi-map suite is also
 available to the local `benchmark` evaluator, which evaluates each map separately.
 Scheduled evaluation without an `evaluation` suite is unchanged.
+
+The `OpenPlanetMultiMapEnvironmentFactory` offers an **experimental, opt-in**
+Windows path for scheduled suites when `enable_experimental_multimap: true` is
+explicitly configured. It requires a separately owned game, the experimental
+protocol-3 Connect plugin, a pre-created switch journal, an isolated staging
+root and the fixed loopback endpoint. It refuses unsupported pipelines and
+policies, an actor stall watchdog, unknown or indeterminate switches and
+unattested assets. The plugin has not been compiled or validated in a real game;
+UID and file checks do not prove which bytes the game loaded. Follow the
+[design and limitations](../docs/distributed-map-switch-design.md) before use.
+The option must not point at an instance used by another training session.
 
 Custom environment factories used with a scheduled suite must implement
 `validate_scheduled_evaluation_map(map_spec, pipeline)`. The map paths are

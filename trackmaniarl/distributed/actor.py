@@ -297,6 +297,13 @@ class ActorRuntime:
         ):
             raise ValueError("multi-map evaluation cannot safely use actor_stall_timeout_s yet")
         validate_scheduled_evaluation(self.spec, environment, pipeline, self.base_dir)
+        if (
+            suite is not None
+            and len(suite.maps) > 1
+            and self.spec.training.evaluate_every_episodes is not None
+            and run_fingerprint(self.spec, self.base_dir) != self.fingerprint
+        ):
+            raise RuntimeError("run assets changed while initializing multi-map evaluation")
         self._multi_map_factory = environment if suite is not None and len(suite.maps) > 1 else None
         model_factory = self._model_factory()
         self._replica_learner = self._create_replica_learner(model_factory)

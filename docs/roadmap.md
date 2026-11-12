@@ -4,9 +4,10 @@ These items describe proposed follow-up work; they are not release commitments.
 
 ## Distributed evaluation across multiple maps
 
-Scheduled distributed evaluation currently accepts only one attested map. Extend
-it to run complete suites across maps when the backend can safely load and verify
-each map. The design must bind every trial to the assigned policy, map and assets,
+Scheduled distributed evaluation includes an experimental, explicitly enabled
+OpenPlanet multi-map path; the default remains an attested single map. The
+experimental plugin and backend require real-game validation before support can
+be claimed. The design binds every trial to the assigned policy, map and assets,
 rebuild or isolate map-dependent pipelines, and restore the training map before
 collection resumes. Backends that cannot verify a map switch should fail explicitly.
 
