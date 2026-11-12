@@ -387,7 +387,10 @@ class RolloutJournal(EvaluationJournalMixin):
     def prune(self, watermark: int) -> None:
         if watermark < 0:
             raise ValueError("journal prune frontier cannot be negative")
-        with self._lock:
+        with self._lock, self._connection:
+            # The frontier check and deletion must be serialized across journal
+            # connections; otherwise a stale smaller prune can move it backward.
+            self._connection.execute("BEGIN IMMEDIATE")
             if watermark < self.pruned_through:
                 return
             maximum = self._connection.execute("SELECT MAX(row_id) FROM receipts").fetchone()
@@ -399,7 +402,6 @@ class RolloutJournal(EvaluationJournalMixin):
                 "UPDATE metadata SET value = ? WHERE key = 'pruned_through'",
                 (str(watermark),),
             )
-            self._connection.commit()
 
     def actor_profile(self, actor_id: str, profile_count: int) -> int:
         with self._lock:

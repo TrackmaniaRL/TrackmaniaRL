@@ -123,6 +123,11 @@ instance. Evaluation delivery and promotion operations live in
 particular, claiming an evaluation result remains part of the rollout append
 transaction. Append acquires a SQLite write transaction before checking its
 receipt, so separate journal connections serialize the idempotency decision.
+Pruning also reserves the write transaction before checking the frontier, so
+concurrent prunes cannot move it backward after rows have been deleted. These
+narrow guarantees do not make multiple active coordinators on one journal safe:
+checkpoint validation, recovery, profile allocation and evaluation delivery
+require a single coordinator owner.
 Initial creation and supported schema migration also reserve the write
 transaction before inspecting the schema, allowing independent openers to
 observe one complete result. A transient busy response while switching a new

@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from threading import Barrier
+from threading import Barrier, Event
 
 import pytest
 
@@ -86,3 +86,41 @@ def test_independent_connections_deduplicate_concurrent_append_and_recover(tmp_p
             reopened.append("session", 0, b"different")
     finally:
         reopened.close()
+
+
+def test_concurrent_prunes_cannot_move_frontier_backward(tmp_path: Path) -> None:
+    path = tmp_path / "journal.sqlite"
+    low, high = RolloutJournal(path), RolloutJournal(path)
+    for index in range(10):
+        low.append("session", index, bytes([index]))
+    low_reached_delete = Event()
+    high_finished = Event()
+
+    def trace(statement: str) -> None:
+        if statement.startswith("DELETE FROM chunks"):
+            low_reached_delete.set()
+            # Without a write reservation the other prune can commit here.
+            # With one it waits until this transaction finishes.
+            high_finished.wait(timeout=1)
+
+    def prune_high() -> None:
+        assert low_reached_delete.wait(timeout=5)
+        try:
+            high.prune(10)
+        finally:
+            high_finished.set()
+
+    low._connection.set_trace_callback(trace)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            lower = pool.submit(low.prune, 5)
+            higher = pool.submit(prune_high)
+            lower.result(timeout=10)
+            higher.result(timeout=10)
+        assert low.pruned_through == 10
+        assert list(low.rows_after(0)) == []
+        with pytest.raises(ValueError, match="predates"):
+            low.validate_checkpoint(low.identity, 5)
+    finally:
+        low.close()
+        high.close()
