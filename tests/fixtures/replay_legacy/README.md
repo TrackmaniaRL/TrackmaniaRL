@@ -73,3 +73,43 @@ checks the two original receipts and rejects a different fingerprint. It proves
 this format-level scenario using the test suite's toy learner and pipeline; it
 does not exercise a real trained policy or model parameters, exact resume across
 different source fingerprints, or compatibility with every historical run.
+
+## Historical v1.3.0 writer with a first-party learner
+
+The additional `real` pair was generated on 2026-11-12 by the same unmodified
+v1.3.0 release, commit `eb803a2153d472ebb16cd7150201c82058dd804a`. It uses
+synthetic data and a small first-party `DiscreteValueLearner` with an MLP sensor
+encoder, identity temporal core and scalar Q head. One synthetic update before
+the coordinator's checkpoint makes Adam state nonempty. Two transitions precede
+the checkpoint and one follows in the journal. The original coordinator writes
+both artifacts, and the generator checks the v1 journal schema read-only before
+zlib compression; it does not modify the journal. No game or port is used.
+
+Generation used Windows, Python 3.12.12, SQLite 3.50.4, NumPy 2.4.2 and Torch
+2.11.0+cu128 with CUDA hidden before importing Torch and one CPU thread. The
+fixture contains no CUDA RNG state. The model is freshly initialized and is not
+a trained policy from an actual run.
+
+| File | SHA-256 |
+| --- | --- |
+| `checkpoint-real-v130-eb803a21.bin` | `daa2270faf240386dc2ed5dda14fa0abc820fbd1261f4607d960e7f68387cbd2` |
+| `journal-real-v1-v130-eb803a21.bin` | `c337f2f258a9dc2a394f02af2f8d22eb4c450fdef591d40358d47879260eac4a` |
+
+To regenerate, run `generate_real_v130.py` from a clean isolated checkout of
+the exact release with that checkout on `PYTHONPATH`, an unused output path and
+`CUDA_VISIBLE_DEVICES=-1`, `OMP_NUM_THREADS=1`, `MKL_NUM_THREADS=1`,
+`OPENBLAS_NUM_THREADS=1`, and `NUMEXPR_NUM_THREADS=1` set before Python starts.
+The generator verifies the imported package's Git HEAD, refuses visible CUDA,
+and creates its intermediate run in a separate temporary directory. Random
+journal identity and checkpoint serialization mean regenerated hashes differ.
+
+The checkpoint records the actual fingerprint computed in that historical
+environment. One test uses the low-level coordinator with that recorded value
+explicitly supplied to examine the format: it verifies the complete learner
+state, sampler, migration, receipts and replay recovery, then performs one CPU
+update from the recovered synthetic replay. A second test uses the fingerprint
+computed from the current configuration and source and verifies rejection
+before mutating the learner or replay. The mismatch reflects the full
+fingerprint inputs, not necessarily source changes alone. Supplying the old
+identity in the format test does not demonstrate ordinary cross-version exact
+resume or compatibility with other learner architectures and configurations.
