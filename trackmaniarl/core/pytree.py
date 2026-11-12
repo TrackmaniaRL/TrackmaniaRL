@@ -119,6 +119,10 @@ def tree_snapshot(value: PyTree) -> PyTree:
     def snapshot(leaf: Any) -> Any:
         if isinstance(leaf, torch.Tensor):
             return leaf.detach().clone()
+        if isinstance(leaf, np.void) and leaf.dtype.hasobject:
+            # Structured scalars can be standalone metadata, not just elements
+            # of an object array. Their object fields may contain non-leaf tensors.
+            return policy_observation_snapshot(leaf)
         if isinstance(leaf, np.ndarray):
             # An object array's buffer contains references; copying only the
             # buffer would leave its mutable elements owned by the caller.

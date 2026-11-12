@@ -180,6 +180,28 @@ def test_object_array_with_structured_scalar_containing_tensor_is_owned(
     assert tensor.item() == 9.0
 
 
+def test_standalone_structured_scalar_survives_replay_snapshot_and_restore() -> None:
+    tensor = torch.tensor([1.0], requires_grad=True) * 2
+    records = np.empty(1, dtype=[("x", object)])
+    records["x"][0] = {"tensor": tensor}
+    store = InMemoryReplayStore(capacity=2)
+    store.append(
+        Transition(
+            0, 0, 1.0, 1, True, False, episode_id="episode", step=0, info={"record": records[0]}
+        )
+    )
+    state = store.state_dict()
+    restored = InMemoryReplayStore(capacity=2)
+    restored.load_state_dict(state)
+
+    tensor.detach().fill_(9)
+    state["info"][0]["record"]["x"]["tensor"].fill_(8)
+    for replay in (store, restored):
+        actual = replay.get([0])[0].info["record"]["x"]["tensor"]
+        assert actual.item() == 2.0
+        assert not actual.requires_grad
+
+
 def test_append_sample_snapshot_and_restore_interleave() -> None:
     store = InMemoryReplayStore(capacity=16)
 
