@@ -303,8 +303,11 @@ class OpenPlanetMultiMapEnvironmentFactory:
         staged = StagedAssets(self.staging_root)
         try:
             return self._create_staged(seed, staged)
-        except BaseException:
-            staged.close()
+        except BaseException as error:
+            try:
+                staged.close()
+            except BaseException as cleanup_error:
+                error.add_note(f"Failed to close staged assets: {cleanup_error!r}")
             raise
 
     def _require_experimental_consent(self) -> None:
@@ -366,15 +369,17 @@ class OpenPlanetMultiMapEnvironmentFactory:
                 self._release_suite_cache,
             )
             return session
-        except BaseException:
+        except BaseException as error:
+            created = environment if environment is not None else (holder[0] if holder else None)
             try:
-                created = (
-                    environment if environment is not None else (holder[0] if holder else None)
-                )
                 if created is not None:
                     created.close()
-            finally:
+            except BaseException as cleanup_error:
+                error.add_note(f"Failed to close created environment: {cleanup_error!r}")
+            try:
                 switch.close()
+            except BaseException as cleanup_error:
+                error.add_note(f"Failed to close switch controller: {cleanup_error!r}")
             raise
 
     @contextmanager

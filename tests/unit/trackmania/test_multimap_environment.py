@@ -375,6 +375,54 @@ def test_failed_claim_never_creates_or_touches_game_controller(
     create.assert_not_called()
 
 
+def test_create_preserves_switch_failure_when_all_cleanup_steps_fail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from unittest.mock import Mock
+
+    from trackmaniarl.trackmania.map_switch_controller import MapSwitchIndeterminateError
+
+    factory, other = _factory(tmp_path)
+    factory.validate_scheduled_evaluation_suite(
+        SimpleNamespace(maps=(other,)), IdentityFeaturePipeline(), tmp_path
+    )
+    staged = SimpleNamespace(
+        stage=Mock(side_effect=lambda source, name: source),
+        close=Mock(side_effect=OSError("staged cleanup")),
+    )
+    environment = SimpleNamespace(
+        release_controls=Mock(),
+        client=SimpleNamespace(close=Mock()),
+        close=Mock(side_effect=OSError("environment cleanup")),
+    )
+    original = MapSwitchIndeterminateError("switch outcome unknown")
+
+    def switch_failure(*args: Any, **kwargs: Any) -> None:
+        kwargs["before_dispatch"]()
+        raise original
+
+    switch = SimpleNamespace(
+        switch=Mock(side_effect=switch_failure),
+        close=Mock(side_effect=OSError("controller cleanup")),
+    )
+    monkeypatch.setattr(module, "StagedAssets", lambda *_: staged)
+    monkeypatch.setattr(
+        module, "MapSwitchJournal", lambda *_: SimpleNamespace(pending=lambda: None)
+    )
+    monkeypatch.setattr(module, "OpenPlanetSwitchTransport", lambda *_: None)
+    monkeypatch.setattr(module, "MapSwitchController", lambda *_: switch)
+    monkeypatch.setattr(module.OpenPlanetEnvironmentFactory, "create", lambda *a, **kw: environment)
+
+    with pytest.raises(MapSwitchIndeterminateError, match="switch outcome unknown") as captured:
+        factory.create(seed=0)
+    assert captured.value is original
+    for message in ("environment cleanup", "controller cleanup", "staged cleanup"):
+        assert any(message in note for note in original.__notes__)
+    environment.close.assert_called_once_with()
+    switch.close.assert_called_once_with()
+    staged.close.assert_called_once_with()
+
+
 def test_pipeline_rejects_unreviewed_subclasses(tmp_path: Path) -> None:
     factory, other = _factory(tmp_path)
 
