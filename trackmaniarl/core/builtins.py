@@ -11,11 +11,15 @@ from pathlib import Path
 from typing import Any, BinaryIO, TextIO, cast
 from uuid import uuid4
 
+from packaging.specifiers import SpecifierSet
+from packaging.version import InvalidVersion
+
 from trackmaniarl.core.contracts import PolicyMode
 from trackmaniarl.core.data import TrainingBatch, Transition
 
 _CHECKPOINT_COPY_CHUNK_BYTES = 8 * 1024**2
 _DEFAULT_MAX_DECOMPRESSED_CHECKPOINT_BYTES = 8 * 1024**3
+_SAFE_TORCH_VERSIONS = SpecifierSet(">=2.13,!=2.14.*")
 
 
 class IdentityFeaturePipeline:
@@ -144,10 +148,19 @@ def _checkpoint_safe_globals() -> list[Any]:
 
 
 def _load_torch_checkpoint(path: Path) -> Mapping[str, Any]:
-    """Load a checkpoint without executing pickle payloads."""
+    """Load a checkpoint with a supported weights-only implementation."""
 
     import torch
 
+    try:
+        supported = _SAFE_TORCH_VERSIONS.contains(str(torch.__version__), prereleases=False)
+    except InvalidVersion:
+        supported = False
+    if not supported:
+        raise RuntimeError(
+            "Cannot load a checkpoint with this PyTorch version; install a stable "
+            "PyTorch release matching >=2.13,!=2.14.* and use trusted checkpoints."
+        )
     with torch.serialization.safe_globals(_checkpoint_safe_globals()):
         return cast(
             Mapping[str, Any],

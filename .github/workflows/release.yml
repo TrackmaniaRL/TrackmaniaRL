@@ -15,7 +15,7 @@ env:
   OMP_NUM_THREADS: "2"
   MKL_NUM_THREADS: "2"
   TORCH_CPU_INDEX: https://download.pytorch.org/whl/cpu
-  TORCH_CPU_VERSION: 2.11.0+cpu
+  TORCH_CPU_VERSION: 2.13.0+cpu
   UV_VERSION: "0.12.5"
 
 jobs:
@@ -91,7 +91,7 @@ jobs:
       - name: Stage wheel and dependency metadata for the SBOM
         shell: bash
         run: |
-          uv run --isolated --no-project --index "$TORCH_CPU_INDEX" --with "torch==$TORCH_CPU_VERSION" --with ./dist/*.whl python - <<'PY'
+          uv run --isolated --no-project --index "$TORCH_CPU_INDEX" --index-strategy unsafe-best-match --with "torch==$TORCH_CPU_VERSION" --with ./dist/*.whl python - <<'PY'
           import shutil
           import zipfile
           from importlib.metadata import distributions
@@ -136,7 +136,7 @@ jobs:
           upload-release-assets: false
 
       - name: Validate release and write checksums
-        run: uv run --isolated --no-project python scripts/check_distribution.py --tag "${{ github.ref_name }}" --write-checksums
+        run: uv run --isolated --no-project python scripts/check_distribution.py --tag "${{ github.ref_name }}" --release-commit "${{ github.sha }}" --write-checksums
 
       - name: Upload the canonical release distribution
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -180,42 +180,42 @@ jobs:
           digest-mismatch: error
 
       - name: Verify distribution contents and checksums
-        run: uv run --isolated --no-project python scripts/check_distribution.py --tag "${{ github.ref_name }}" --verify-checksums
+        run: uv run --isolated --no-project python scripts/check_distribution.py --tag "${{ github.ref_name }}" --release-commit "${{ github.sha }}" --verify-checksums
 
       - name: Verify wheel CLI on Linux
         if: runner.os == 'Linux'
         shell: bash
         env:
           TORCH_CPU_INDEX: https://download.pytorch.org/whl/cpu
-          TORCH_CPU_VERSION: 2.11.0+cpu
+          TORCH_CPU_VERSION: 2.13.0+cpu
         run: |
           wheel="$(realpath "$GITHUB_WORKSPACE"/dist/*.whl)"
           cd "$(mktemp -d)"
-          uv run --isolated --no-project --index "$TORCH_CPU_INDEX" --with "torch==$TORCH_CPU_VERSION" --with "$wheel" trackmaniarl --help
+          uv run --isolated --no-project --index "$TORCH_CPU_INDEX" --index-strategy unsafe-best-match --with "torch==$TORCH_CPU_VERSION" --with "$wheel" trackmaniarl --help
 
       - name: Verify wheel import on Linux
         if: runner.os == 'Linux'
         shell: bash
         env:
           TORCH_CPU_INDEX: https://download.pytorch.org/whl/cpu
-          TORCH_CPU_VERSION: 2.11.0+cpu
+          TORCH_CPU_VERSION: 2.13.0+cpu
         run: |
           wheel="$(realpath "$GITHUB_WORKSPACE"/dist/*.whl)"
           cd "$(mktemp -d)"
-          uv run --isolated --no-project --index "$TORCH_CPU_INDEX" --with "torch==$TORCH_CPU_VERSION" --with "$wheel" python -c "import importlib.metadata as m, os, torch, trackmaniarl; expected = os.environ['GITHUB_REF_NAME'].removeprefix('v'); installed = m.version('TrackmaniaRL'); assert torch.version.cuda is None, torch.version.cuda; assert trackmaniarl.__version__ == installed == expected, (trackmaniarl.__version__, installed, expected)"
+          uv run --isolated --no-project --index "$TORCH_CPU_INDEX" --index-strategy unsafe-best-match --with "torch==$TORCH_CPU_VERSION" --with "$wheel" python -c "import importlib.metadata as m, os, torch, trackmaniarl; expected = os.environ['GITHUB_REF_NAME'].removeprefix('v'); installed = m.version('TrackmaniaRL'); assert torch.version.cuda is None, torch.version.cuda; assert trackmaniarl.__version__ == installed == expected, (trackmaniarl.__version__, installed, expected)"
 
       - name: Verify generated project on Linux
         if: runner.os == 'Linux'
         shell: bash
         env:
           TORCH_CPU_INDEX: https://download.pytorch.org/whl/cpu
-          TORCH_CPU_VERSION: 2.11.0+cpu
+          TORCH_CPU_VERSION: 2.13.0+cpu
         run: |
           wheel="$(realpath "$GITHUB_WORKSPACE"/dist/*.whl)"
           test_dir="$(mktemp -d)"
           agent_dir="$test_dir/agent"
           cd "$test_dir"
-          uv run --isolated --no-project --index "$TORCH_CPU_INDEX" --with "torch==$TORCH_CPU_VERSION" --with "$wheel" trackmaniarl init "$agent_dir"
+          uv run --isolated --no-project --index "$TORCH_CPU_INDEX" --index-strategy unsafe-best-match --with "torch==$TORCH_CPU_VERSION" --with "$wheel" trackmaniarl init "$agent_dir"
           uv lock --directory "$agent_dir" --find-links "$GITHUB_WORKSPACE/dist"
 
       - name: Verify wheel CLI and generated project on Windows
@@ -223,8 +223,7 @@ jobs:
         shell: pwsh
         env:
           TORCH_CPU_INDEX: https://download.pytorch.org/whl/cpu
-          TORCH_CPU_VERSION: 2.11.0+cpu
-          UV_INDEX: pytorch-cuda=https://download.pytorch.org/whl/cpu
+          TORCH_CPU_VERSION: 2.13.0+cpu
         run: |
           $wheel = (Get-ChildItem dist -Filter *.whl -File | Select-Object -First 1).FullName
           $PSNativeCommandUseErrorActionPreference = $true
@@ -232,12 +231,17 @@ jobs:
           $agentDir = Join-Path $testDir.FullName "agent"
           Push-Location $testDir.FullName
           try {
-            uv run --isolated --no-project --index "$env:TORCH_CPU_INDEX" --with "torch==$env:TORCH_CPU_VERSION" --with "$wheel" python -c "import importlib.metadata as m, os, torch, trackmaniarl; expected = os.environ['GITHUB_REF_NAME'].removeprefix('v'); installed = m.version('TrackmaniaRL'); assert torch.version.cuda is None, torch.version.cuda; assert trackmaniarl.__version__ == installed == expected, (trackmaniarl.__version__, installed, expected)"
-            uv run --isolated --no-project --index "$env:TORCH_CPU_INDEX" --with "torch==$env:TORCH_CPU_VERSION" --with "$wheel" trackmaniarl --help
-            uv run --isolated --no-project --index "$env:TORCH_CPU_INDEX" --with "torch==$env:TORCH_CPU_VERSION" --with "$wheel" trackmaniarl init "$agentDir"
+            uv run --isolated --no-project --index "$env:TORCH_CPU_INDEX" --index-strategy unsafe-best-match --with "torch==$env:TORCH_CPU_VERSION" --with "$wheel" python -c "import importlib.metadata as m, os, torch, trackmaniarl; expected = os.environ['GITHUB_REF_NAME'].removeprefix('v'); installed = m.version('TrackmaniaRL'); assert torch.version.cuda is None, torch.version.cuda; assert trackmaniarl.__version__ == installed == expected, (trackmaniarl.__version__, installed, expected)"
+            uv run --isolated --no-project --index "$env:TORCH_CPU_INDEX" --index-strategy unsafe-best-match --with "torch==$env:TORCH_CPU_VERSION" --with "$wheel" trackmaniarl --help
+            uv run --isolated --no-project --index "$env:TORCH_CPU_INDEX" --index-strategy unsafe-best-match --with "torch==$env:TORCH_CPU_VERSION" --with "$wheel" trackmaniarl init "$agentDir"
           } finally {
             Pop-Location
           }
+          # Keep the generated index explicit while selecting CPU Torch on Windows.
+          $project = Join-Path $agentDir "pyproject.toml"
+          $config = Get-Content $project -Raw
+          $config = $config.Replace("https://download.pytorch.org/whl/cu132", $env:TORCH_CPU_INDEX)
+          Set-Content -Path $project -Value $config -NoNewline
           uv lock --directory "$agentDir" --find-links (Resolve-Path dist)
           $lock = Get-Content (Join-Path $agentDir "uv.lock") -Raw
           if ($lock -match 'download(?:-r2)?\.pytorch\.org/whl/cu[0-9]+' -or $lock -match 'torch-[^"\s]*%2Bcu') {
@@ -250,7 +254,7 @@ jobs:
       - name: Exercise installed starter on Linux
         if: runner.os == 'Linux'
         shell: bash
-        run: uv run --isolated --no-project --no-config --index "$TORCH_CPU_INDEX" --with "torch==$TORCH_CPU_VERSION" --with ./dist/*.whl python scripts/smoke_installed.py
+        run: uv run --isolated --no-project --no-config --index "$TORCH_CPU_INDEX" --index-strategy unsafe-best-match --with "torch==$TORCH_CPU_VERSION" --with ./dist/*.whl python scripts/smoke_installed.py
 
       - name: Exercise installed starter on Windows
         if: runner.os == 'Windows'
@@ -258,7 +262,7 @@ jobs:
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           $wheel = (Get-ChildItem dist -Filter *.whl -File | Select-Object -First 1).FullName
-          uv run --isolated --no-project --no-config --index "$env:TORCH_CPU_INDEX" --with "torch==$env:TORCH_CPU_VERSION" --with "$wheel" python scripts/smoke_installed.py
+          uv run --isolated --no-project --no-config --index "$env:TORCH_CPU_INDEX" --index-strategy unsafe-best-match --with "torch==$env:TORCH_CPU_VERSION" --with "$wheel" python scripts/smoke_installed.py
 
   attest-publish:
     name: Attest and publish canonical bytes

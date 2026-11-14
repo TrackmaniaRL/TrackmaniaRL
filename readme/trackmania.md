@@ -12,7 +12,7 @@ Install the released CLI, then create the game project only on a machine that
 has Trackmania, Openplanet and a virtual gamepad driver:
 
 ```powershell
-uv tool install --index https://download.pytorch.org/whl/cpu --with "torch==2.11.0+cpu" trackmaniarl
+uv tool install --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match --with "torch==2.13.0+cpu" trackmaniarl
 trackmaniarl init my-agent --template trackmania
 cd my-agent
 uv sync
@@ -342,9 +342,10 @@ checkpoint filename in place of `distributed-update-XXXXXXXX.pt`.
 W&B is optional. The generated project logs locally until you run
 `uv add "trackmaniarl[trackmania,distributed,wandb]"` and add an
 explicit `WandbTracker` under `components.additional_loggers`. Supply
-`WANDB_API_KEY` only through a private environment or ignored `.env` file.
+`WANDB_API_KEY` only through a private environment variable. The W&B tracker
+does not load a project `.env` file automatically.
 The generated project retains its vetted `vgamepad` source during this update.
-an existing project must retain the same direct source pin documented in the
+An existing project must retain the same direct source pin documented in the
 [installation guide](quickstart.md#installation).
 
 `trackmaniarl smoke` is the required Windows preflight. It collects a bounded number of

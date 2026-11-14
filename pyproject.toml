@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools==83.0.0"]
+requires = ["setuptools==84.1.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -32,9 +32,11 @@ classifiers = [
 ]
 requires-python = ">=3.12,<3.13"
 dependencies = [
-    "pydantic>=2.0",
+    "pydantic>=2.4",
     "numpy>=1.24",
-    "torch>=2.4",
+    "packaging>=23.0",
+    "torch>=2.13,!=2.14.*",
+    "setuptools>=84.1.0",
     "tensordict>=0.6",
     "gymnasium>=0.29",
     "PyYAML>=6.0",
@@ -47,21 +49,25 @@ native-vision = ["numba>=0.64,<0.69"]
 orchestrator = [
     "google-genai>=2.2.0",
     "optuna>=3.0",
+    "certifi>=2026.10.19",
+    "urllib3>=2.8.0",
 ]
 trackmania = [
     "libevdev>=0.13; sys_platform == 'linux'",
 ]
 wandb = [
     "wandb>=0.15.8",
+    "certifi>=2026.10.19",
+    "urllib3>=2.8.0",
 ]
 distributed = [
-    "grpcio>=1.66",
-    "protobuf>=5.27",
+    "grpcio>=1.84.1",
+    "protobuf>=5.29.6,!=6.30.*,!=6.31.*,!=6.32.*,!=6.33.0.*,!=6.33.1.*,!=6.33.2.*,!=6.33.3.*,!=6.33.4.*",
     "safetensors>=0.4.5",
 ]
 mamba = [
     "causal-conv1d>=1.4; sys_platform == 'linux'",
-    "mamba-ssm>=2.2; sys_platform == 'linux'",
+    "mamba-ssm>=2.3.0; sys_platform == 'linux'",
 ]
 all = [
     "mss>=10.0,<11",
@@ -70,19 +76,21 @@ all = [
     "optuna>=3.0",
     "libevdev>=0.13; sys_platform == 'linux'",
     "wandb>=0.15.8",
-    "grpcio>=1.66",
-    "protobuf>=5.27",
+    "certifi>=2026.10.19",
+    "urllib3>=2.8.0",
+    "grpcio>=1.84.1",
+    "protobuf>=5.29.6,!=6.30.*,!=6.31.*,!=6.32.*,!=6.33.0.*,!=6.33.1.*,!=6.33.2.*,!=6.33.3.*,!=6.33.4.*",
     "safetensors>=0.4.5",
     "causal-conv1d>=1.4; sys_platform == 'linux'",
-    "mamba-ssm>=2.2; sys_platform == 'linux'",
+    "mamba-ssm>=2.3.0; sys_platform == 'linux'",
 ]
 
 [tool.uv]
 default-groups = ["dev"]
 no-build-isolation-package = ["causal-conv1d", "mamba-ssm"]
 constraint-dependencies = [
-    "torch==2.11.0+cu128; sys_platform == 'win32' or sys_platform == 'linux'",
-    "torch==2.11.0; sys_platform != 'win32' and sys_platform != 'linux'",
+    "torch==2.13.0+cu132; sys_platform == 'win32' or sys_platform == 'linux'",
+    "torch==2.13.0; sys_platform != 'win32' and sys_platform != 'linux'",
 ]
 
 [tool.uv.extra-build-dependencies]
@@ -104,7 +112,7 @@ explicit = true
 
 [[tool.uv.index]]
 name = "pytorch-cuda"
-url = "https://download.pytorch.org/whl/cu128"
+url = "https://download.pytorch.org/whl/cu132"
 explicit = true
 
 [dependency-groups]
@@ -114,12 +122,14 @@ dev = [
     "ruff>=0.4",
     "pytest>=7.0",
     "types-PyYAML",
-    "grpcio>=1.66",
-    "protobuf>=5.27",
+    "grpcio>=1.84.1",
+    "protobuf>=5.29.6,!=6.30.*,!=6.31.*,!=6.32.*,!=6.33.0.*,!=6.33.1.*,!=6.33.2.*,!=6.33.3.*,!=6.33.4.*",
     "safetensors>=0.4.5",
     "libevdev>=0.13; sys_platform == 'linux'",
     "vgamepad>=0.1.0; sys_platform == 'win32' or sys_platform == 'linux'",
     "wandb>=0.15.8",
+    "certifi>=2026.10.19",
+    "urllib3>=2.8.0",
     "matplotlib>=3.10.8",
     "plotly>=7.0.0",
 ]
