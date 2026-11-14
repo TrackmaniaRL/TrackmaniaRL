@@ -86,8 +86,10 @@ managed using W&B's own authentication. Export only the variables needed by the
 selected integration and keep tokens out of command-line arguments, component
 kwargs, screenshots and shared run directories. Local manifests and recording
 sidecars may contain paths and timestamps even when tokens are redacted.
-Run source-provenance archives contain source and configuration bytes, which may
-themselves include sensitive data. Review them before sharing. Obvious
-credential files and environment files are excluded, but this filter cannot
-detect every secret inside source files. New snapshots retain an empty patch
-file rather than storing Git diffs, which can reintroduce removed secrets.
+Run source-provenance archives contain source and configuration bytes. Obvious
+credential and environment files are excluded; a narrow common plaintext
+credential/privacy-signature check also rejects a snapshot before it is
+written, reporting only a non-secret category. It is not a general secret
+scanner, so review source archives before sharing. New snapshots retain an
+empty patch file rather than storing Git diffs, which can reintroduce removed
+secrets.

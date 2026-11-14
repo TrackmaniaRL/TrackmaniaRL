@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from trackmaniarl._privacy import privacy_categories
+
 _SOURCE_SUFFIXES = frozenset(
     {
         ".py",
@@ -147,6 +149,12 @@ def _collect_sources(
     records: list[dict[str, Any]] = []
     omitted: list[dict[str, str]] = []
     for name in sorted(tree.candidates):
+        name_categories = privacy_categories(name, b"")
+        if name_categories:
+            raise ValueError(
+                "Source snapshot cannot archive private filename: "
+                f"{', '.join(name_categories)}"
+            )
         path = tree.root / name
         if path.resolve().is_relative_to(destination):
             continue
@@ -162,6 +170,10 @@ def _collect_sources(
             omitted.append({"path": name, "reason": "not a regular file (e.g. submodule)"})
             continue
         content = path.read_bytes()
+        categories = privacy_categories(name, content)
+        if categories:
+            reason = ", ".join(categories)
+            raise ValueError(f"Source snapshot cannot archive private content: {reason}")
         payloads[name] = content
         records.append(
             {
@@ -211,15 +223,19 @@ def capture_source_snapshot(
     manifest_path = directory / "manifest.json"
     _verify_stable(tree, payloads, records)
     if manifest_path.exists():
+        cached = validate_source_snapshot(manifest_path)
+        cached_identity = {key: cached[key] for key in identity}
+        if cached["snapshot_id"] != snapshot_id or cached_identity != identity:
+            raise ValueError("Source snapshot cache identity conflicts with current sources")
         return {
-            **validate_source_snapshot(manifest_path),
+            **cached,
             "source_root": str(tree.root),
             "scope_root": str(tree.scope_root),
         }
     directory.mkdir(parents=True, exist_ok=True)
     _write_archive(archive, payloads)
     patch_path = directory / "working-tree.patch"
-    patch_path.write_bytes(tree.patch)
+    _write_bytes(patch_path, tree.patch)
     result = {
         **identity,
         "status": "captured",
@@ -231,7 +247,10 @@ def capture_source_snapshot(
         "archive_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
         "patch_path": str(patch_path),
     }
-    manifest_path.write_text(json.dumps(result, indent=2, sort_keys=True), encoding="utf-8")
+    _write_bytes(
+        manifest_path,
+        json.dumps(result, indent=2, sort_keys=True).encode("utf-8"),
+    )
     return result
 
 
@@ -268,6 +287,17 @@ def _write_archive(path: Path, payloads: dict[str, bytes]) -> None:
                 info = zipfile.ZipInfo(name, date_time=(1980, 1, 1, 0, 0, 0))
                 info.compress_type = zipfile.ZIP_DEFLATED
                 archive.writestr(info, content)
+        temporary_path.replace(path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
+
+def _write_bytes(path: Path, content: bytes) -> None:
+    """Atomically publish a completed snapshot member, on the same filesystem."""
+    with tempfile.NamedTemporaryFile(dir=path.parent, suffix=".tmp", delete=False) as temporary:
+        temporary.write(content)
+        temporary_path = Path(temporary.name)
+    try:
         temporary_path.replace(path)
     finally:
         temporary_path.unlink(missing_ok=True)

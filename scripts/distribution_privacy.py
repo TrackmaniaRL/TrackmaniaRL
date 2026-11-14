@@ -6,11 +6,30 @@ It cannot establish that arbitrary text, images or model data are anonymous.
 
 from __future__ import annotations
 
-import re
 import stat
 import tarfile
 import zipfile
+from collections.abc import Callable
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path, PurePosixPath
+from typing import cast
+
+
+def _load_privacy_categories() -> Callable[[str, bytes], list[str]]:
+    """Load the dependency-free shared rules without importing the package runtime."""
+    source = Path(__file__).resolve().parents[1] / "trackmaniarl" / "_privacy.py"
+    specification = spec_from_file_location("_trackmaniarl_privacy", source)
+    if specification is None or specification.loader is None:
+        raise RuntimeError("Cannot load shared archive privacy rules")
+    module = module_from_spec(specification)
+    specification.loader.exec_module(module)
+    classifier = getattr(module, "privacy_categories", None)
+    if not callable(classifier):
+        raise RuntimeError("Shared archive privacy rules are unavailable")
+    return cast(Callable[[str, bytes], list[str]], classifier)
+
+
+privacy_categories = _load_privacy_categories()
 
 _PRIVATE_PARTS = frozenset(
     {".git", ".venv", "__pycache__", ".aws", ".ssh", "wandb", "artifacts", "recordings"}
@@ -34,24 +53,7 @@ _PRIVATE_SUFFIXES = frozenset(
         ".key",
     }
 )
-_CONTENT_PATTERNS = {
-    "personal home path": re.compile(
-        rb"(?i)(?:[a-z]:[\\/]+Users[\\/]+[a-z0-9_.-]+|/(?:home|Users)/[a-z0-9_.-]+)"
-    ),
-    "credential token": re.compile(
-        rb"(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}|"
-        rb"AKIA[A-Z0-9]{16}|sk-[A-Za-z0-9_-]{32,}|AIza[A-Za-z0-9_-]{35}|"
-        rb"wandb_v1_[A-Za-z0-9_]{20,})"
-    ),
-    "private key": re.compile(rb"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
-    "URL credentials": re.compile(rb"https?://[^\s/:@]+:[^\s/@]+@"),
-}
 MAX_MEMBER_BYTES = 16 * 1024**2
-
-
-def content_categories(data: bytes) -> list[str]:
-    """Return categories only, including for binary metadata; never matched values."""
-    return [name for name, pattern in _CONTENT_PATTERNS.items() if pattern.search(data)]
 
 
 def validate_member(name: str, data: bytes) -> None:
@@ -59,6 +61,9 @@ def validate_member(name: str, data: bytes) -> None:
     parts = [part.lower() for part in relative.parts]
     if relative.is_absolute() or ".." in parts or any(":" in part for part in parts):
         raise RuntimeError("Unsafe archive member path [redacted]")
+    categories = privacy_categories(relative.as_posix(), data)
+    if categories:
+        raise RuntimeError(f"Archive privacy check failed: {', '.join(categories)}")
     if (
         any(
             part in _PRIVATE_PARTS
@@ -68,12 +73,7 @@ def validate_member(name: str, data: bytes) -> None:
         )
         or relative.suffix.lower() in _PRIVATE_SUFFIXES
     ):
-        raise RuntimeError(f"Forbidden private archive member: {relative.name}")
-    categories = content_categories(data)
-    if categories:
-        raise RuntimeError(
-            f"Archive privacy check failed: {relative.name}: {', '.join(categories)}"
-        )
+        raise RuntimeError("Forbidden private archive member [redacted]")
 
 
 def validate_archive_privacy(archive: Path) -> None:

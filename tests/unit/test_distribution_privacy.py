@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import io
+import subprocess
+import sys
 import tarfile
 import zipfile
 from pathlib import Path
@@ -55,6 +57,40 @@ def test_distribution_rejects_personal_paths_without_echoing_them() -> None:
         validate_member("guide.md", private)
     assert "example-account" not in str(failure.value)
     validate_member(".env-example", b"WANDB_API_KEY=\n")
+    validate_member("settings.yaml", b"WANDB_API_KEY=${WANDB_API_KEY}\n")
+    validate_member("workflow.yml", b"GH_TOKEN: ${{ github.token }}\n")
+
+
+def test_distribution_rejects_populated_config_credential_without_echoing_value() -> None:
+    content = b"WANDB_API_KEY=" + b"example-value" * 4 + b"\n"
+
+    with pytest.raises(RuntimeError, match="credential assignment") as failure:
+        validate_member("settings.yaml", content)
+
+    assert content.decode() not in str(failure.value)
+
+
+def test_distribution_rejects_private_filename_without_echoing_it() -> None:
+    token = "ghp_" + "a" * 36
+
+    with pytest.raises(RuntimeError, match="credential token") as failure:
+        validate_member(f"{token}.py", b"safe\n")
+
+    assert token not in str(failure.value)
+
+
+def test_distribution_checker_runs_without_package_runtime() -> None:
+    root = Path(__file__).resolve().parents[2]
+    result = subprocess.run(
+        [sys.executable, "-S", "scripts/check_distribution.py", "--help"],
+        cwd=root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "usage:" in result.stdout.lower()
 
 
 def test_distribution_rejects_archive_links(tmp_path: Path) -> None:
