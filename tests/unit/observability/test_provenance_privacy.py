@@ -79,8 +79,8 @@ def test_unversioned_snapshot_excludes_explicitly_private_files(tmp_path: Path) 
     "case",
     [
         ("credential token", b"wandb_" + b"v1_" + b"a" * 20),
-        ("private key", b"-----BEGIN PRIVATE KEY-----"),
-        ("URL credentials", b"https://account:password@example.invalid/"),
+        ("private key", b"-----BEGIN " + b"PRIVATE KEY-----"),
+        ("URL credentials", b"https://account" + b":password@example.invalid/"),
     ],
 )
 def test_snapshot_rejects_known_private_content_without_echoing_it(

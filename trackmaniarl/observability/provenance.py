@@ -152,8 +152,7 @@ def _collect_sources(
         name_categories = privacy_categories(name, b"")
         if name_categories:
             raise ValueError(
-                "Source snapshot cannot archive private filename: "
-                f"{', '.join(name_categories)}"
+                f"Source snapshot cannot archive private filename: {', '.join(name_categories)}"
             )
         path = tree.root / name
         if path.resolve().is_relative_to(destination):

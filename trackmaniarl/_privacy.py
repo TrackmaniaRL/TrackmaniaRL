@@ -24,9 +24,7 @@ _CONTENT_PATTERNS: dict[str, re.Pattern[bytes]] = {
 }
 
 _FILENAME_PATTERNS = {
-    name: pattern
-    for name, pattern in _CONTENT_PATTERNS.items()
-    if name != "personal home path"
+    name: pattern for name, pattern in _CONTENT_PATTERNS.items() if name != "personal home path"
 }
 _CREDENTIAL_ENV_NAMES = frozenset(
     {
@@ -45,9 +43,7 @@ _CREDENTIAL_ENV_NAMES = frozenset(
 _CREDENTIAL_ENV_PATTERN = (
     rb"(?:" + b"|".join(re.escape(name) for name in sorted(_CREDENTIAL_ENV_NAMES)) + rb")"
 )
-_FILENAME_CREDENTIAL_ASSIGNMENT = re.compile(
-    rb"(?i)" + _CREDENTIAL_ENV_PATTERN + rb"=[^/\\\s]+"
-)
+_FILENAME_CREDENTIAL_ASSIGNMENT = re.compile(rb"(?i)" + _CREDENTIAL_ENV_PATTERN + rb"=[^/\\\s]+")
 _CONFIG_SUFFIXES = frozenset({".cfg", ".ini", ".json", ".toml", ".yaml", ".yml"})
 _CONFIG_CREDENTIAL_ASSIGNMENT = re.compile(
     rb"(?im)(?:^|[\r\n{,])[\t ]*(?:[\"'])?"
@@ -111,6 +107,7 @@ def _assignment_value(value: bytes) -> bytes:
 
 def _is_environment_ref(value: bytes) -> bool:
     value = value.split(b"#", maxsplit=1)[0].split(b",", maxsplit=1)[0].strip()
-    return _ENVIRONMENT_REFERENCE.fullmatch(value) is not None or re.fullmatch(
-        rb"\$[A-Za-z_][A-Za-z0-9_]*", value
-    ) is not None
+    return (
+        _ENVIRONMENT_REFERENCE.fullmatch(value) is not None
+        or re.fullmatch(rb"\$[A-Za-z_][A-Za-z0-9_]*", value) is not None
+    )
