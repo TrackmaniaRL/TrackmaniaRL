@@ -45,6 +45,42 @@ def test_optional_dependency_bounds_and_lock_reject_vulnerable_versions(
     assert Version(locked["version"]) >= Version(allowed)
 
 
+@pytest.mark.parametrize(
+    ("package", "bounds"),
+    [
+        ("pydantic", (("core",), ("2.0.0", "2.3.0"), ("2.4.0", "2.12.5"))),
+        (
+            "protobuf",
+            (
+                ("distributed", "all", "dev"),
+                ("5.27.0", "5.29.5", "6.30.0", "6.31.1", "6.32.0", "6.33.4", "6.33.4.post1"),
+                ("5.29.6", "6.33.5", "7.0.0"),
+            ),
+        ),
+        ("mamba-ssm", (("mamba", "all"), ("2.2.0", "2.2.6"), ("2.3.0", "2.3.2.post1"))),
+    ],
+)
+def test_dependency_bounds_reject_vulnerable_releases(
+    package: str, bounds: tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]
+) -> None:
+    groups, blocked, allowed = bounds
+    root = Path(__file__).resolve().parents[2]
+    project = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    lock = tomllib.loads((root / "uv.lock").read_text(encoding="utf-8"))
+    for group in groups:
+        if group == "core":
+            items = project["project"]["dependencies"]
+        elif group == "dev":
+            items = project["dependency-groups"][group]
+        else:
+            items = project["project"]["optional-dependencies"][group]
+        requirement = next(req for item in items if (req := Requirement(item)).name == package)
+        assert all(not requirement.specifier.contains(version) for version in blocked)
+        assert all(requirement.specifier.contains(version) for version in allowed)
+        locked = next(entry for entry in lock["package"] if entry["name"] == package)
+        assert requirement.specifier.contains(locked["version"])
+
+
 @pytest.mark.parametrize("source", ["package", "starter", "trackmania"])
 def test_build_backend_does_not_allow_affected_setuptools(source: str) -> None:
     if source == "package":

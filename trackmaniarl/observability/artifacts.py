@@ -144,7 +144,10 @@ def _append_environment_snapshot(run: ResolvedRun) -> None:
             key: value for key, value in source.items() if key not in {"files", "omitted"}
         }
         snapshot["environment"]["git_revision"] = source["git_revision"]
-        if not run.base_dir.resolve().is_relative_to(Path(source["source_root"])):
+        # Older cached manifests do not contain scope_root. The current package
+        # location is the conservative fallback for deciding project coverage.
+        scope_root = Path(source.get("scope_root", Path(__file__).resolve().parents[1]))
+        if not run.base_dir.resolve().is_relative_to(scope_root):
             try:
                 project = capture_source_snapshot(
                     run.run_dir / "project-provenance", root=run.base_dir
