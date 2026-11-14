@@ -68,14 +68,34 @@ def _assert_locked_cpu_gate(job: dict[str, object], required: tuple[str, ...]) -
     assert all(fragment in commands for fragment in required)
 
 
+def test_cpu_index_commands_resolve_dependencies_across_indexes() -> None:
+    for name in ("ci.yml", "release.yml"):
+        workflow = yaml.safe_load(
+            (REPOSITORY / ".github" / "workflows" / name).read_text(encoding="utf-8")
+        )
+        commands = "\n".join(_commands(job) for job in workflow["jobs"].values())
+        cpu_runs = [
+            line
+            for line in commands.splitlines()
+            if "uv run " in line and "TORCH_CPU_INDEX" in line
+        ]
+        assert cpu_runs
+        for command in cpu_runs:
+            assert "--index-strategy unsafe-best-match" in command, command
+            assert "TORCH_CPU_VERSION" in command, command
+
+
 def _assert_windows_wheel_validation_requires_cpu_torch() -> None:
     workflow = _workflow()
     verify = _jobs()["verify-dist"]
     step = _step_named(verify, "Verify wheel CLI and generated project on Windows")
     command = str(step["run"])
     assert step["if"] == "runner.os == 'Windows'"
-    assert cast(dict[str, str], step["env"])["UV_INDEX"].endswith("/whl/cpu")
-    assert str(workflow).count("'UV_INDEX':") == 1
+    assert "UV_INDEX" not in cast(dict[str, str], step["env"])
+    assert "'UV_INDEX':" not in str(workflow)
+    assert (
+        '$config.Replace("https://download.pytorch.org/whl/cu132", $env:TORCH_CPU_INDEX)' in command
+    )
     assert "generated Windows project resolved a CUDA Torch wheel" in command
     assert "generated Windows project did not resolve CPU Torch" in command
 

@@ -19,7 +19,7 @@ or offline-supervised lifecycle is executed. The same commands work in
 PowerShell, bash, WSL and CI.
 
 ```bash
-uv tool install --index https://download.pytorch.org/whl/cpu --with "torch==2.13.0+cpu" trackmaniarl
+uv tool install --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match --with "torch==2.13.0+cpu" trackmaniarl
 trackmaniarl init my-trackmania-agent --template trackmania
 cd my-trackmania-agent
 uv sync

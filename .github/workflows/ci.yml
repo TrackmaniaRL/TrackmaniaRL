@@ -118,10 +118,10 @@ jobs:
         run: uv run --isolated --no-project python scripts/check_distribution.py --release-commit "${{ github.sha }}"
 
       - name: Verify wheel import and CLI
-        run: uv run --isolated --no-project --no-config --index "$TORCH_CPU_INDEX" --with "torch==$TORCH_CPU_VERSION" --with ./dist/*.whl python scripts/smoke_installed.py
+        run: uv run --isolated --no-project --no-config --index "$TORCH_CPU_INDEX" --index-strategy unsafe-best-match --with "torch==$TORCH_CPU_VERSION" --with ./dist/*.whl python scripts/smoke_installed.py
 
       - name: Verify generated project resolves the released wheel
         run: |
           agent_dir="$(mktemp -d)/agent"
-          uv run --isolated --no-project --index "$TORCH_CPU_INDEX" --with "torch==$TORCH_CPU_VERSION" --with ./dist/*.whl trackmaniarl init "$agent_dir"
+          uv run --isolated --no-project --index "$TORCH_CPU_INDEX" --index-strategy unsafe-best-match --with "torch==$TORCH_CPU_VERSION" --with ./dist/*.whl trackmaniarl init "$agent_dir"
           uv lock --directory "$agent_dir" --find-links "$GITHUB_WORKSPACE/dist"
