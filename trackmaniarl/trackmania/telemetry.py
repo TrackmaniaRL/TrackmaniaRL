@@ -20,6 +20,9 @@ DEFAULT_POSITION_INDICES = (4, 5, 6)
 DEFAULT_VELOCITY_INDICES = (7, 8, 9)
 """``api.Velocity`` X/Y/Z offsets in the supported 33-field telemetry packet."""
 
+MAX_QUEUED_TELEMETRY_BYTES = 64 * 1024
+"""Maximum queued telemetry retained while selecting the newest frame."""
+
 
 @dataclass(frozen=True, slots=True)
 class TelemetryFrame:
@@ -172,12 +175,21 @@ class OpenPlanetClient:
     def _receive_available(self) -> bool:
         assert self._socket is not None
         while True:
+            remaining_bytes = MAX_QUEUED_TELEMETRY_BYTES - len(self._buffer)
             try:
-                chunk = self._socket.recv(64 * 1024)
+                # Ask for one byte beyond the remaining allowance.  A regular
+                # socket respects this bound; checking the actual result also
+                # protects callers using a socket-like test double.
+                chunk = self._socket.recv(min(64 * 1024, max(1, remaining_bytes + 1)))
             except BlockingIOError:
                 return False
             if not chunk:
                 return True
+            if len(chunk) > remaining_bytes:
+                raise ConnectionError(
+                    "OpenPlanet telemetry backlog exceeded the "
+                    f"{MAX_QUEUED_TELEMETRY_BYTES}-byte safety limit"
+                )
             self._buffer.extend(chunk)
 
     def close(self) -> None:

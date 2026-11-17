@@ -135,6 +135,11 @@ def _environment_snapshot(run: ResolvedRun) -> dict[str, Any]:
     }
 
 
+def _unavailable_source_snapshot() -> dict[str, str]:
+    """Keep captured attempt metadata from retaining a failed snapshot's input."""
+    return {"status": "unavailable", "reason": "source snapshot unavailable"}
+
+
 def _append_environment_snapshot(run: ResolvedRun) -> None:
     snapshot = _environment_snapshot(run)
     try:
@@ -144,7 +149,10 @@ def _append_environment_snapshot(run: ResolvedRun) -> None:
             key: value for key, value in source.items() if key not in {"files", "omitted"}
         }
         snapshot["environment"]["git_revision"] = source["git_revision"]
-        if not run.base_dir.resolve().is_relative_to(Path(source["source_root"])):
+        # Older cached manifests do not contain scope_root. The current package
+        # location is the conservative fallback for deciding project coverage.
+        scope_root = Path(source.get("scope_root", Path(__file__).resolve().parents[1]))
+        if not run.base_dir.resolve().is_relative_to(scope_root):
             try:
                 project = capture_source_snapshot(
                     run.run_dir / "project-provenance", root=run.base_dir
@@ -152,10 +160,10 @@ def _append_environment_snapshot(run: ResolvedRun) -> None:
                 snapshot["project_provenance"] = {
                     key: value for key, value in project.items() if key not in {"files", "omitted"}
                 }
-            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
-                snapshot["project_provenance"] = {"status": "unavailable", "reason": str(error)}
-    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError) as error:
-        snapshot["source_provenance"] = {"status": "unavailable", "reason": str(error)}
+            except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+                snapshot["project_provenance"] = _unavailable_source_snapshot()
+    except (OSError, ValueError, RuntimeError, subprocess.SubprocessError):
+        snapshot["source_provenance"] = _unavailable_source_snapshot()
         snapshot["environment"]["git_revision"] = None
     attempts = run.run_dir / "manifest-attempts.jsonl"
     with attempts.open("a", encoding="utf-8") as file:

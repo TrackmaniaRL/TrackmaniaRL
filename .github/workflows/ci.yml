@@ -19,7 +19,7 @@ env:
   MKL_NUM_THREADS: "2"
   UV_VERSION: "0.12.5"
   TORCH_CPU_INDEX: https://download.pytorch.org/whl/cpu
-  TORCH_CPU_VERSION: 2.11.0+cpu
+  TORCH_CPU_VERSION: 2.13.0+cpu
 
 jobs:
   lint:
@@ -115,13 +115,13 @@ jobs:
         run: uv build
 
       - name: Verify distribution contents
-        run: uv run --isolated --no-project python scripts/check_distribution.py
+        run: uv run --isolated --no-project python scripts/check_distribution.py --release-commit "${{ github.sha }}"
 
       - name: Verify wheel import and CLI
-        run: uv run --isolated --no-project --no-config --index "$TORCH_CPU_INDEX" --with "torch==$TORCH_CPU_VERSION" --with ./dist/*.whl python scripts/smoke_installed.py
+        run: uv run --isolated --no-project --no-config --index "$TORCH_CPU_INDEX" --index-strategy unsafe-best-match --with "torch==$TORCH_CPU_VERSION" --with ./dist/*.whl python scripts/smoke_installed.py
 
       - name: Verify generated project resolves the released wheel
         run: |
           agent_dir="$(mktemp -d)/agent"
-          uv run --isolated --no-project --index "$TORCH_CPU_INDEX" --with "torch==$TORCH_CPU_VERSION" --with ./dist/*.whl trackmaniarl init "$agent_dir"
+          uv run --isolated --no-project --index "$TORCH_CPU_INDEX" --index-strategy unsafe-best-match --with "torch==$TORCH_CPU_VERSION" --with ./dist/*.whl trackmaniarl init "$agent_dir"
           uv lock --directory "$agent_dir" --find-links "$GITHUB_WORKSPACE/dist"

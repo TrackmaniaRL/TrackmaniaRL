@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import torch
 
 from trackmaniarl.core import builtins
 from trackmaniarl.core.builtins import JsonCheckpointCodec, TorchCheckpointCodec
@@ -34,6 +35,35 @@ def test_torch_checkpoint_rejects_executable_pickle_and_cleans_up(tmp_path: Path
         codec.load(target)
     assert not marker.exists()
     assert list(tmp_path.iterdir()) == [target]
+
+
+@pytest.mark.parametrize(
+    "version",
+    ["2.9.1", "2.11.0+cu128", "2.12.1+cpu", "2.14.0+cpu", "2.14.1+cu128", "2.15.0.dev1", "invalid"],
+)
+def test_torch_checkpoint_rejects_unsupported_versions_before_deserializing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, version: str
+) -> None:
+    called = False
+
+    def unexpected_load(*args: Any, **kwargs: Any) -> None:
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(torch, "__version__", version)
+    monkeypatch.setattr(torch, "load", unexpected_load)
+    with pytest.raises(RuntimeError, match="Cannot load a checkpoint with this PyTorch version"):
+        builtins._load_torch_checkpoint(tmp_path / "checkpoint")
+    assert not called
+
+
+@pytest.mark.parametrize("version", ["2.13.0+cpu", "2.13.0+cu132", "2.15.0+cpu"])
+def test_torch_checkpoint_loads_with_supported_versions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, version: str
+) -> None:
+    monkeypatch.setattr(torch, "__version__", version)
+    monkeypatch.setattr(torch, "load", lambda *args, **kwargs: {"loaded": True})
+    assert builtins._load_torch_checkpoint(tmp_path / "checkpoint") == {"loaded": True}
 
 
 def test_checkpoint_load_fits_the_same_path_budget_as_save(

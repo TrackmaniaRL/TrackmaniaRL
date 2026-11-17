@@ -186,9 +186,11 @@ def test_unsafe_reported_cuda_numerics_are_rejected_before_any_pool_without_gpu(
         if unsafe == "matmul-precision":
             monkeypatch.setattr(torch, "get_float32_matmul_precision", lambda: "medium")
         elif unsafe == "matmul-tf32":
-            monkeypatch.setattr(torch.backends.cuda.matmul, "allow_tf32", True)
+            # Torch exposes these as dynamic backend settings, not normal Python
+            # attributes. The autouse fixture restores their saved values.
+            torch.backends.cuda.matmul.allow_tf32 = True
         elif unsafe == "cudnn-tf32":
-            monkeypatch.setattr(torch.backends.cudnn, "allow_tf32", True)
+            torch.backends.cudnn.allow_tf32 = True
         else:
             monkeypatch.setattr(torch, "are_deterministic_algorithms_enabled", lambda: False)
         return learner

@@ -1,6 +1,6 @@
 # TrackmaniaRL SDK Guide
 
-This guide describes the public SDK in package version 1.4.0.
+This guide describes the public SDK in package version 1.5.0.
 
 Start with the runnable [Python quickstart](python-quickstart.md).
 The [public API guide](public-api.md) distinguishes supported imports and
@@ -19,7 +19,7 @@ or offline-supervised lifecycle is executed. The same commands work in
 PowerShell, bash, WSL and CI.
 
 ```bash
-uv tool install --index https://download.pytorch.org/whl/cpu --with "torch==2.11.0+cpu" trackmaniarl
+uv tool install --index https://download.pytorch.org/whl/cpu --index-strategy unsafe-best-match --with "torch==2.13.0+cpu" trackmaniarl
 trackmaniarl init my-trackmania-agent --template trackmania
 cd my-trackmania-agent
 uv sync

@@ -45,8 +45,9 @@ Configure it under `components.additional_loggers` with these kwargs:
 | `resumed_from` | null | Optional checkpoint or prior-attempt attribution. |
 | `run_dir`, `run_id`, `config` | runtime supplied | Artifact location, stable run group and recursively redacted RunSpec. Do not duplicate these in YAML. |
 
-Set `WANDB_API_KEY` in the environment or ignored project `.env`. It is never a
-component kwarg and must not be committed.
+Set `WANDB_API_KEY` in the environment before starting TrackmaniaRL. It is never
+a component kwarg and must not be committed. The W&B tracker does not load a
+project `.env` file automatically.
 
 ## Semantic axes
 

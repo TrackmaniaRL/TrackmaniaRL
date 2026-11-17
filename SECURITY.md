@@ -14,7 +14,7 @@ and include:
 
 Do not access other users' systems or data while investigating. The maintainer
 will acknowledge a complete report, assess severity and coordinate a fix and
-disclosure. Security fixes target the current `1.2` release line.
+disclosure. Security fixes target the latest supported release line.
 
 ## Trust boundaries
 
@@ -23,10 +23,14 @@ disclosure. Security fixes target the current `1.2` release line.
   only receive configurations and extension packages from trusted sources.
   `inspect-config` safely parses and lists every `class_path` without importing
   it, but it is an inspection aid rather than a sandbox or signature check.
-- Checkpoints are data, but should still come from a trusted run. The default
-  codec uses PyTorch `weights_only=True`; it rejects payloads requiring
-  executable pickle globals. A custom `CheckpointCodec` defines its own trust
-  boundary.
+- Checkpoints should come from a trusted run. The default codec uses PyTorch
+  `weights_only=True` to restrict pickle globals, but this is not a guarantee
+  against malicious checkpoints or vulnerabilities in PyTorch. The package
+  requires PyTorch 2.13 or later and excludes 2.14.x because of known
+  `weights_only` vulnerabilities. Existing environments and generated projects
+  should be updated too. The default codec also checks the installed PyTorch
+  version before loading and rejects unsupported or prerelease versions. A
+  custom `CheckpointCodec` defines its own trust boundary.
 - RunSpec 2.0 resume verifies a complete architecture fingerprint. Partial
   warm-start deliberately accepts selected compatible tensors and therefore
   requires review of its generated match report. Neither mechanism proves the
@@ -59,8 +63,15 @@ Deleting a file or replacing a local path in the current tree does not remove
 earlier copies. Coordinate any history rewrite and credential rotation separately;
 never force-push a rewritten history without maintainer agreement.
 
+Build release archives from a clean export of the intended commit; a build from
+a working directory can include untracked files before any validation runs.
 Run `uv run python scripts/check_distribution.py --dist-dir dist` against the
-actual source archive and wheel. It rejects private file types, environment
+actual source archive and wheel. In a Git checkout, the validator compares the
+source members of both archives with committed `HEAD`; release jobs specify the
+exact commit. It also rebuilds from a clean export of that commit to verify
+generated metadata, so this check requires Git and `uv`. Outside a Git checkout,
+the ordinary check warns that the source commit cannot be verified; release-tag
+and checksum modes require one. The validator rejects private file types, environment
 files, cache directories, archive links, duplicate members, oversized members,
 personal home paths and common credential signatures, including in metadata.
 This is a regression guard, not proof that all secrets or identifying data are
@@ -69,22 +80,16 @@ pixels, account/session identifiers and private URLs manually. Public license
 attribution and repository identity are intentional publication metadata.
 
 Use environment variables for credentials; `.env-example` contains empty values.
-The library does not automatically load `.env`. Export only the variables needed
-by the selected integration and keep tokens out of command-line arguments,
-component kwargs, screenshots and shared run directories. Local manifests and
-recording sidecars may contain paths and timestamps even when tokens are redacted.
-
-## Dependency advisory disposition for 1.2.0
-
-`PYSEC-2026-3447` affects source-distribution exclusion matching in setuptools
-before 83.0.0. PyTorch 2.11.0 requires runtime `setuptools<82`, so that runtime
-dependency still appears in the raw audit. It must not be used to build release
-archives. Both this package and generated projects pin `setuptools==83.0.0`
-in their isolated build requirements and CI builds with isolation enabled.
-
-For 1.2.0, the disposition is **accepted for the Torch runtime only, mitigated
-for package building by isolated setuptools 83.0.0**. This is not a claim that
-the installed runtime dependency is patched or that the raw audit passes.
-Do not use `--no-build-isolation` for distribution builds. Reassess this narrow
-disposition when changing Torch, setuptools, or the build workflow; unrelated
-advisories are not covered by it.
+The distributed CLI also reads its configured token from `.env` beside `run.yaml`
+when the variable is absent; W&B credentials must be set in the environment or
+managed using W&B's own authentication. Export only the variables needed by the
+selected integration and keep tokens out of command-line arguments, component
+kwargs, screenshots and shared run directories. Local manifests and recording
+sidecars may contain paths and timestamps even when tokens are redacted.
+Run source-provenance archives contain source and configuration bytes. Obvious
+credential and environment files are excluded; a narrow common plaintext
+credential/privacy-signature check also rejects a snapshot before it is
+written, reporting only a non-secret category. It is not a general secret
+scanner, so review source archives before sharing. New snapshots retain an
+empty patch file rather than storing Git diffs, which can reintroduce removed
+secrets.

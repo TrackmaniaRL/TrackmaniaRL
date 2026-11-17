@@ -19,7 +19,7 @@ An existing stop file is rejected before starting child processes; remove it
 before resuming. Check checkpoint completion before relying on it. See the
 [migration and recovery guide](recovery.md) for recovery and backup details.
 
-A RunSpec YAML file is the public runtime configuration boundary in 1.4.0.
+A RunSpec YAML file is the public runtime configuration boundary in 1.5.0.
 The generated choices are `run.yaml`, `run-sac.yaml`, `run-redq.yaml`,
 `run-tqc.yaml`, `run-sd-sac.yaml`, `run-ppo.yaml` and `run-ppo-vision.yaml`.
 Each is parsed by

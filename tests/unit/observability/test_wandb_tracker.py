@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pytest
@@ -208,6 +209,33 @@ def test_wandb_tracker_configuration_contract(
     _assert_configuration(_scenario(monkeypatch, tmp_path))
     with pytest.raises(ValueError, match="queue_size must be positive"):
         WandbTracker("project", queue_size=0)
+
+
+@pytest.mark.parametrize(
+    "case",
+    [(None, "cwd"), (None, "run_dir"), ("explicit-value", "cwd"), ("explicit-value", "run_dir")],
+)
+def test_wandb_tracker_does_not_load_keys_from_parent_dotenv(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, case: tuple[str | None, str]
+) -> None:
+    explicit_key, dotenv_location = case
+    cwd = tmp_path / "work" / "child"
+    cwd.mkdir(parents=True)
+    run_dir = tmp_path / "runs" / "child"
+    run_dir.mkdir(parents=True)
+    parent = cwd.parent if dotenv_location == "cwd" else run_dir.parent
+    (parent / ".env").write_text("WANDB_API_KEY=unexpected-value\n", encoding="utf-8")
+    monkeypatch.chdir(cwd)
+    if explicit_key is None:
+        monkeypatch.delenv("WANDB_API_KEY", raising=False)
+    else:
+        monkeypatch.setenv("WANDB_API_KEY", explicit_key)
+    _install_wandb(monkeypatch, _FakeRun())
+
+    tracker = WandbTracker("project", run_dir=str(run_dir))
+    tracker.close()
+
+    assert os.environ.get("WANDB_API_KEY") == explicit_key
 
 
 def test_wandb_tracker_marks_remote_worker_failure(
