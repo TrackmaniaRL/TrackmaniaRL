@@ -4,6 +4,8 @@
 
 ## 1.5.0
 
+- Isolate replay snapshots from caller mutation and serialize journal updates.
+  Check the full n-step horizon of each transition in linked replay windows.
 - Require a supported PyTorch version when loading checkpoints and update the
   development GPU environment to CUDA 13.2.
 - Limit source snapshots and W&B credential discovery to the intended scope.
