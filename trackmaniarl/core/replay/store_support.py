@@ -13,6 +13,7 @@ import torch
 
 from trackmaniarl.core.contracts import ReplayStore
 from trackmaniarl.core.data import Transition, TransitionId
+from trackmaniarl.core.pytree import tree_snapshot
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,7 +140,9 @@ class _TreeColumns:
         array, _ = self._leaf(value)
         if array.shape != spec[4] or array.dtype.str != spec[3]:
             raise TypeError("Replay PyTree leaf shape or dtype changed after allocation")
-        self.arrays[spec[1]][slot] = array
+        # An object array's data buffer contains references, so assigning it
+        # directly would retain ownership of mutable caller-supplied elements.
+        self.arrays[spec[1]][slot] = tree_snapshot(array) if array.dtype.hasobject else array
 
     def read(self, slot: int) -> Any:
         return self._read_node(self.spec, slot)
@@ -166,13 +169,24 @@ class _TreeColumns:
             array = np.array(value, copy=True, order="C") if owned else np.asarray(value)
             return torch.from_numpy(array)
         if spec[2] == "ndarray":
+            if self.arrays[spec[1]].dtype.hasobject:
+                # NumPy indexes a zero-dimensional structured array column as
+                # np.void; preserve the original ndarray container and shape.
+                if spec[4] == () and not isinstance(value, np.ndarray):
+                    value = np.asarray(value)
+                return tree_snapshot(value) if owned else value
             return value.copy(order="C") if owned and isinstance(value, np.ndarray) else value
         return value.item()
 
     def snapshot(self, slots: slice | np.ndarray[Any, np.dtype[np.int64]]) -> dict[str, Any]:
         return {
             "spec": self.spec,
-            "arrays": [np.array(array[slots], copy=True, order="C") for array in self.arrays],
+            "arrays": [
+                tree_snapshot(array[slots])
+                if array.dtype.hasobject
+                else np.array(array[slots], copy=True, order="C")
+                for array in self.arrays
+            ],
         }
 
     @classmethod
@@ -190,7 +204,7 @@ class _TreeColumns:
             np.empty((capacity, *array.shape[1:]), dtype=array.dtype) for array in packed
         ]
         for target, source in zip(value.arrays, packed, strict=True):
-            target[slots] = source
+            target[slots] = tree_snapshot(source) if source.dtype.hasobject else source
         return value
 
 
