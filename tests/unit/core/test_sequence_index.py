@@ -277,10 +277,10 @@ def test_no_forward_resolver_checks_every_history_horizon() -> None:
                 step=step,
             )
         )
+    sampler = SequenceSampler(IdentityFeaturePipeline(), 2)
+    request = BatchRequest(batch_size=1, n_step=2)
     with pytest.raises(RuntimeError, match="needs n_step_ids"):
-        SequenceSampler(IdentityFeaturePipeline(), 2).sample(
-            store, BatchRequest(batch_size=1, n_step=2)  # type: ignore[arg-type]
-        )
+        sampler.sample(store, request)  # type: ignore[arg-type]
 
 
 def test_user_collation_runs_outside_lock_with_owned_replay_snapshot() -> None:
