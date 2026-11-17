@@ -107,7 +107,7 @@ function Quote-Argument([string]$value){
     if($value -match '\s'){return '"'+$value+'"'}
     return $value
 }
-$arguments=@('-d',$WslDistro,'-u','root','--cd',"$linuxRoot/source",'--','/usr/bin/env',"TMRL_CAMPAIGN_PRIVATE_BASE=$PrivateBase","TMRL_V8_DEPLOYMENT=$V8Deployment","TMRL_V8_MANIFEST=$V8Manifest","TMRL_V8_MANIFEST_SHA256=$deploymentHash",$LinuxPython,'-B','-m',$module,$linuxRoot)|ForEach-Object {Quote-Argument $_}
+$arguments=@('-d',$WslDistro,'-u','root','--cd',"$linuxRoot/source",'--','/usr/bin/env',"TRACKMANIARL_CAMPAIGN_PRIVATE_BASE=$PrivateBase","TRACKMANIARL_V8_DEPLOYMENT=$V8Deployment","TRACKMANIARL_V8_MANIFEST=$V8Manifest","TRACKMANIARL_V8_MANIFEST_SHA256=$deploymentHash",$LinuxPython,'-B','-m',$module,$linuxRoot)|ForEach-Object {Quote-Argument $_}
 $owner=$null;$power=$null;$record=$null
 function Same-Process([int]$processId,[string]$birth){
     $process=Get-Process -Id $processId -ErrorAction SilentlyContinue

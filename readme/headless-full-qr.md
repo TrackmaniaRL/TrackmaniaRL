@@ -51,7 +51,7 @@ explained under [Preparing a deployment](#preparing-a-deployment).
 
 The installed library also exposes the separate V7 immediate-state API. It
 requires Linux, a previously provisioned V7 configuration and the caller's
-verified game assets. Set `TMRL_HEADLESS_CONFIG` to the resulting `config.json`;
+verified game assets. Set `TRACKMANIARL_HEADLESS_CONFIG` to the resulting `config.json`;
 this example starts a native process and always closes it:
 
 ```python
@@ -64,7 +64,7 @@ from trackmaniarl.trackmania.native_headless import (
     NativeRuntimeConfig,
 )
 
-config_path = Path(os.environ["TMRL_HEADLESS_CONFIG"])
+config_path = Path(os.environ["TRACKMANIARL_HEADLESS_CONFIG"])
 settings = NativeRuntimeConfig.from_mapping(json.loads(config_path.read_text(encoding="utf-8")))
 environment = NativeImmediateEnvironment(settings)
 try:
