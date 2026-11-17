@@ -43,6 +43,9 @@ reference material and explanations; they may appear in more than one section.
 
 ## Extending and maintaining the library
 
+Use the [SDK guide](sdk.md) for component contracts and the [development
+guide](development.md) for testing and release workflows.
+
 ## Reference: look up details
 
 - [Configuration](configuration.md): components, rollout and replay settings,

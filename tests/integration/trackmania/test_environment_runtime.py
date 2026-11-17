@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 
+from trackmaniarl.trackmania import telemetry
 from trackmaniarl.trackmania.actions import build_brake_tap_action_table
 from trackmaniarl.trackmania.control import RecordingController
 from trackmaniarl.trackmania.environment import OpenPlanetEnvironment
@@ -358,6 +359,24 @@ def test_openplanet_client_counts_only_complete_skipped_frames() -> None:
     assert newest.skipped_frames == 2
     assert np.array_equal(completed_fragment.values, np.full(33, 4.0, dtype=np.float32))
     assert completed_fragment.skipped_frames == 0
+
+
+def test_openplanet_client_rejects_an_oversized_queued_telemetry_read(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A socket-like peer cannot bypass the drain limit by ignoring ``recv``'s size."""
+
+    monkeypatch.setattr(telemetry, "MAX_QUEUED_TELEMETRY_BYTES", 8)
+    client = OpenPlanetClient()
+    socket = _BufferedSocket([_telemetry_packet(1.0)] * 4)
+    socket.chunks = [_telemetry_packet(1.0), b"more than eight bytes", BlockingIOError]
+    client._socket = socket
+
+    with pytest.raises(ConnectionError, match="backlog exceeded"):
+        client._read_latest_connected()
+
+    assert client._buffer == bytearray()
+    assert socket.timeout == 1.0
 
 
 def _serve_after_disconnect(server: socket.socket, payload: bytes) -> None:

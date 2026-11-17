@@ -14,7 +14,6 @@ from trackmaniarl.observability.wandb_metrics import (
     _IGNORED_REMOTE_EVENTS,
     _event_metrics,
     _flat_name,
-    _load_wandb_key_from_dotenv,
 )
 
 _METRIC_AXES = (
@@ -90,7 +89,6 @@ class WandbTracker:
         options = _WandbOptions(project, **kwargs)
         if options.queue_size < 1:
             raise ValueError("W&B queue_size must be positive")
-        _load_wandb_key_from_dotenv(options.run_dir)
         self._load_client()
         self._start_run(options)
         self._initialize_state(options.queue_size)
