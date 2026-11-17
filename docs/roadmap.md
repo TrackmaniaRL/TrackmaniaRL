@@ -2,6 +2,13 @@
 
 These items describe proposed follow-up work; they are not release commitments.
 
+## Native GPU validation
+
+Validate the CUDA 13.2 development environment on the target RTX GPU with
+native collection, checkpoint restore and a controlled stop. Keep the software
+test results separate from open questions about analog physics parity and
+end-to-end training performance.
+
 ## Distributed evaluation across multiple maps
 
 Scheduled distributed evaluation currently accepts only one attested map. Extend

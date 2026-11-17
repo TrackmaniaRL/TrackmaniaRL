@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 1.5.0
+
+- Require a supported PyTorch version when loading checkpoints and update the
+  development GPU environment to CUDA 13.2.
+- Limit source snapshots and W&B credential discovery to the intended scope.
+- Verify that release archives match the selected Git commit and reject ambiguous
+  archive paths.
+
 ## 1.4.0
 
 - Recover pending local evaluations and earned learner updates after resume;

@@ -1,4 +1,4 @@
-# Trackmania training and release workflow for 1.4.0
+# Trackmania training and release workflow for 1.5.0
 
 The default configuration below trains IQN from lidar and telemetry. The generated
 `run-ppo.yaml` trains PPO from telemetry, and `run-ppo-vision.yaml` trains PPO from
