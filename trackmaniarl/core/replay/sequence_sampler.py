@@ -275,10 +275,17 @@ def _linked_window_starts(candidates: _WindowCandidates, linked: _LinkedHistory)
     if candidates.request.n_step == 1 or callable(getattr(candidates.store, "n_step_ids", None)):
         return starts
     # The generic n-step materializer follows numerical IDs when there is no
-    # resolver. Verify those horizons before drawing, even if the linked store
-    # says an interleaved episode has enough successors.
+    # resolver. Verify the horizon of every selected transition before drawing,
+    # even if the linked store says an interleaved episode has enough successors.
     available = dict(zip(candidates.ordered, candidates.store.get(candidates.ordered), strict=True))
-    valid = [item for item in starts if _has_complete_n_step(item, available, candidates.request)]
+    valid = [
+        item
+        for item in starts
+        if all(
+            _has_complete_n_step(transition_id, available, candidates.request)
+            for transition_id in linked.history_ids(item, candidates.length)
+        )
+    ]
     if len(valid) < candidates.request.batch_size <= len(starts):
         raise RuntimeError("linked replay needs n_step_ids for non-adjacent n-step horizons")
     return valid

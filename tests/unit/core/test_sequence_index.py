@@ -262,6 +262,27 @@ def test_linked_interleaved_horizons_follow_resolver() -> None:
     assert batch.bootstrap_discounts[:, -1].tolist() == pytest.approx([0.25, 0.25])
 
 
+def test_no_forward_resolver_checks_every_history_horizon() -> None:
+    store = _NoForwardResolver()
+    for episode, step in (("a", 0), ("b", 0), ("a", 1), ("a", 2)):
+        store.store.append(
+            Transition(
+                float(step),
+                0,
+                float(step + 1),
+                float(step + 1),
+                False,
+                False,
+                episode_id=episode,
+                step=step,
+            )
+        )
+    with pytest.raises(RuntimeError, match="needs n_step_ids"):
+        SequenceSampler(IdentityFeaturePipeline(), 2).sample(
+            store, BatchRequest(batch_size=1, n_step=2)  # type: ignore[arg-type]
+        )
+
+
 def test_user_collation_runs_outside_lock_with_owned_replay_snapshot() -> None:
     store = InMemoryReplayStore(capacity=3)
 
