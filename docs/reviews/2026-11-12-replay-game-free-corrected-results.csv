@@ -1,0 +1,5 @@
+run,version,elapsed_s,transitions,updates
+1,baseline,4.544888999998875,32,12
+2,changed,4.1658179000005475,32,12
+3,changed,4.150320400000055,32,12
+4,baseline,4.606581299998652,32,12

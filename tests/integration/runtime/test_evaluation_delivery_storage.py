@@ -34,6 +34,8 @@ def _assignment(snapshot: bytes, sequence: int = 0) -> dict:
 def test_migrate_legacy_delivery_and_reopen(tmp_path: Path) -> None:
     path = tmp_path / "journal.db"
     journal = RolloutJournal(path)
+    journal_id = journal.identity
+    assert journal.append("legacy-session", 0, b"legacy rollout") == (1, True)
     journal.close()
     snapshot = b"legacy data"
     state = {
@@ -53,6 +55,9 @@ def test_migrate_legacy_delivery_and_reopen(tmp_path: Path) -> None:
             "INSERT INTO metadata VALUES ('evaluation_delivery', ?)", (json.dumps(state),)
         )
     journal = RolloutJournal(path)
+    assert journal.identity == journal_id
+    assert list(journal.rows_after(0)) == [(1, b"legacy rollout")]
+    assert journal.append("legacy-session", 0, b"legacy rollout") == (1, False)
     coordinator = _coordinator(journal)
     assert coordinator._evaluation_due == {"a"}
     assert coordinator._evaluation_assignments == {"b": _assignment(snapshot)}
@@ -61,6 +66,8 @@ def test_migrate_legacy_delivery_and_reopen(tmp_path: Path) -> None:
     journal.close()
     reopened = RolloutJournal(path)
     assert _coordinator(reopened)._evaluation_assignments == {"b": _assignment(snapshot)}
+    assert reopened.identity == journal_id
+    assert reopened.append("legacy-session", 0, b"legacy rollout") == (1, False)
     reopened.close()
 
 
