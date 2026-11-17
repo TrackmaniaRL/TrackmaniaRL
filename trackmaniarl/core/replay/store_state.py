@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 
+from trackmaniarl.core.pytree import tree_snapshot
 from trackmaniarl.core.replay.store_pace import validate_episode_sampling_paces
 from trackmaniarl.core.replay.store_support import _is_demo, _TreeColumns
 
@@ -65,8 +66,8 @@ def _empty_state(store: InMemoryReplayStore) -> dict[str, Any]:
         "next_index": store._next_index,
         "episode_names": dict(store._episode_names),
         "episode_sampling_paces": dict(store._episode_sampling_paces),
-        "next_overrides": dict(store._next_overrides),
-        "info": dict(store._info),
+        "next_overrides": tree_snapshot(store._next_overrides),
+        "info": tree_snapshot(store._info),
     }
 
 
@@ -202,8 +203,9 @@ def _restore_metadata(store: InMemoryReplayStore, state: Mapping[str, Any]) -> N
     raw_paces = state["episode_sampling_paces"]
     paces = cast(Mapping[str, float], raw_paces)
     store._episode_sampling_paces = dict(paces)
-    store._next_overrides = dict(state["next_overrides"])
-    store._info = dict(state["info"])
+    # The caller may retain and mutate the checkpoint after restoration.
+    store._next_overrides = tree_snapshot(state["next_overrides"])
+    store._info = tree_snapshot(state["info"])
 
 
 def _reset_arrays(store: InMemoryReplayStore) -> None:
