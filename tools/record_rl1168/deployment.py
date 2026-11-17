@@ -90,9 +90,13 @@ print(json.dumps(files, sort_keys=True))
 
 def activate_from_environment() -> dict[str, str]:
     """Verify all deployment files and import the SDK only from that deployment."""
-    raw = os.environ.get("TMRL_V8_DEPLOYMENT", "")
-    manifest_raw = os.environ.get("TMRL_V8_MANIFEST", "")
-    expected = os.environ.get("TMRL_V8_MANIFEST_SHA256", "")
+    raw = os.environ.get("TRACKMANIARL_V8_DEPLOYMENT", os.environ.get("TMRL_V8_DEPLOYMENT", ""))
+    manifest_raw = os.environ.get(
+        "TRACKMANIARL_V8_MANIFEST", os.environ.get("TMRL_V8_MANIFEST", "")
+    )
+    expected = os.environ.get(
+        "TRACKMANIARL_V8_MANIFEST_SHA256", os.environ.get("TMRL_V8_MANIFEST_SHA256", "")
+    )
     if len(expected) != 64 or any(c not in "0123456789abcdef" for c in expected):
         raise ValueError("qualified V8 deployment manifest SHA256 required")
     deployment = _canonical_directory(raw)

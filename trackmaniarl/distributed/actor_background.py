@@ -38,7 +38,7 @@ class BackgroundRuntime(SpoolRuntime, Protocol):
     external_stop: Any | None
     client: Client
     _policy_ref: PolicyReference | None
-    _evaluation_request: tuple[bytes, int, str] | None
+    _evaluation_request: tuple[bytes, int, str] | tuple[bytes, int, str, str] | None
     _evaluation_request_lock: Any
     _background_failure: ActorBackgroundError | None
     _background_failure_lock: Any
@@ -204,8 +204,21 @@ def _accept_evaluation_request(runtime: BackgroundRuntime, response: Mapping[str
         raise ValueError("evaluation request requires a policy snapshot/version")
     if not isinstance(assignment_id, str):
         raise ValueError("invalid evaluation assignment ID")
+    assets = response.get("evaluation_assets_sha256", "")
+    if not isinstance(assets, str):
+        raise ValueError("invalid evaluation asset digest")
+    suite = getattr(runtime.spec, "evaluation", None)
+    if suite is not None and len(getattr(suite, "maps", ())) > 1:
+        from trackmaniarl.distributed.evaluation_assets import is_sha256
+
+        if not assignment_id or not is_sha256(assets):
+            raise ValueError("multi-map evaluation requires an assignment ID and asset digest")
     with runtime._evaluation_request_lock:
-        runtime._evaluation_request = (snapshot, version, assignment_id)
+        runtime._evaluation_request = (
+            (snapshot, version, assignment_id, assets)
+            if assets
+            else (snapshot, version, assignment_id)
+        )
     runtime.evaluate.set()
 
 

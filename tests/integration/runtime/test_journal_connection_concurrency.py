@@ -88,6 +88,39 @@ def test_independent_connections_deduplicate_concurrent_append_and_recover(tmp_p
         reopened.close()
 
 
+def test_concurrent_evaluation_append_preserves_asset_binding(tmp_path: Path) -> None:
+    path = tmp_path / "evaluation.sqlite"
+    journals = [RolloutJournal(path), RolloutJournal(path)]
+    barrier = Barrier(2)
+    assets = "a" * 64
+
+    def append(journal: RolloutJournal) -> tuple[int, bool]:
+        barrier.wait(timeout=5)
+        return journal.append(
+            "session",
+            0,
+            b"payload",
+            evaluation=("actor", "assignment", True, 0),
+            evaluation_assets=assets,
+        )
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(append, journals))
+        assert {row for row, _ in results} == {1}
+        assert sorted(created for _, created in results) == [False, True]
+    finally:
+        for journal in journals:
+            journal.close()
+
+    reopened = RolloutJournal(path)
+    try:
+        assert reopened.evaluation_row_accepted(1) is True
+        assert reopened.evaluation_row_assets(1) == assets
+    finally:
+        reopened.close()
+
+
 def test_concurrent_prunes_cannot_move_frontier_backward(tmp_path: Path) -> None:
     path = tmp_path / "journal.sqlite"
     low, high = RolloutJournal(path), RolloutJournal(path)

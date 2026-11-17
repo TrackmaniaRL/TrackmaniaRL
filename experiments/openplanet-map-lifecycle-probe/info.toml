@@ -1,0 +1,8 @@
+[meta]
+name = "TrackmaniaRL lifecycle probe (experimental)"
+author = "TrackmaniaRL"
+category = "Developer diagnostics"
+version = "0.1.0"
+
+[script]
+dependencies = ["VehicleState"]

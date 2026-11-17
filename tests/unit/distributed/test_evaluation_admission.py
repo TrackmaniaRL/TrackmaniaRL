@@ -115,3 +115,70 @@ def test_exact_trial_count_is_admitted_and_legacy_remains_unchanged() -> None:
     summaries = [{"evaluation_assignment_id": "assignment"}] * 3
     assert _evaluation_admission_error(_spec(suite=True, cadence=1, trials=3), summaries) is None
     assert _evaluation_admission_error(_spec(suite=False, cadence=1), summaries) is None
+
+
+def _multimap_spec() -> SimpleNamespace:
+    spec = _spec(suite=True, cadence=1, trials=2)
+    spec.evaluation.maps = [
+        SimpleNamespace(id="first", expected_map_uid="uid-a"),
+        SimpleNamespace(id="second", expected_map_uid="uid-b"),
+    ]
+    return spec
+
+
+def _multimap_results() -> list[dict]:
+    return [
+        {
+            "evaluation_assignment_id": "assignment",
+            "map_id": name,
+            "map_uid": uid,
+            "trial_index": index,
+            "evaluation_assets_sha256": "a" * 64,
+        }
+        for name, uid in (("first", "uid-a"), ("second", "uid-b"))
+        for index in range(2)
+    ]
+
+
+def test_multimap_admits_each_expected_trial_once() -> None:
+    results = _multimap_results()
+    assert _evaluation_admission_error(_multimap_spec(), list(reversed(results))) is None
+
+
+@pytest.mark.parametrize("change", ["duplicate", "uid", "index", "missing", "boolean"])
+def test_multimap_rejects_incomplete_or_misidentified_trials(change: str) -> None:
+    results = _multimap_results()
+    if change == "duplicate":
+        results[-1] = dict(results[0])
+    elif change == "uid":
+        results[-1]["map_uid"] = "wrong"
+    elif change == "index":
+        results[-1]["trial_index"] = 2
+    elif change == "missing":
+        del results[-1]["map_id"]
+    else:
+        results[-1]["trial_index"] = True
+    assert _evaluation_admission_error(_multimap_spec(), results) is not None
+
+
+def test_multimap_invalid_trial_is_rejected_before_wal_and_during_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    results = _multimap_results()
+    results[-1] = dict(results[0])
+    spec = _multimap_spec()
+    coordinator = SimpleNamespace(
+        _submission_decode_lock=RLock(),
+        _request=Mock(return_value={"evaluations": results}),
+        run=SimpleNamespace(spec=spec, feature_pipeline=None),
+        codec=object(),
+        journal=Mock(),
+    )
+    monkeypatch.setattr(coordinator_submission, "_validate_submit_payload", lambda *a, **k: None)
+    context = Mock()
+    context.abort.side_effect = RuntimeError("aborted")
+    with pytest.raises(RuntimeError, match="aborted"):
+        coordinator_submission.submit(coordinator, BytesValue(), context)
+    coordinator.journal.append.assert_not_called()
+    with pytest.raises(ValueError, match="journal contains unadmitted evaluation"):
+        coordinator_ingest.ingest(coordinator, {"evaluations": results}, 1)

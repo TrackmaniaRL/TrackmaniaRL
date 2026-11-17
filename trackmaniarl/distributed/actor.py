@@ -100,8 +100,9 @@ class ActorRuntime:
         self.collect_allowed = threading.Event()
         self.collect_allowed.set()
         self._evaluation_request_lock = threading.Lock()
-        self._evaluation_request: tuple[bytes, int, str] | None = None
+        self._evaluation_request: tuple[bytes, int, str] | tuple[bytes, int, str, str] | None = None
         self._active_evaluation_assignment_id = ""
+        self._active_evaluation_assets_sha256 = ""
         self._active_evaluation_initial_snapshot = b""
         self._evaluation_index = 0
         self.queue: Queue[Path] = Queue()
@@ -256,7 +257,19 @@ class ActorRuntime:
     def _collect_environment(self, environment: Any, pipeline: Any) -> None:
         try:
             self._collect(environment, pipeline)
-        finally:
+        except BaseException as error:
+            fail_closed = getattr(environment, "fail_closed", None)
+            if callable(fail_closed):
+                try:
+                    fail_closed(error)
+                except Exception as cleanup_error:
+                    error.add_note(f"Failed to quarantine environment: {cleanup_error!r}")
+            try:
+                self._close_environment(environment)
+            except Exception as cleanup_error:
+                error.add_note(f"Failed to close environment: {cleanup_error!r}")
+            raise
+        else:
             self._close_environment(environment)
 
     @staticmethod
@@ -287,10 +300,36 @@ class ActorRuntime:
         environment = self._environment_factory()
         from trackmaniarl.distributed.evaluation_contract import validate_scheduled_evaluation
 
+        suite = self.spec.evaluation
+        if (
+            suite is not None
+            and len(suite.maps) > 1
+            and self.spec.training.evaluate_every_episodes is not None
+            and getattr(self.spec.distributed, "actor_stall_timeout_s", None) is not None
+        ):
+            raise ValueError("multi-map evaluation cannot safely use actor_stall_timeout_s yet")
         validate_scheduled_evaluation(self.spec, environment, pipeline, self.base_dir)
+        if (
+            suite is not None
+            and len(suite.maps) > 1
+            and self.spec.training.evaluate_every_episodes is not None
+            and run_fingerprint(self.spec, self.base_dir) != self.fingerprint
+        ):
+            raise RuntimeError("run assets changed while initializing multi-map evaluation")
+        self._multi_map_factory = environment if suite is not None and len(suite.maps) > 1 else None
         model_factory = self._model_factory()
         self._replica_learner = self._create_replica_learner(model_factory)
         self._replica_learner.setup(self._replica_context(model_factory))
+        if (
+            suite is not None
+            and len(suite.maps) > 1
+            and self.spec.training.evaluate_every_episodes is not None
+        ):
+            # Refuse unsupported or non-isolatable policies before factory.create
+            # can take control of the game or dispatch the initial map switch.
+            from trackmaniarl.distributed.actor_evaluation import _isolated_policy
+
+            _isolated_policy(self._new_policy())
         self._log_replica_execution()
         return pipeline, environment
 

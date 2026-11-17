@@ -45,7 +45,15 @@ def _fixture(tmp_path: Path) -> tuple[Path, Path, Path, str]:
     return good, manifest, bad, hashlib.sha256(manifest.read_bytes()).hexdigest()
 
 
-def _run(good: Path, manifest: Path, bad: Path, digest: str, *, preload: bool = False):
+def _run(
+    good: Path,
+    manifest: Path,
+    bad: Path,
+    digest: str,
+    *,
+    preload: bool = False,
+    legacy: bool = False,
+):
     script = """
 import sys
 sys.path.insert(0, sys.argv[1])
@@ -56,11 +64,16 @@ binding = activate_from_environment()
 import trackmaniarl
 print(binding['imported_package'])
 """
-    env = dict(
-        os.environ,
-        TMRL_V8_DEPLOYMENT=str(good),
-        TMRL_V8_MANIFEST=str(manifest),
-        TMRL_V8_MANIFEST_SHA256=digest,
+    env = {
+        k: v for k, v in os.environ.items() if not k.startswith(("TMRL_V8_", "TRACKMANIARL_V8_"))
+    }
+    prefix = "TMRL" if legacy else "TRACKMANIARL"
+    env.update(
+        {
+            f"{prefix}_V8_DEPLOYMENT": str(good),
+            f"{prefix}_V8_MANIFEST": str(manifest),
+            f"{prefix}_V8_MANIFEST_SHA256": digest,
+        }
     )
     return subprocess.run(
         [sys.executable, "-B", "-c", script, str(bad), "preload" if preload else "clean"],
@@ -73,9 +86,12 @@ print(binding['imported_package'])
     )
 
 
-def test_verified_deployment_precedes_competing_old_backend(tmp_path: Path) -> None:
+@pytest.mark.parametrize("legacy", [False, True])
+def test_verified_deployment_precedes_competing_old_backend(
+    tmp_path: Path, *, legacy: bool
+) -> None:
     good, manifest, bad, digest = _fixture(tmp_path)
-    result = _run(good, manifest, bad, digest)
+    result = _run(good, manifest, bad, digest, legacy=legacy)
     assert result.returncode == 0, result.stderr
     assert str(good / "trackmaniarl" / "__init__.py") in result.stdout
 

@@ -51,3 +51,4 @@ class SpoolRequest:
     policy_version: int
     evaluations: list[dict[str, Any]] = field(default_factory=list)
     evaluation_snapshot: bytes = b""
+    cancel_on_stop: bool = False

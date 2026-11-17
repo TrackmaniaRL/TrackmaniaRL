@@ -38,7 +38,14 @@ def test_programmatic_prepare_fails_before_imports(tmp_path, monkeypatch):
 def test_cli_prepare_rejects_missing_deployment_before_work(tmp_path):
     output = tmp_path / "output"
     environment = os.environ.copy()
-    for name in ("TMRL_V8_DEPLOYMENT", "TMRL_V8_MANIFEST", "TMRL_V8_MANIFEST_SHA256"):
+    for name in (
+        "TMRL_V8_DEPLOYMENT",
+        "TMRL_V8_MANIFEST",
+        "TMRL_V8_MANIFEST_SHA256",
+        "TRACKMANIARL_V8_DEPLOYMENT",
+        "TRACKMANIARL_V8_MANIFEST",
+        "TRACKMANIARL_V8_MANIFEST_SHA256",
+    ):
         environment.pop(name, None)
     result = subprocess.run(
         [

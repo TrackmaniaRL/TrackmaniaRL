@@ -218,7 +218,11 @@ def _assert_openplanet_plugin(target: Path) -> None:
     assert plugin.is_file()
     plugin_source = plugin.read_text(encoding="utf-8")
     assert 'const string PROTOCOL_VERSION = "2"' in plugin_source
-    assert "if (api is null || vis is null) { yield(); continue; }" in plugin_source
+    reference = (
+        Path(__file__).resolve().parents[3]
+        / "trackmaniarl/project/openplanet/TrackmaniaRL_Connect.as"
+    )
+    assert plugin_source == reference.read_text(encoding="utf-8")
     assert "vis is null ?" not in plugin_source
     info = tomllib.loads((target / "openplanet" / "info.reference.toml").read_text())
     assert info["meta"]["name"] == "TrackmaniaRL Connect"

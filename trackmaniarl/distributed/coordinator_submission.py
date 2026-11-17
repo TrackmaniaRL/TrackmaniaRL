@@ -22,6 +22,7 @@ from trackmaniarl.distributed.coordinator_validation import (
     _evaluation_admission_error,
     _validate_submit_payload,
 )
+from trackmaniarl.distributed.evaluation_assets import evaluation_assets_digest, is_sha256
 from trackmaniarl.distributed.journal import JournalPayloadConflictError
 
 if TYPE_CHECKING:
@@ -42,6 +43,7 @@ class _EvaluationAssignment:
     policy_version: int
     snapshot: bytes
     assignment_id: str = ""
+    assets_sha256: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,14 +187,28 @@ def _append_journal(
                 "evaluation policy snapshot does not match the assigned policy",
             )
             raise AssertionError("gRPC abort returned")
+        assets = previous.get("assets_sha256", "")
+        suite = getattr(coordinator.run.spec, "evaluation", None)
+        if suite is not None and len(getattr(suite, "maps", ())) > 1 and not is_sha256(assets):
+            context.abort(
+                grpc.StatusCode.FAILED_PRECONDITION, "evaluation assignment lacks asset binding"
+            )
+            raise AssertionError("gRPC abort returned")
+        if assets and any(item.get("evaluation_assets_sha256") != assets for item in evaluations):
+            context.abort(
+                grpc.StatusCode.FAILED_PRECONDITION, "evaluation assets differ from assignment"
+            )
+            raise AssertionError("gRPC abort returned")
     try:
         if assignment_id:
             assignment_row = int(previous["assigned_row_id"]) if previous is not None else 0
+            kwargs: dict[str, Any] = {
+                "evaluation": (str(value["actor_id"]), assignment_id, eligible, assignment_row)
+            }
+            if eligible and previous and previous.get("assets_sha256"):
+                kwargs["evaluation_assets"] = previous["assets_sha256"]
             return coordinator.journal.append(
-                value["session_id"],
-                value["sequence"],
-                message.value,
-                evaluation=(str(value["actor_id"]), assignment_id, eligible, assignment_row),
+                value["session_id"], value["sequence"], message.value, **kwargs
             )
         return coordinator.journal.append(value["session_id"], value["sequence"], message.value)
     except JournalPayloadConflictError as exc:
@@ -310,6 +326,7 @@ def _assign_evaluation(
                     previous["version"],
                     previous["snapshot"],
                     previous.get("assignment_id", ""),
+                    previous.get("assets_sha256", ""),
                 )
             return _EvaluationAssignment(False, coordinator.counters.policy_version, b"")
         evaluate = (
@@ -318,6 +335,12 @@ def _assign_evaluation(
         version = coordinator.counters.policy_version
         snapshot = coordinator._policy_payload if evaluate else b""
         assignment_id = uuid4().hex if evaluate else ""
+        suite = getattr(coordinator.run.spec, "evaluation", None)
+        assets_sha256 = (
+            evaluation_assets_digest(suite, coordinator.run.base_dir)
+            if evaluate and suite is not None and len(getattr(suite, "maps", ())) > 1
+            else ""
+        )
         if evaluate:
             _remember_evaluation_policy(coordinator, version, snapshot)
             assignments[actor_id] = {
@@ -328,11 +351,12 @@ def _assign_evaluation(
                 "version": version,
                 "snapshot": snapshot,
                 "assignment_id": assignment_id,
+                "assets_sha256": assets_sha256,
                 "retired_sessions": [],
             }
             due = coordinator._evaluation_due - {actor_id}
             coordinator_delivery.save(coordinator, due, assignments)
-    return _EvaluationAssignment(evaluate, version, snapshot, assignment_id)
+    return _EvaluationAssignment(evaluate, version, snapshot, assignment_id, assets_sha256)
 
 
 def _remember_evaluation_policy(coordinator: Coordinator, version: int, snapshot: bytes) -> None:
@@ -359,5 +383,6 @@ def _accepted_response(accepted: _AcceptedSubmission) -> BytesValue:
         "evaluation_policy_version": evaluation.policy_version,
         "evaluation_snapshot": evaluation.snapshot,
         "evaluation_assignment_id": evaluation.assignment_id,
+        "evaluation_assets_sha256": evaluation.assets_sha256,
     }
     return coordinator._response(payload, accepted.context)

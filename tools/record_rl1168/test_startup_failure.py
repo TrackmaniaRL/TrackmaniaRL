@@ -19,7 +19,14 @@ def test_invalid_deployment_writes_failure_receipt(tmp_path: Path, module: str, 
         encoding="utf-8",
     )
     env = dict(os.environ)
-    for key in ("TMRL_V8_DEPLOYMENT", "TMRL_V8_MANIFEST", "TMRL_V8_MANIFEST_SHA256"):
+    for key in (
+        "TMRL_V8_DEPLOYMENT",
+        "TMRL_V8_MANIFEST",
+        "TMRL_V8_MANIFEST_SHA256",
+        "TRACKMANIARL_V8_DEPLOYMENT",
+        "TRACKMANIARL_V8_MANIFEST",
+        "TRACKMANIARL_V8_MANIFEST_SHA256",
+    ):
         env.pop(key, None)
     proc = subprocess.run(
         [sys.executable, "-B", "-m", "tools.record_rl1168." + module, str(tmp_path)],

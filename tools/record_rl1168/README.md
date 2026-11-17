@@ -14,9 +14,9 @@ be outside the deployment. Create the separate V8 SDK from this checkout:
 
 ```sh
 "$PYTHON" -B -m tools.record_rl1168.deployment "$PWD" "$DEPLOYMENT" "$MANIFEST"
-export TMRL_V8_DEPLOYMENT="$DEPLOYMENT"
-export TMRL_V8_MANIFEST="$MANIFEST"
-export TMRL_V8_MANIFEST_SHA256="$(sha256sum "$MANIFEST" | cut -d ' ' -f 1)"
+export TRACKMANIARL_V8_DEPLOYMENT="$DEPLOYMENT"
+export TRACKMANIARL_V8_MANIFEST="$MANIFEST"
+export TRACKMANIARL_V8_MANIFEST_SHA256="$(sha256sum "$MANIFEST" | cut -d ' ' -f 1)"
 ```
 
 Record the printed manifest SHA. Do not change or replace the deployment or the
@@ -53,3 +53,9 @@ files against the current or frozen checkout and the qualified manifest before
 importing `trackmaniarl`. The launcher's `source` directory contains a frozen
 copy of the checkout SDK for this comparison. An incomplete or failed run is
 not a qualifying result.
+
+The campaign tools prefer the `TRACKMANIARL_` environment variables shown above.
+The previous `TMRL_V8_DEPLOYMENT`, `TMRL_V8_MANIFEST`,
+`TMRL_V8_MANIFEST_SHA256`, and `TMRL_CAMPAIGN_PRIVATE_BASE` names remain
+supported for existing launch environments. When both names are set, the
+`TRACKMANIARL_` value takes precedence.

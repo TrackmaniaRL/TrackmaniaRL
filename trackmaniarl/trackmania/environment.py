@@ -152,6 +152,9 @@ class OpenPlanetEnvironment:
     def reset(self, *, seed: int | None = None) -> tuple[np.ndarray, dict[str, Any]]:
         del seed
         try:
+            begin_reset = getattr(self.client, "begin_reset", None)
+            if callable(begin_reset):
+                begin_reset()
             return self._reset_episode()
         except BaseException as error:
             # A failed telemetry/map/reward reset must not leave the countdown
@@ -161,6 +164,10 @@ class OpenPlanetEnvironment:
             except Exception as release_error:
                 error.add_note(f"Failed to release reset controls: {release_error!r}")
             raise
+        finally:
+            finish_reset = getattr(self.client, "finish_reset", None)
+            if callable(finish_reset):
+                finish_reset()
 
     def _reset_episode(self) -> tuple[np.ndarray, dict[str, Any]]:
         if self.evaluation_map is not None:

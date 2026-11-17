@@ -149,6 +149,14 @@ class EvaluationJournalMixin:
             ).fetchone()
             return None if row is None else str(row[0]) == "1"
 
+    def evaluation_row_assets(self, row_id: int) -> str | None:
+        """Return the immutable assigned asset digest written with admission."""
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT value FROM metadata WHERE key = ?", (f"evaluation_assets:{row_id}",)
+            ).fetchone()
+            return None if row is None else str(row[0])
+
     def stage_evaluation_promotion(self, row_id: int, payload: bytes) -> None:
         """Keep exact policy evidence until both leader promotions are durable."""
         if row_id <= 0:
